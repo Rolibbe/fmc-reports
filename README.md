@@ -74,6 +74,14 @@ window.FINDING_CATALOG_CONFIG = {
 - Si agregas una nueva categoria, aparecera automaticamente en el primer menu.
 - Si agregas o quitas incidencias dentro de una categoria, cambiaran automaticamente las opciones del segundo menu.
 
+## Archivo para personalizar clientes / plantas
+
+Puedes cambiar las opciones del campo `Cliente / planta` editando:
+
+- `clientes-plantas.txt`
+
+Escribe un cliente o planta por renglon. Puedes agregar, quitar o corregir nombres desde Bloc de notas y despues volver a cargar la app.
+
 ### Ejemplo de nueva categoria
 
 ```js

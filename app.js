@@ -23,10 +23,37 @@ function sanitizeFindingCatalog(source) {
 const DB_NAME = "crane-inspections-db";
 const DB_VERSION = 1;
 const STORE_NAME = "inspections";
+const CLIENT_PLANTS_FILE = "clientes-plantas.txt";
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
 };
+
+const fallbackClientPlants = [
+  "IVEMSA",
+  "PLASTIKUS",
+  "ROSCO INDUSTRIAL ENGINEERING",
+  "ONTEX MEXICO OPERATIONS",
+  "HUTCHINSON SEAL DE MEXICO",
+  "SEAL FOR LIFE INDUSTRIES MEXICO",
+  "PRODIMAT INDUSTRIAL Y DE LA CONSTRUCCION",
+  "GARRET MOTION MEXICO",
+  "GARRET TRANSPORTATION INC",
+  "OPTI-SOURCE",
+  "ALLPOWER DE MEXICO",
+  "AUTO VAC SYSTEMS DE MEXICO",
+  "COBHAM ADVANCED ELECTRONIC SOLUTIONS MEXICO",
+  "KYOUNG IL DE MEXICO",
+  "JONATHAN MFG DE MEXICO",
+  "TAPICERIAS PACIFICO",
+  "DART DE TIJUANA",
+  "FABRICA DE PAPEL SAN FRANCISCO",
+  "SUNBANK DE MEXICO",
+  "ESPECIALIZADOS DEL AIRE",
+  "JAE TIJUANA",
+  "PRISMA SHELTER",
+  "I.N.G.E.T.E.K.N.O.S. ESTRUCTURALES"
+];
 
 const findingCatalog = sanitizeFindingCatalog(window.FINDING_CATALOG_CONFIG) || fallbackFindingCatalog;
 
@@ -36,6 +63,8 @@ let currentEquipmentFindings = [];
 let currentEquipmentServicePhotos = [];
 let currentChecklistImage = null;
 let editingPhotos = [];
+let draggedEquipmentId = null;
+let didDragEquipment = false;
 
 const elements = {
   sidebar: document.getElementById("sidebar"),
@@ -120,6 +149,7 @@ document.addEventListener("DOMContentLoaded", initializeApp);
 async function initializeApp() {
   populateCategoryOptions();
   setupAppActions();
+  await loadClientPlantOptions();
   setDefaultDates();
   assignNewReportNumber(true);
   resetEquipmentEditorState();
@@ -151,6 +181,9 @@ function setupAppActions() {
   elements.servicePhotoGalleryInput.addEventListener("change", handleServicePhotos);
   elements.servicePhotoCameraInput.addEventListener("change", handleServicePhotos);
   elements.checklistImageInput.addEventListener("change", handleChecklistImage);
+  setupImageDropZone(elements.findingPhotoPreview, addFindingPhotoFiles);
+  setupImageDropZone(elements.servicePhotoPreview, addServicePhotoFiles);
+  setupImageDropZone(elements.checklistImageStatus, addChecklistImageFile, { single: true });
   elements.cancelFindingButton.addEventListener("click", closeFindingEditor);
   elements.saveFindingButton.addEventListener("click", saveFindingFromEditor);
   elements.saveInspectionButton.addEventListener("click", async () => {
@@ -185,6 +218,57 @@ function populateCategoryOptions() {
     .map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
     .join("");
   populateIncidenceOptions();
+}
+
+async function loadClientPlantOptions() {
+  const clientPlants = await readClientPlantsFromFile();
+  populateClientPlantOptions(clientPlants);
+}
+
+async function readClientPlantsFromFile() {
+  try {
+    const response = await fetch(CLIENT_PLANTS_FILE, { cache: "no-store" });
+    if (!response.ok) {
+      return fallbackClientPlants;
+    }
+
+    const text = await response.text();
+    const clientPlants = parseClientPlants(text);
+    return clientPlants.length ? clientPlants : fallbackClientPlants;
+  } catch (error) {
+    return fallbackClientPlants;
+  }
+}
+
+function parseClientPlants(text) {
+  return Array.from(new Set(String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))));
+}
+
+function populateClientPlantOptions(clientPlants, selectedValue = elements.plantName.value) {
+  const options = Array.from(new Set(clientPlants.filter(Boolean)));
+  const selected = String(selectedValue || "").trim();
+
+  if (selected && !options.includes(selected)) {
+    options.unshift(selected);
+  }
+
+  elements.plantName.innerHTML = [
+    '<option value="">Selecciona cliente / planta</option>',
+    ...options.map((clientPlant) => `<option value="${escapeHtml(clientPlant)}">${escapeHtml(clientPlant)}</option>`)
+  ].join("");
+  elements.plantName.value = selected;
+}
+
+function setClientPlantValue(value) {
+  populateClientPlantOptions(
+    Array.from(elements.plantName.options)
+      .map((option) => option.value)
+      .filter(Boolean),
+    value
+  );
 }
 
 function populateIncidenceOptions(selectedIncidence) {
@@ -302,32 +386,48 @@ function closeSidebar() {
 
 async function handleFindingPhotos(event) {
   const files = Array.from(event.target.files || []);
-  if (!files.length) {
-    return;
-  }
-
-  const encoded = await Promise.all(files.map(fileToDataUrl));
-  editingPhotos = editingPhotos.concat(encoded);
+  await addFindingPhotoFiles(files);
   elements.findingPhotoGalleryInput.value = "";
   elements.findingPhotoCameraInput.value = "";
-  renderEditingPhotos();
 }
 
 async function handleServicePhotos(event) {
   const files = Array.from(event.target.files || []);
-  if (!files.length) {
-    return;
-  }
-
-  const encoded = await Promise.all(files.map(fileToDataUrl));
-  currentEquipmentServicePhotos = currentEquipmentServicePhotos.concat(encoded);
+  await addServicePhotoFiles(files);
   elements.servicePhotoGalleryInput.value = "";
   elements.servicePhotoCameraInput.value = "";
-  renderServicePhotos();
 }
 
 async function handleChecklistImage(event) {
   const [file] = Array.from(event.target.files || []);
+  await addChecklistImageFile([file]);
+  elements.checklistImageInput.value = "";
+}
+
+async function addFindingPhotoFiles(files) {
+  const imageFiles = filterImageFiles(files);
+  if (!imageFiles.length) {
+    return;
+  }
+
+  const encoded = await Promise.all(imageFiles.map(fileToDataUrl));
+  editingPhotos = editingPhotos.concat(encoded);
+  renderEditingPhotos();
+}
+
+async function addServicePhotoFiles(files) {
+  const imageFiles = filterImageFiles(files);
+  if (!imageFiles.length) {
+    return;
+  }
+
+  const encoded = await Promise.all(imageFiles.map(fileToDataUrl));
+  currentEquipmentServicePhotos = currentEquipmentServicePhotos.concat(encoded);
+  renderServicePhotos();
+}
+
+async function addChecklistImageFile(files) {
+  const [file] = filterImageFiles(files);
   if (!file) {
     return;
   }
@@ -336,8 +436,44 @@ async function handleChecklistImage(event) {
     name: file.name,
     dataUrl: await fileToDataUrl(file)
   };
-  elements.checklistImageInput.value = "";
   renderChecklistImageStatus();
+}
+
+function setupImageDropZone(dropZone, onFiles, options = {}) {
+  if (!dropZone) {
+    return;
+  }
+
+  ["dragenter", "dragover"].forEach((eventName) => {
+    dropZone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      dropZone.classList.add("is-drag-over");
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "copy";
+      }
+    });
+  });
+
+  ["dragleave", "drop"].forEach((eventName) => {
+    dropZone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (eventName === "dragleave" && dropZone.contains(event.relatedTarget)) {
+        return;
+      }
+      dropZone.classList.remove("is-drag-over");
+    });
+  });
+
+  dropZone.addEventListener("drop", async (event) => {
+    const files = Array.from(event.dataTransfer ? event.dataTransfer.files : []);
+    await onFiles(options.single ? files.slice(0, 1) : files);
+  });
+}
+
+function filterImageFiles(files) {
+  return Array.from(files || []).filter((file) => file && file.type && file.type.startsWith("image/"));
 }
 
 function renderEditingPhotos() {
@@ -517,6 +653,15 @@ function renderEquipmentList() {
     const normalized = normalizeEquipment(equipment);
     const shell = document.createElement("div");
     shell.className = "list-card-shell";
+    shell.draggable = true;
+    shell.dataset.equipmentId = normalized.id;
+    shell.title = "Arrastra para cambiar el orden";
+    shell.addEventListener("dragstart", (event) => handleEquipmentDragStart(event, normalized.id));
+    shell.addEventListener("dragover", handleEquipmentDragOver);
+    shell.addEventListener("dragleave", handleEquipmentDragLeave);
+    shell.addEventListener("drop", (event) => handleEquipmentDrop(event, normalized.id));
+    shell.addEventListener("dragend", handleEquipmentDragEnd);
+
     const card = document.createElement("button");
     card.type = "button";
     card.className = "finding-list-card";
@@ -529,7 +674,13 @@ function renderEquipmentList() {
       </div>
       <p>${escapeHtml(buildEquipmentCardSummary(normalized))}</p>
     `;
-    card.addEventListener("click", () => openEquipmentEditor(normalized.id));
+    card.addEventListener("click", (event) => {
+      if (didDragEquipment) {
+        event.preventDefault();
+        return;
+      }
+      openEquipmentEditor(normalized.id);
+    });
 
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
@@ -544,6 +695,98 @@ function renderEquipmentList() {
     shell.appendChild(deleteButton);
     elements.equipmentList.appendChild(shell);
   });
+}
+
+function handleEquipmentDragStart(event, equipmentId) {
+  draggedEquipmentId = equipmentId;
+  didDragEquipment = true;
+  event.currentTarget.classList.add("is-dragging");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", equipmentId);
+}
+
+function handleEquipmentDragOver(event) {
+  if (!draggedEquipmentId || event.currentTarget.dataset.equipmentId === draggedEquipmentId) {
+    return;
+  }
+
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  const position = getEquipmentDropPosition(event, event.currentTarget);
+  setEquipmentDropIndicator(event.currentTarget, position);
+}
+
+function handleEquipmentDragLeave(event) {
+  if (!event.currentTarget.contains(event.relatedTarget)) {
+    clearEquipmentDropIndicator(event.currentTarget);
+  }
+}
+
+function handleEquipmentDrop(event, targetEquipmentId) {
+  event.preventDefault();
+  const sourceEquipmentId = draggedEquipmentId || event.dataTransfer.getData("text/plain");
+  const position = getEquipmentDropPosition(event, event.currentTarget);
+
+  clearAllEquipmentDragStates();
+
+  if (!sourceEquipmentId || sourceEquipmentId === targetEquipmentId) {
+    return;
+  }
+
+  reorderEquipment(sourceEquipmentId, targetEquipmentId, position);
+}
+
+function handleEquipmentDragEnd() {
+  draggedEquipmentId = null;
+  clearAllEquipmentDragStates();
+  setTimeout(() => {
+    didDragEquipment = false;
+  }, 0);
+}
+
+function getEquipmentDropPosition(event, target) {
+  const rect = target.getBoundingClientRect();
+  return event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+}
+
+function setEquipmentDropIndicator(target, position) {
+  target.classList.toggle("drop-before", position === "before");
+  target.classList.toggle("drop-after", position === "after");
+}
+
+function clearEquipmentDropIndicator(target) {
+  target.classList.remove("drop-before", "drop-after");
+}
+
+function clearAllEquipmentDragStates() {
+  elements.equipmentList.querySelectorAll(".list-card-shell").forEach((item) => {
+    item.classList.remove("is-dragging", "drop-before", "drop-after");
+  });
+}
+
+function reorderEquipment(sourceEquipmentId, targetEquipmentId, position) {
+  const sourceIndex = currentEquipments.findIndex((item) => item.id === sourceEquipmentId);
+  const targetIndex = currentEquipments.findIndex((item) => item.id === targetEquipmentId);
+
+  if (sourceIndex < 0 || targetIndex < 0) {
+    return;
+  }
+
+  const [movedEquipment] = currentEquipments.splice(sourceIndex, 1);
+  let insertIndex = currentEquipments.findIndex((item) => item.id === targetEquipmentId);
+
+  if (insertIndex < 0) {
+    currentEquipments.push(movedEquipment);
+    renderEquipmentList();
+    return;
+  }
+
+  if (position === "after") {
+    insertIndex += 1;
+  }
+
+  currentEquipments.splice(insertIndex, 0, movedEquipment);
+  renderEquipmentList();
 }
 
 function deleteFinding(findingId) {
@@ -724,7 +967,7 @@ function loadInspection(record) {
   elements.serviceType.value = normalized.serviceType || "Inspeccion de grua";
   elements.inspectionDate.value = normalized.inspectionDate || "";
   elements.technicianName.value = normalized.technicianName || "";
-  elements.plantName.value = normalized.plantName || "";
+  setClientPlantValue(normalized.plantName || "");
   elements.plantLocation.value = normalized.plantLocation || "";
   elements.siteContact.value = normalized.siteContact || "";
   elements.siteContactInfo.value = normalized.siteContactInfo || "";

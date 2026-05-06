@@ -83,7 +83,9 @@
             </label>
             <label>
               Cliente / planta
-              <input id="plantName" name="plantName" type="text" placeholder="Empresa o planta" required>
+              <select id="plantName" name="plantName" required>
+                <option value="">Cargando clientes...</option>
+              </select>
             </label>
             <label>
               Ubicacion
@@ -269,7 +271,7 @@
             <input id="servicePhotoGalleryInput" class="file-input-hidden" type="file" accept="image/*" multiple>
             <input id="servicePhotoCameraInput" class="file-input-hidden" type="file" accept="image/*" capture="environment" multiple>
 
-            <div id="servicePhotoPreview" class="photo-preview large-preview"></div>
+            <div id="servicePhotoPreview" class="photo-preview large-preview image-drop-zone" data-empty-label="Arrastra fotos aqui o usa los botones de arriba"></div>
           </section>
 
           <section class="subpanel editor-subpanel">
@@ -285,7 +287,7 @@
               <button id="clearChecklistImageButton" class="ghost-button" type="button">Quitar imagen</button>
             </div>
             <input id="checklistImageInput" class="file-input-hidden" type="file" accept="image/jpeg,image/jpg,image/*">
-            <div id="checklistImageStatus" class="inline-empty-state">Todavia no se ha adjuntado una imagen del checklist.</div>
+            <div id="checklistImageStatus" class="inline-empty-state image-drop-zone">Todavia no se ha adjuntado una imagen del checklist.</div>
           </section>
         </form>
       </section>
@@ -333,7 +335,7 @@
           <input id="findingPhotoGalleryInput" class="file-input-hidden" type="file" accept="image/*" multiple>
           <input id="findingPhotoCameraInput" class="file-input-hidden" type="file" accept="image/*" capture="environment" multiple>
 
-          <div id="findingPhotoPreview" class="photo-preview large-preview"></div>
+          <div id="findingPhotoPreview" class="photo-preview large-preview image-drop-zone" data-empty-label="Arrastra fotos del hallazgo aqui o usa los botones de arriba"></div>
         </form>
       </section>
     </main>
