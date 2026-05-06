@@ -31,9 +31,13 @@
 
       <section class="saved-section">
         <div class="section-header">
-          <h2>Reportes guardados</h2>
+          <div>
+            <p class="eyebrow">Archivo local</p>
+            <h2>Reportes guardados</h2>
+          </div>
           <button id="refreshReportsButton" class="ghost-button" type="button">Actualizar</button>
         </div>
+        <div id="savedReportsSummary" class="saved-summary"></div>
         <div id="savedReports" class="saved-list"></div>
       </section>
     </aside>
@@ -46,12 +50,29 @@
             <h2>Nuevo reporte</h2>
           </div>
           <div class="toolbar">
-            <button id="openSidebarButton" class="ghost-button" type="button">Historial</button>
-            <button id="importInspectionButton" class="ghost-button" type="button">Importar</button>
             <button id="newInspectionButton" class="ghost-button" type="button">Nueva</button>
             <button id="saveInspectionButton" class="secondary-button" type="button">Guardar</button>
-            <button id="exportInspectionButton" class="secondary-button" type="button">Exportar</button>
             <button id="generatePdfButton" class="primary-button" type="button">Generar PDF</button>
+            <button id="toolsMenuButton" class="ghost-button tools-menu-button" type="button" aria-label="Abrir herramientas" aria-expanded="false" aria-controls="toolsMenuList">
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
+            <div id="toolsMenuList" class="tools-side-panel hidden">
+              <div class="tools-side-header">
+                <div>
+                  <p class="eyebrow">Menu</p>
+                  <strong>Herramientas</strong>
+                </div>
+                <button type="button" aria-label="Cerrar herramientas">Cerrar</button>
+              </div>
+              <button id="openSidebarButton" type="button">Historial de reportes</button>
+              <button id="openCraneHistoryButton" type="button">Historial de grua</button>
+              <button id="openClientHistoryButton" type="button">Historial de cliente</button>
+              <button id="openConsolidatedHistoryButton" type="button">Concentrado general</button>
+              <button id="importInspectionButton" type="button">Importar reporte</button>
+              <button id="exportInspectionButton" type="button">Exportar reporte</button>
+            </div>
           </div>
         </div>
 
@@ -139,6 +160,10 @@
             </div>
 
             <div class="grid three-column">
+              <label>
+                ID de grua / identificador de equipo
+                <input id="craneId" name="craneId" type="text" placeholder="Ej. GR-001, serie o tag interno" required>
+              </label>
               <label>
                 Nombre o tag del equipo
                 <input id="equipmentName" type="text" placeholder="Ej. Grua puente linea 3" required>
@@ -337,6 +362,93 @@
 
           <div id="findingPhotoPreview" class="photo-preview large-preview image-drop-zone" data-empty-label="Arrastra fotos del hallazgo aqui o usa los botones de arriba"></div>
         </form>
+      </section>
+
+      <section class="panel app-view hidden" id="historyView">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Historial de grua</p>
+            <h2>Consulta por identificador</h2>
+          </div>
+          <div class="toolbar">
+            <button id="closeCraneHistoryButton" class="ghost-button" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div class="subpanel">
+          <div class="grid two-column">
+            <label>
+              ID de grua
+              <input id="craneHistorySearch" list="craneHistoryOptions" type="text" placeholder="Escribe o selecciona una grua">
+              <datalist id="craneHistoryOptions"></datalist>
+            </label>
+            <div class="history-actions">
+              <button id="refreshCraneHistoryButton" class="secondary-button" type="button">Actualizar historial</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="craneHistorySummary" class="history-summary"></div>
+        <div id="craneHistoryReports" class="findings-list"></div>
+      </section>
+
+      <section class="panel app-view hidden" id="clientHistoryView">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Historial de cliente</p>
+            <h2>Gruas registradas por cliente</h2>
+          </div>
+          <div class="toolbar">
+            <button id="closeClientHistoryButton" class="ghost-button" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div class="subpanel">
+          <div class="grid two-column">
+            <label>
+              Cliente / planta
+              <input id="clientHistorySearch" list="clientHistoryOptions" type="text" placeholder="Escribe o selecciona un cliente">
+              <datalist id="clientHistoryOptions"></datalist>
+            </label>
+            <div class="history-actions">
+              <button id="refreshClientHistoryButton" class="secondary-button" type="button">Actualizar historial</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="clientHistorySummary" class="history-summary"></div>
+        <div id="clientCraneList" class="findings-list"></div>
+        <div id="clientCraneDetail" class="client-crane-detail"></div>
+      </section>
+
+      <section class="panel app-view hidden" id="consolidatedHistoryView">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Concentrado general</p>
+            <h2>Tabla historica de equipos</h2>
+          </div>
+          <div class="toolbar">
+            <button id="exportConsolidatedHistoryButton" class="secondary-button" type="button">Exportar CSV</button>
+            <button id="refreshConsolidatedHistoryButton" class="secondary-button" type="button">Actualizar</button>
+            <button id="closeConsolidatedHistoryButton" class="ghost-button" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div class="subpanel consolidated-filters">
+          <div class="grid two-column">
+            <label>
+              Filtrar por cliente
+              <input id="consolidatedClientFilter" list="consolidatedClientOptions" type="text" placeholder="Todos los clientes">
+              <datalist id="consolidatedClientOptions"></datalist>
+            </label>
+            <div class="history-actions">
+              <button id="clearConsolidatedClientFilterButton" class="ghost-button" type="button">Limpiar filtro</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="consolidatedHistorySummary" class="history-summary"></div>
+        <div id="consolidatedHistoryTable" class="consolidated-table-wrap"></div>
       </section>
     </main>
   </div>

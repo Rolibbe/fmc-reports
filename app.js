@@ -71,9 +71,14 @@ const elements = {
   sidebarBackdrop: document.getElementById("sidebarBackdrop"),
   openSidebarButton: document.getElementById("openSidebarButton"),
   closeSidebarButton: document.getElementById("closeSidebarButton"),
+  toolsMenuButton: document.getElementById("toolsMenuButton"),
+  toolsMenuList: document.getElementById("toolsMenuList"),
   inspectionView: document.getElementById("inspectionView"),
   equipmentEditorView: document.getElementById("equipmentEditorView"),
   findingEditorView: document.getElementById("findingEditorView"),
+  historyView: document.getElementById("historyView"),
+  clientHistoryView: document.getElementById("clientHistoryView"),
+  consolidatedHistoryView: document.getElementById("consolidatedHistoryView"),
   form: document.getElementById("inspectionForm"),
   inspectionId: document.getElementById("inspectionId"),
   reportNumber: document.getElementById("reportNumber"),
@@ -93,12 +98,38 @@ const elements = {
   generatePdfButton: document.getElementById("generatePdfButton"),
   newInspectionButton: document.getElementById("newInspectionButton"),
   savedReports: document.getElementById("savedReports"),
+  savedReportsSummary: document.getElementById("savedReportsSummary"),
   refreshReportsButton: document.getElementById("refreshReportsButton"),
+  openCraneHistoryButton: document.getElementById("openCraneHistoryButton"),
+  openClientHistoryButton: document.getElementById("openClientHistoryButton"),
+  openConsolidatedHistoryButton: document.getElementById("openConsolidatedHistoryButton"),
+  closeCraneHistoryButton: document.getElementById("closeCraneHistoryButton"),
+  refreshCraneHistoryButton: document.getElementById("refreshCraneHistoryButton"),
+  craneHistorySearch: document.getElementById("craneHistorySearch"),
+  craneHistoryOptions: document.getElementById("craneHistoryOptions"),
+  craneHistorySummary: document.getElementById("craneHistorySummary"),
+  craneHistoryReports: document.getElementById("craneHistoryReports"),
+  closeClientHistoryButton: document.getElementById("closeClientHistoryButton"),
+  refreshClientHistoryButton: document.getElementById("refreshClientHistoryButton"),
+  clientHistorySearch: document.getElementById("clientHistorySearch"),
+  clientHistoryOptions: document.getElementById("clientHistoryOptions"),
+  clientHistorySummary: document.getElementById("clientHistorySummary"),
+  clientCraneList: document.getElementById("clientCraneList"),
+  clientCraneDetail: document.getElementById("clientCraneDetail"),
+  closeConsolidatedHistoryButton: document.getElementById("closeConsolidatedHistoryButton"),
+  refreshConsolidatedHistoryButton: document.getElementById("refreshConsolidatedHistoryButton"),
+  exportConsolidatedHistoryButton: document.getElementById("exportConsolidatedHistoryButton"),
+  consolidatedClientFilter: document.getElementById("consolidatedClientFilter"),
+  consolidatedClientOptions: document.getElementById("consolidatedClientOptions"),
+  clearConsolidatedClientFilterButton: document.getElementById("clearConsolidatedClientFilterButton"),
+  consolidatedHistorySummary: document.getElementById("consolidatedHistorySummary"),
+  consolidatedHistoryTable: document.getElementById("consolidatedHistoryTable"),
   connectionStatus: document.getElementById("connectionStatus"),
   installButton: document.getElementById("installButton"),
   equipmentEditorTitle: document.getElementById("equipmentEditorTitle"),
   equipmentEditorForm: document.getElementById("equipmentEditorForm"),
   editingEquipmentId: document.getElementById("editingEquipmentId"),
+  craneId: document.getElementById("craneId"),
   equipmentName: document.getElementById("equipmentName"),
   craneType: document.getElementById("craneType"),
   ratedCapacity: document.getElementById("ratedCapacity"),
@@ -163,6 +194,7 @@ function setupAppActions() {
   elements.openSidebarButton.addEventListener("click", openSidebar);
   elements.closeSidebarButton.addEventListener("click", closeSidebar);
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
+  elements.toolsMenuButton.addEventListener("click", toggleToolsMenu);
   elements.addEquipmentButton.addEventListener("click", () => openEquipmentEditor());
   elements.importInspectionButton.addEventListener("click", () => elements.importInspectionInput.click());
   elements.importInspectionInput.addEventListener("change", handleInspectionImport);
@@ -193,9 +225,34 @@ function setupAppActions() {
   elements.generatePdfButton.addEventListener("click", generatePdfReport);
   elements.newInspectionButton.addEventListener("click", resetForm);
   elements.refreshReportsButton.addEventListener("click", renderSavedReports);
+  elements.openCraneHistoryButton.addEventListener("click", openCraneHistory);
+  elements.openClientHistoryButton.addEventListener("click", openClientHistory);
+  elements.openConsolidatedHistoryButton.addEventListener("click", openConsolidatedHistory);
+  elements.closeCraneHistoryButton.addEventListener("click", () => showView("inspection"));
+  elements.closeClientHistoryButton.addEventListener("click", () => showView("inspection"));
+  elements.closeConsolidatedHistoryButton.addEventListener("click", () => showView("inspection"));
+  elements.refreshCraneHistoryButton.addEventListener("click", renderCraneHistory);
+  elements.refreshClientHistoryButton.addEventListener("click", renderClientHistory);
+  elements.refreshConsolidatedHistoryButton.addEventListener("click", renderConsolidatedHistory);
+  elements.exportConsolidatedHistoryButton.addEventListener("click", exportConsolidatedHistoryCsv);
+  elements.consolidatedClientFilter.addEventListener("input", renderConsolidatedHistory);
+  elements.clearConsolidatedClientFilterButton.addEventListener("click", () => {
+    elements.consolidatedClientFilter.value = "";
+    renderConsolidatedHistory();
+  });
+  elements.craneHistorySearch.addEventListener("input", renderCraneHistory);
+  elements.clientHistorySearch.addEventListener("input", renderClientHistory);
+  elements.toolsMenuList.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", closeToolsMenu);
+  });
 
   window.addEventListener("online", updateConnectivityStatus);
   window.addEventListener("offline", updateConnectivityStatus);
+  document.addEventListener("click", (event) => {
+    if (!elements.toolsMenuButton.contains(event.target) && !elements.toolsMenuList.contains(event.target)) {
+      closeToolsMenu();
+    }
+  });
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     deferredInstallPrompt = event;
@@ -295,6 +352,7 @@ function openEquipmentEditor(equipmentId) {
 
 function loadEquipmentIntoEditor(equipment) {
   elements.equipmentEditorForm.reset();
+  elements.craneId.value = equipment.craneId;
   elements.equipmentName.value = equipment.equipmentName;
   elements.craneType.value = equipment.craneType;
   elements.ratedCapacity.value = equipment.ratedCapacity;
@@ -368,10 +426,25 @@ function closeFindingEditor() {
   showView("equipment");
 }
 
+function toggleToolsMenu(event) {
+  event.stopPropagation();
+  const isOpen = !elements.toolsMenuList.classList.contains("hidden");
+  elements.toolsMenuList.classList.toggle("hidden", isOpen);
+  elements.toolsMenuButton.setAttribute("aria-expanded", String(!isOpen));
+}
+
+function closeToolsMenu() {
+  elements.toolsMenuList.classList.add("hidden");
+  elements.toolsMenuButton.setAttribute("aria-expanded", "false");
+}
+
 function showView(view) {
   elements.inspectionView.classList.toggle("hidden", view !== "inspection");
   elements.equipmentEditorView.classList.toggle("hidden", view !== "equipment");
   elements.findingEditorView.classList.toggle("hidden", view !== "finding");
+  elements.historyView.classList.toggle("hidden", view !== "history");
+  elements.clientHistoryView.classList.toggle("hidden", view !== "clientHistory");
+  elements.consolidatedHistoryView.classList.toggle("hidden", view !== "consolidatedHistory");
 }
 
 function openSidebar() {
@@ -608,6 +681,7 @@ function saveEquipmentFromEditor() {
   const equipmentId = elements.editingEquipmentId.value || createId();
   const equipment = normalizeEquipment({
     id: equipmentId,
+    craneId: elements.craneId.value.trim(),
     equipmentName: elements.equipmentName.value.trim(),
     craneType: elements.craneType.value,
     ratedCapacity: elements.ratedCapacity.value.trim(),
@@ -832,6 +906,9 @@ function updateConnectivityStatus() {
     : "Sin conexion. Puedes seguir trabajando offline.";
 }
 function collectInspectionData() {
+  const equipments = currentEquipments.map((equipment) => normalizeEquipment(equipment));
+  const craneIds = getInspectionCraneIds({ equipments });
+
   return {
     id: elements.inspectionId.value || createId(),
     reportNumber: elements.reportNumber.value.trim() || createReportNumber(elements.inspectionDate.value, elements.inspectionId.value),
@@ -842,7 +919,9 @@ function collectInspectionData() {
     plantLocation: elements.plantLocation.value.trim(),
     siteContact: elements.siteContact.value.trim(),
     siteContactInfo: elements.siteContactInfo.value.trim(),
-    equipments: currentEquipments.map((equipment) => normalizeEquipment(equipment)),
+    craneId: craneIds[0] || "",
+    craneIds,
+    equipments,
     updatedAt: new Date().toISOString()
   };
 }
@@ -902,22 +981,36 @@ async function generatePdfReport() {
 async function renderSavedReports() {
   const records = await getAllInspections();
   elements.savedReports.innerHTML = "";
+  elements.savedReportsSummary.innerHTML = "";
 
   if (!records.length) {
     elements.savedReports.innerHTML = '<div class="empty-state">Todavia no hay reportes guardados en este dispositivo.</div>';
     return;
   }
 
-  records
+  const normalizedRecords = records
     .map(normalizeInspection)
-    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  renderSavedReportsSummary(normalizedRecords);
+
+  normalizedRecords
     .forEach((record) => {
+      const findingsCount = record.equipments.reduce((sum, equipment) => sum + equipment.findings.length, 0);
+      const craneIds = getInspectionCraneIds(record);
       const card = document.createElement("article");
       card.className = "saved-card";
       card.innerHTML = `
-        <p><strong>${escapeHtml(record.plantName || "Cliente sin nombre")}</strong></p>
-        <p>${escapeHtml(record.reportNumber)} | ${escapeHtml(record.inspectionDate || "")}</p>
-        <p>${escapeHtml(record.serviceType || "Servicio")} | ${record.equipments.length} equipo(s)</p>
+        <div class="saved-card-top">
+          <span class="saved-folio">${escapeHtml(record.reportNumber || "Sin folio")}</span>
+          <span class="saved-date">${escapeHtml(record.inspectionDate || "Sin fecha")}</span>
+        </div>
+        <p class="saved-client">${escapeHtml(record.plantName || "Cliente sin nombre")}</p>
+        <div class="saved-meta">
+          <span>${escapeHtml(record.serviceType || "Servicio")}</span>
+          <span>${record.equipments.length} equipo(s)</span>
+          <span>${findingsCount} hallazgo(s)</span>
+        </div>
+        <p class="saved-cranes">${escapeHtml(craneIds.length ? craneIds.join(" | ") : "Sin ID de grua capturado")}</p>
         <div class="saved-actions">
           <button class="secondary-button" type="button" data-open-id="${record.id}">Abrir</button>
           <button class="secondary-button" type="button" data-export-id="${record.id}">Exportar</button>
@@ -955,6 +1048,692 @@ async function renderSavedReports() {
       }
     });
   });
+}
+
+function renderSavedReportsSummary(records) {
+  const clients = normalizeClientNames(records.map((record) => record.plantName));
+  const craneIds = normalizeCraneIds(records.flatMap(getInspectionCraneIds));
+  const findingsCount = records.reduce(
+    (sum, record) => sum + record.equipments.reduce((itemSum, equipment) => itemSum + equipment.findings.length, 0),
+    0
+  );
+
+  elements.savedReportsSummary.innerHTML = `
+    <article>
+      <span>Reportes</span>
+      <strong>${records.length}</strong>
+    </article>
+    <article>
+      <span>Clientes</span>
+      <strong>${clients.length}</strong>
+    </article>
+    <article>
+      <span>Gruas</span>
+      <strong>${craneIds.length}</strong>
+    </article>
+    <article>
+      <span>Hallazgos</span>
+      <strong>${findingsCount}</strong>
+    </article>
+  `;
+}
+
+const consolidatedHistoryColumns = [
+  { key: "client", label: "CLIENTE" },
+  { key: "service", label: "SERVICIO" },
+  { key: "serviceNumber", label: "# SERVICIO" },
+  { key: "craneId", label: "ID" },
+  { key: "area", label: "AREA" },
+  { key: "type", label: "TIPO" },
+  { key: "structureCapacity", label: "CAPACIDAD ESTRUCTURA (TON)" },
+  { key: "hoistCapacity", label: "CAPACIDAD POLIPASTO (TON)" },
+  { key: "trolleyCapacity", label: "CAPACIDAD TROLLEY (TON)" },
+  { key: "voltage", label: "VOLTAJE" },
+  { key: "brand", label: "MARCA" },
+  { key: "model", label: "MODELO" },
+  { key: "serialNumber", label: "SERIAL #" },
+  { key: "serviceFolio", label: "FOLIO SERVICIO #" },
+  { key: "serviceDate", label: "FECHA DE SERVICIO" },
+  { key: "nextMaintenance", label: "PROXIMO MANTENIMIENTO" },
+  { key: "daysToNextMaintenance", label: "DIAS RESTANTES" },
+  { key: "performedBy", label: "REALIZADO POR" },
+  { key: "receivedBy", label: "RECIBIDO POR" },
+  { key: "status", label: "STATUS" },
+  { key: "reportNumber", label: "REPORTE #" },
+  { key: "comments", label: "COMENTARIOS" },
+  { key: "condition", label: "ESTADO" }
+];
+
+async function openConsolidatedHistory() {
+  await renderConsolidatedHistory();
+  showView("consolidatedHistory");
+}
+
+async function renderConsolidatedHistory() {
+  const allRows = await buildConsolidatedHistoryRows();
+  populateConsolidatedClientOptions(allRows);
+  const rows = filterConsolidatedRowsByClient(allRows);
+  renderConsolidatedHistorySummary(rows);
+  renderConsolidatedHistoryTable(rows);
+}
+
+async function buildConsolidatedHistoryRows() {
+  const records = (await getAllInspections())
+    .map(normalizeInspection)
+    .sort((a, b) => new Date(b.inspectionDate || b.updatedAt || 0) - new Date(a.inspectionDate || a.updatedAt || 0));
+
+  return records.flatMap((record) => {
+    return (record.equipments || []).map((equipment) => {
+      const findingsCount = (equipment.findings || []).length;
+      return {
+        inspectionId: record.id,
+        equipmentId: equipment.id,
+        client: record.plantName || "",
+        service: shortenServiceType(record.serviceType),
+        serviceNumber: record.serviceNumber || "",
+        craneId: "",
+        area: equipment.equipmentLocation || record.plantLocation || "",
+        type: equipment.craneType || "",
+        structureCapacity: equipment.ratedCapacity || "",
+        hoistCapacity: equipment.hoistCapacity || "",
+        trolleyCapacity: equipment.trolleyCapacity || "",
+        voltage: equipment.hoistVoltage || "",
+        brand: equipment.hoistManufacturer || "",
+        model: equipment.hoistModel || "",
+        serialNumber: equipment.hoistSerialNumber || equipment.serialNumber || "",
+        serviceFolio: equipment.checklistFolio || "",
+        serviceDate: record.inspectionDate || "",
+        nextMaintenance: equipment.nextInspection || "",
+        daysToNextMaintenance: calculateDaysUntil(equipment.nextInspection),
+        performedBy: record.technicianName || "",
+        receivedBy: record.siteContact || "",
+        status: equipment.status || equipment.overallCondition || "",
+        reportNumber: record.reportNumber || "",
+        comments: equipment.consolidatedComments || "",
+        findingsCount,
+        condition: equipment.overallCondition || ""
+      };
+    });
+  });
+}
+
+function populateConsolidatedClientOptions(rows) {
+  const clients = normalizeClientNames(rows.map((row) => row.client));
+  elements.consolidatedClientOptions.innerHTML = clients
+    .map((clientName) => `<option value="${escapeHtml(clientName)}"></option>`)
+    .join("");
+}
+
+function filterConsolidatedRowsByClient(rows) {
+  const selectedClient = normalizeClientName(elements.consolidatedClientFilter.value);
+  if (!selectedClient) {
+    return rows;
+  }
+
+  return rows.filter((row) => normalizeClientName(row.client) === selectedClient);
+}
+
+function renderConsolidatedHistorySummary(rows) {
+  const clients = normalizeClientNames(rows.map((row) => row.client));
+  const findingsCount = rows.reduce((sum, row) => sum + (row.findingsCount || 0), 0);
+
+  elements.consolidatedHistorySummary.innerHTML = `
+    <article class="history-stat">
+      <span>Filas</span>
+      <strong>${rows.length}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Clientes</span>
+      <strong>${clients.length}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Equipos</span>
+      <strong>${rows.length}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Hallazgos</span>
+      <strong>${findingsCount}</strong>
+    </article>
+  `;
+}
+
+function renderConsolidatedHistoryTable(rows) {
+  if (!rows.length) {
+    elements.consolidatedHistoryTable.innerHTML = '<div class="inline-empty-state">Todavia no hay reportes guardados para crear el concentrado.</div>';
+    return;
+  }
+
+  elements.consolidatedHistoryTable.innerHTML = `
+    <table class="consolidated-table">
+      <thead>
+        <tr>${consolidatedHistoryColumns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr>
+      </thead>
+      <tbody>
+        ${rows.map((row) => `
+          <tr>
+            ${consolidatedHistoryColumns.map((column) => renderConsolidatedTableCell(row, column)).join("")}
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+  wireConsolidatedCommentInputs();
+}
+
+async function exportConsolidatedHistoryCsv() {
+  const rows = filterConsolidatedRowsByClient(await buildConsolidatedHistoryRows());
+  if (!rows.length) {
+    window.alert("No hay datos guardados para exportar.");
+    return;
+  }
+
+  const csvRows = [
+    consolidatedHistoryColumns.map((column) => column.label),
+    ...rows.map((row) => consolidatedHistoryColumns.map((column) => row[column.key] || ""))
+  ];
+  const csv = csvRows.map((row) => row.map(escapeCsvValue).join(",")).join("\r\n");
+  downloadTextFile(csv, "concentrado-general.csv", "text/csv;charset=utf-8");
+}
+
+function shortenServiceType(serviceType) {
+  const value = String(serviceType || "").trim();
+  const normalized = value.toLowerCase();
+  if (normalized.includes("mantenimiento preventivo")) {
+    return "MP";
+  }
+  if (normalized.includes("mantenimiento correctivo")) {
+    return "MC";
+  }
+  if (normalized.includes("inspeccion")) {
+    return "INSPECCION";
+  }
+  return value;
+}
+
+function renderConsolidatedTableCell(row, column) {
+  if (column.key === "comments") {
+    return `
+      <td>
+        <textarea class="consolidated-comment-input" data-inspection-id="${escapeHtml(row.inspectionId)}" data-equipment-id="${escapeHtml(row.equipmentId)}" rows="2" placeholder="Escribe comentarios">${escapeHtml(row.comments || "")}</textarea>
+      </td>
+    `;
+  }
+
+  return `<td>${escapeHtml(row[column.key] || "")}</td>`;
+}
+
+function wireConsolidatedCommentInputs() {
+  elements.consolidatedHistoryTable.querySelectorAll(".consolidated-comment-input").forEach((input) => {
+    input.addEventListener("change", async () => {
+      await updateConsolidatedComment(input.dataset.inspectionId, input.dataset.equipmentId, input.value);
+    });
+  });
+}
+
+async function updateConsolidatedComment(inspectionId, equipmentId, value) {
+  const record = await getInspection(inspectionId);
+  if (!record || !Array.isArray(record.equipments)) {
+    return;
+  }
+
+  const equipmentIndex = record.equipments.findIndex((equipment) => equipment.id === equipmentId);
+  if (equipmentIndex < 0) {
+    return;
+  }
+
+  record.equipments[equipmentIndex] = {
+    ...record.equipments[equipmentIndex],
+    consolidatedComments: value
+  };
+  record.updatedAt = new Date().toISOString();
+  await putInspection(record);
+}
+
+function calculateDaysUntil(dateValue) {
+  if (!dateValue) {
+    return "";
+  }
+
+  const target = new Date(dateValue);
+  if (Number.isNaN(target.getTime())) {
+    return "";
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+  return String(Math.ceil((target - today) / 86400000));
+}
+
+async function openCraneHistory() {
+  await populateCraneHistoryOptions();
+
+  if (!elements.craneHistorySearch.value.trim()) {
+    const currentCraneIds = getInspectionCraneIds({ equipments: currentEquipments });
+    elements.craneHistorySearch.value = currentCraneIds[0] || "";
+  }
+
+  await renderCraneHistory();
+  showView("history");
+}
+
+async function populateCraneHistoryOptions() {
+  const records = (await getAllInspections()).map(normalizeInspection);
+  const craneIds = normalizeCraneIds(records.flatMap(getInspectionCraneIds));
+  elements.craneHistoryOptions.innerHTML = craneIds
+    .map((craneId) => `<option value="${escapeHtml(craneId)}"></option>`)
+    .join("");
+}
+
+async function renderCraneHistory() {
+  const selectedCraneId = normalizeCraneId(elements.craneHistorySearch.value);
+  await populateCraneHistoryOptions();
+
+  if (!selectedCraneId) {
+    elements.craneHistorySummary.innerHTML = "";
+    elements.craneHistoryReports.innerHTML = '<div class="inline-empty-state">Escribe o selecciona un ID de grua para consultar su historial guardado en este dispositivo.</div>';
+    return;
+  }
+
+  const records = (await getAllInspections())
+    .map(normalizeInspection)
+    .filter((record) => inspectionHasCraneId(record, selectedCraneId))
+    .sort((a, b) => new Date(b.inspectionDate || b.updatedAt || 0) - new Date(a.inspectionDate || a.updatedAt || 0));
+
+  const summary = buildCraneHistorySummary(selectedCraneId, records);
+  renderCraneHistorySummary(summary);
+  renderCraneHistoryReports(records, selectedCraneId);
+}
+
+function renderCraneHistorySummary(summary) {
+  elements.craneHistorySummary.innerHTML = `
+    <article class="history-stat">
+      <span>ID de grua</span>
+      <strong>${escapeHtml(summary.craneId)}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Total de inspecciones</span>
+      <strong>${summary.totalInspections}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Ultima inspeccion</span>
+      <strong>${escapeHtml(summary.lastInspectionDate || "Sin fecha")}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Hallazgos acumulados</span>
+      <strong>${summary.totalFindings}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Criticos / severidad alta</span>
+      <strong>${summary.highSeverityFindings}</strong>
+    </article>
+  `;
+}
+
+function renderCraneHistoryReports(records, selectedCraneId) {
+  elements.craneHistoryReports.innerHTML = "";
+
+  if (!records.length) {
+    elements.craneHistoryReports.innerHTML = '<div class="inline-empty-state">No hay inspecciones guardadas para esta grua en este dispositivo.</div>';
+    return;
+  }
+
+  records.forEach((record) => {
+    const matchingEquipments = getMatchingEquipments(record, selectedCraneId);
+    const findingsCount = matchingEquipments.reduce((sum, equipment) => sum + equipment.findings.length, 0);
+    const highSeverityCount = matchingEquipments.reduce(
+      (sum, equipment) => sum + equipment.findings.filter(isHighSeverityFinding).length,
+      0
+    );
+    const card = document.createElement("article");
+    card.className = "finding-list-card history-report-card";
+    card.innerHTML = `
+      <p><strong>${escapeHtml(record.reportNumber || "Sin folio")}</strong></p>
+      <div class="finding-meta">
+        <span>${escapeHtml(record.inspectionDate || "Sin fecha")}</span>
+        <span>${escapeHtml(record.plantName || "Cliente sin nombre")}</span>
+        <span>${matchingEquipments.length} equipo(s)</span>
+        <span>${findingsCount} hallazgo(s)</span>
+        <span>${highSeverityCount} critico(s) / alto(s)</span>
+      </div>
+      <p>${escapeHtml(matchingEquipments.map((equipment) => equipment.equipmentName || equipment.craneType || equipment.craneId).filter(Boolean).join(" | ") || selectedCraneId)}</p>
+      <div class="saved-actions">
+        <button class="secondary-button" type="button" data-history-open-id="${record.id}">Abrir inspeccion</button>
+        <button class="secondary-button" type="button" data-history-export-id="${record.id}">Exportar</button>
+      </div>
+    `;
+    elements.craneHistoryReports.appendChild(card);
+  });
+
+  elements.craneHistoryReports.querySelectorAll("[data-history-open-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const record = await getInspection(button.dataset.historyOpenId);
+      if (record) {
+        loadInspection(normalizeInspection(record));
+      }
+    });
+  });
+
+  elements.craneHistoryReports.querySelectorAll("[data-history-export-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const record = await getInspection(button.dataset.historyExportId);
+      if (record) {
+        downloadInspectionJson(normalizeInspection(record));
+      }
+    });
+  });
+}
+
+function buildCraneHistorySummary(craneId, records) {
+  const matchingEquipments = records.flatMap((record) => getMatchingEquipments(record, craneId));
+  const findings = matchingEquipments.flatMap((equipment) => equipment.findings);
+  const lastInspectionDate = records[0] ? records[0].inspectionDate || records[0].updatedAt || "" : "";
+
+  return {
+    craneId,
+    totalInspections: records.length,
+    lastInspectionDate,
+    totalFindings: findings.length,
+    highSeverityFindings: findings.filter(isHighSeverityFinding).length
+  };
+}
+
+async function openClientHistory() {
+  await populateClientHistoryOptions();
+
+  if (!elements.clientHistorySearch.value.trim()) {
+    elements.clientHistorySearch.value = elements.plantName.value || "";
+  }
+
+  await renderClientHistory();
+  showView("clientHistory");
+}
+
+async function populateClientHistoryOptions() {
+  const records = (await getAllInspections()).map(normalizeInspection);
+  const clients = normalizeClientNames(records.map((record) => record.plantName));
+  elements.clientHistoryOptions.innerHTML = clients
+    .map((clientName) => `<option value="${escapeHtml(clientName)}"></option>`)
+    .join("");
+}
+
+async function renderClientHistory() {
+  const selectedClient = normalizeClientName(elements.clientHistorySearch.value);
+  await populateClientHistoryOptions();
+  elements.clientCraneDetail.innerHTML = "";
+
+  if (!selectedClient) {
+    elements.clientHistorySummary.innerHTML = "";
+    elements.clientCraneList.innerHTML = '<div class="inline-empty-state">Escribe o selecciona un cliente para consultar las gruas guardadas en este dispositivo.</div>';
+    return;
+  }
+
+  const records = (await getAllInspections())
+    .map(normalizeInspection)
+    .filter((record) => normalizeClientName(record.plantName) === selectedClient)
+    .sort((a, b) => new Date(b.inspectionDate || b.updatedAt || 0) - new Date(a.inspectionDate || a.updatedAt || 0));
+
+  const craneSummaries = buildClientCraneSummaries(records);
+  renderClientHistorySummary(selectedClient, records, craneSummaries);
+  renderClientCraneList(selectedClient, craneSummaries);
+}
+
+function renderClientHistorySummary(clientName, records, craneSummaries) {
+  const findings = records.flatMap((record) => record.equipments || []).flatMap((equipment) => equipment.findings || []);
+  const lastInspectionDate = records[0] ? records[0].inspectionDate || records[0].updatedAt || "" : "";
+
+  elements.clientHistorySummary.innerHTML = `
+    <article class="history-stat">
+      <span>Cliente / planta</span>
+      <strong>${escapeHtml(clientName)}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Gruas registradas</span>
+      <strong>${craneSummaries.length}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Total de inspecciones</span>
+      <strong>${records.length}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Ultima inspeccion</span>
+      <strong>${escapeHtml(lastInspectionDate || "Sin fecha")}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Hallazgos acumulados</span>
+      <strong>${findings.length}</strong>
+    </article>
+  `;
+}
+
+function renderClientCraneList(clientName, craneSummaries) {
+  elements.clientCraneList.innerHTML = "";
+
+  if (!craneSummaries.length) {
+    elements.clientCraneList.innerHTML = '<div class="inline-empty-state">No hay gruas registradas para este cliente en este dispositivo.</div>';
+    return;
+  }
+
+  craneSummaries.forEach((summary) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "finding-list-card client-crane-card";
+    card.dataset.clientCraneId = summary.craneId;
+    card.innerHTML = `
+      <p><strong>${escapeHtml(summary.craneId)}</strong></p>
+      <div class="finding-meta">
+        <span>${summary.inspectionCount} inspeccion(es)</span>
+        <span>${summary.findingCount} hallazgo(s)</span>
+        <span>${summary.highSeverityCount} critico(s) / alto(s)</span>
+        <span>Ultima: ${escapeHtml(summary.lastInspectionDate || "Sin fecha")}</span>
+      </div>
+      <p>${escapeHtml(summary.equipmentNames.join(" | ") || "Sin nombre de equipo capturado")}</p>
+    `;
+    card.addEventListener("click", () => renderClientCraneDetail(clientName, summary.craneId));
+    elements.clientCraneList.appendChild(card);
+  });
+}
+
+function buildClientCraneSummaries(records) {
+  const cranes = new Map();
+
+  records.forEach((record) => {
+    (record.equipments || []).forEach((equipment) => {
+      const craneId = normalizeCraneId(equipment.craneId);
+      if (!craneId) {
+        return;
+      }
+
+      if (!cranes.has(craneId)) {
+        cranes.set(craneId, {
+          craneId,
+          records: new Map(),
+          equipments: [],
+          equipmentNames: new Set(),
+          findingCount: 0,
+          highSeverityCount: 0,
+          lastInspectionDate: ""
+        });
+      }
+
+      const summary = cranes.get(craneId);
+      summary.records.set(record.id, record);
+      summary.equipments.push(equipment);
+      if (equipment.equipmentName || equipment.craneType) {
+        summary.equipmentNames.add(equipment.equipmentName || equipment.craneType);
+      }
+      summary.findingCount += (equipment.findings || []).length;
+      summary.highSeverityCount += (equipment.findings || []).filter(isHighSeverityFinding).length;
+
+      const recordDate = record.inspectionDate || record.updatedAt || "";
+      if (!summary.lastInspectionDate || new Date(recordDate || 0) > new Date(summary.lastInspectionDate || 0)) {
+        summary.lastInspectionDate = recordDate;
+      }
+    });
+  });
+
+  return Array.from(cranes.values())
+    .map((summary) => ({
+      ...summary,
+      inspectionCount: summary.records.size,
+      records: Array.from(summary.records.values())
+        .sort((a, b) => new Date(b.inspectionDate || b.updatedAt || 0) - new Date(a.inspectionDate || a.updatedAt || 0)),
+      equipmentNames: Array.from(summary.equipmentNames)
+    }))
+    .sort((a, b) => new Date(b.lastInspectionDate || 0) - new Date(a.lastInspectionDate || 0));
+}
+
+async function renderClientCraneDetail(clientName, craneId) {
+  const records = (await getAllInspections())
+    .map(normalizeInspection)
+    .filter((record) => normalizeClientName(record.plantName) === normalizeClientName(clientName))
+    .filter((record) => inspectionHasCraneId(record, craneId))
+    .sort((a, b) => new Date(b.inspectionDate || b.updatedAt || 0) - new Date(a.inspectionDate || a.updatedAt || 0));
+  const matchingEquipments = records.flatMap((record) => getMatchingEquipments(record, craneId));
+  const latestEquipment = matchingEquipments[0] || {};
+  const findings = matchingEquipments.flatMap((equipment) => equipment.findings || []);
+
+  elements.clientCraneDetail.innerHTML = `
+    <section class="subpanel">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Detalle de grua</p>
+          <h3>${escapeHtml(craneId)}</h3>
+        </div>
+      </div>
+      <div class="history-detail-grid">
+        <div><span>Nombre / tag</span><strong>${escapeHtml(latestEquipment.equipmentName || "No capturado")}</strong></div>
+        <div><span>Tipo</span><strong>${escapeHtml(latestEquipment.craneType || "No capturado")}</strong></div>
+        <div><span>Capacidad</span><strong>${escapeHtml(latestEquipment.ratedCapacity || "No capturada")}</strong></div>
+        <div><span>Serie</span><strong>${escapeHtml(latestEquipment.serialNumber || "No capturada")}</strong></div>
+        <div><span>Ubicacion</span><strong>${escapeHtml(latestEquipment.equipmentLocation || "No capturada")}</strong></div>
+        <div><span>Condicion mas reciente</span><strong>${escapeHtml(latestEquipment.overallCondition || "No capturada")}</strong></div>
+        <div><span>Inspecciones</span><strong>${records.length}</strong></div>
+        <div><span>Hallazgos acumulados</span><strong>${findings.length}</strong></div>
+      </div>
+      <div class="client-crane-reports findings-list"></div>
+    </section>
+  `;
+
+  const reportsContainer = elements.clientCraneDetail.querySelector(".client-crane-reports");
+
+  records.forEach((record) => {
+    const recordEquipments = getMatchingEquipments(record, craneId);
+    const findingsCount = recordEquipments.reduce((sum, equipment) => sum + (equipment.findings || []).length, 0);
+    const highSeverityCount = recordEquipments.reduce(
+      (sum, equipment) => sum + (equipment.findings || []).filter(isHighSeverityFinding).length,
+      0
+    );
+    const card = document.createElement("article");
+    card.className = "finding-list-card history-report-card";
+    card.innerHTML = `
+      <p><strong>${escapeHtml(record.reportNumber || "Sin folio")}</strong></p>
+      <div class="finding-meta">
+        <span>${escapeHtml(record.inspectionDate || "Sin fecha")}</span>
+        <span>${escapeHtml(record.serviceType || "Servicio")}</span>
+        <span>${findingsCount} hallazgo(s)</span>
+        <span>${highSeverityCount} critico(s) / alto(s)</span>
+      </div>
+      <p>${escapeHtml(recordEquipments.map((equipment) => buildEquipmentCardSummary(equipment)).join(" | "))}</p>
+      <div class="saved-actions">
+        <button class="secondary-button" type="button" data-client-history-open-id="${record.id}">Abrir inspeccion</button>
+        <button class="secondary-button" type="button" data-client-history-export-id="${record.id}">Exportar</button>
+      </div>
+    `;
+    reportsContainer.appendChild(card);
+  });
+
+  reportsContainer.querySelectorAll("[data-client-history-open-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const record = await getInspection(button.dataset.clientHistoryOpenId);
+      if (record) {
+        loadInspection(normalizeInspection(record));
+      }
+    });
+  });
+
+  reportsContainer.querySelectorAll("[data-client-history-export-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const record = await getInspection(button.dataset.clientHistoryExportId);
+      if (record) {
+        downloadInspectionJson(normalizeInspection(record));
+      }
+    });
+  });
+}
+
+function getMatchingEquipments(record, craneId) {
+  const normalizedCraneId = normalizeCraneId(craneId);
+  const equipments = record.equipments || [];
+  const matches = equipments.filter((equipment) => normalizeCraneId(equipment.craneId) === normalizedCraneId);
+
+  if (matches.length) {
+    return matches;
+  }
+
+  return normalizeCraneId(record.craneId) === normalizedCraneId ? equipments : [];
+}
+
+function inspectionHasCraneId(record, craneId) {
+  const normalizedCraneId = normalizeCraneId(craneId);
+  return getInspectionCraneIds(record).some((item) => normalizeCraneId(item) === normalizedCraneId);
+}
+
+function getInspectionCraneIds(record) {
+  const source = record || {};
+  const values = [];
+
+  if (source.craneId) {
+    values.push(source.craneId);
+  }
+
+  if (Array.isArray(source.craneIds)) {
+    values.push(...source.craneIds);
+  }
+
+  if (Array.isArray(source.equipments)) {
+    source.equipments.forEach((equipment) => {
+      if (equipment && equipment.craneId) {
+        values.push(equipment.craneId);
+      }
+    });
+  }
+
+  return normalizeCraneIds(values);
+}
+
+function normalizeCraneIds(values) {
+  return Array.from(new Set((values || [])
+    .map(normalizeCraneId)
+    .filter(Boolean)));
+}
+
+function normalizeCraneId(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function normalizeClientNames(values) {
+  return Array.from(new Set((values || [])
+    .map(normalizeClientName)
+    .filter(Boolean)));
+}
+
+function normalizeClientName(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isHighSeverityFinding(finding) {
+  const severityText = [
+    finding.severity,
+    finding.priority,
+    finding.criticality,
+    finding.category,
+    finding.incidence,
+    finding.description,
+    finding.recommendation
+  ].join(" ").toLowerCase();
+
+  return /\b(alta|alto|critico|critica|crítico|crítica|grave|urgente|riesgo alto)\b/.test(severityText);
 }
 
 function loadInspection(record) {
@@ -1025,11 +1804,16 @@ function normalizeInspection(record) {
     : source.craneType || source.findings || source.recommendations
       ? [normalizeEquipment(createLegacyEquipment(source))]
       : [];
+  const craneIds = Array.isArray(source.craneIds) && source.craneIds.length
+    ? normalizeCraneIds(source.craneIds)
+    : getInspectionCraneIds({ ...source, equipments });
 
   return {
     ...source,
     reportNumber: source.reportNumber || createReportNumber(source.inspectionDate, source.id),
     serviceType: source.serviceType || "Inspeccion de grua",
+    craneId: source.craneId || craneIds[0] || "",
+    craneIds,
     equipments
   };
 }
@@ -1037,6 +1821,7 @@ function normalizeInspection(record) {
 function createLegacyEquipment(record) {
   return {
     id: createId(),
+    craneId: record.craneId || record.serialNumber || "",
     equipmentName: record.craneType ? `Equipo ${record.craneType}` : "Equipo 1",
     craneType: record.craneType || "Puente",
     ratedCapacity: record.ratedCapacity || "",
@@ -1064,6 +1849,7 @@ function createEmptyEquipment() {
   nextDate.setMonth(nextDate.getMonth() + 6);
   return normalizeEquipment({
     id: "",
+    craneId: "",
     equipmentName: "",
     craneType: "Puente",
     ratedCapacity: "",
@@ -1088,9 +1874,12 @@ function createEmptyEquipment() {
 
 function normalizeEquipment(equipment) {
   const source = equipment || {};
+  const fallbackCraneId = source.craneId || source.equipmentId || source.serialNumber || source.checklistFolio || "";
+
   return {
     ...source,
     id: source.id || createId(),
+    craneId: fallbackCraneId,
     equipmentName: source.equipmentName || "",
     craneType: source.craneType || "Puente",
     ratedCapacity: source.ratedCapacity || "",
@@ -1215,6 +2004,23 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function escapeCsvValue(value) {
+  const text = String(value || "");
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadTextFile(content, fileName, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function downloadInspectionJson(inspection) {
