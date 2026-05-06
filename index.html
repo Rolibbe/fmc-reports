@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f4c5c">
+  <title>Inspecciones de Gruas</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
+    <aside id="sidebar" class="sidebar sidebar-collapsed">
+      <div class="sidebar-topbar">
+        <button id="closeSidebarButton" class="ghost-button sidebar-close-button" type="button">Cerrar</button>
+      </div>
+      <div>
+        <p class="eyebrow">Modo offline</p>
+        <h1>Inspecciones de Gruas</h1>
+        <p class="intro">
+          Genera reportes de supervision en sitio con multiples equipos, evidencia y salida lista para PDF.
+        </p>
+      </div>
+
+      <div class="status-card">
+        <p class="status-label">Estado</p>
+        <p id="connectionStatus" class="status-value">Verificando conectividad...</p>
+        <button id="installButton" class="secondary-button" hidden>Instalar app</button>
+      </div>
+
+      <section class="saved-section">
+        <div class="section-header">
+          <h2>Reportes guardados</h2>
+          <button id="refreshReportsButton" class="ghost-button" type="button">Actualizar</button>
+        </div>
+        <div id="savedReports" class="saved-list"></div>
+      </section>
+    </aside>
+
+    <main class="main-content">
+      <section class="panel app-view" id="inspectionView">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Captura en campo</p>
+            <h2>Nuevo reporte</h2>
+          </div>
+          <div class="toolbar">
+            <button id="openSidebarButton" class="ghost-button" type="button">Historial</button>
+            <button id="importInspectionButton" class="ghost-button" type="button">Importar</button>
+            <button id="newInspectionButton" class="ghost-button" type="button">Nueva</button>
+            <button id="saveInspectionButton" class="secondary-button" type="button">Guardar</button>
+            <button id="exportInspectionButton" class="secondary-button" type="button">Exportar</button>
+            <button id="generatePdfButton" class="primary-button" type="button">Generar PDF</button>
+          </div>
+        </div>
+
+        <form id="inspectionForm">
+          <input id="inspectionId" type="hidden">
+          <input id="importInspectionInput" class="file-input-hidden" type="file" accept="application/json">
+
+          <div class="grid two-column">
+            <label>
+              Folio del reporte
+              <input id="reportNumber" name="reportNumber" type="text" placeholder="Ej. 26-140">
+            </label>
+            <label>
+              Tipo de servicio
+              <select id="serviceType" name="serviceType">
+                <option value="Inspeccion de grua">Inspeccion de grua</option>
+                <option value="Mantenimiento correctivo">Mantenimiento correctivo</option>
+                <option value="Mantenimiento preventivo">Mantenimiento preventivo</option>
+                <option value="Supervision tecnica">Supervision tecnica</option>
+              </select>
+            </label>
+            <label>
+              Fecha
+              <input id="inspectionDate" name="inspectionDate" type="date" required>
+            </label>
+            <label>
+              Tecnico responsable
+              <input id="technicianName" name="technicianName" type="text" placeholder="Nombre del tecnico" required>
+            </label>
+            <label>
+              Cliente / planta
+              <input id="plantName" name="plantName" type="text" placeholder="Empresa o planta" required>
+            </label>
+            <label>
+              Ubicacion
+              <input id="plantLocation" name="plantLocation" type="text" placeholder="Ciudad, estado, area" required>
+            </label>
+            <label>
+              Encargado en sitio
+              <input id="siteContact" name="siteContact" type="text" placeholder="Responsable que firma">
+            </label>
+            <label>
+              Correo / telefono
+              <input id="siteContactInfo" name="siteContactInfo" type="text" placeholder="Datos de contacto">
+            </label>
+          </div>
+
+          <section class="subpanel">
+            <div class="section-header">
+              <div>
+                <p class="eyebrow">Equipos inspeccionados</p>
+                <h3>Lista de equipos incluidos en el reporte</h3>
+              </div>
+              <button id="addEquipmentButton" class="secondary-button" type="button">Anadir Equipo</button>
+            </div>
+            <div id="equipmentList" class="findings-list"></div>
+          </section>
+
+        </form>
+      </section>
+
+      <section class="panel app-view hidden" id="equipmentEditorView">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Equipo</p>
+            <h2 id="equipmentEditorTitle">Nuevo equipo</h2>
+          </div>
+          <div class="toolbar">
+            <button id="cancelEquipmentButton" class="ghost-button" type="button">Cancelar</button>
+            <button id="saveEquipmentButton" class="primary-button" type="button">Guardar Equipo</button>
+          </div>
+        </div>
+
+        <form id="equipmentEditorForm">
+          <input id="editingEquipmentId" type="hidden">
+
+          <section class="subpanel editor-subpanel">
+            <div class="section-header">
+              <div>
+                <p class="eyebrow">Datos del equipo</p>
+                <h3>Caracteristicas de la grua</h3>
+              </div>
+            </div>
+
+            <div class="grid three-column">
+              <label>
+                Nombre o tag del equipo
+                <input id="equipmentName" type="text" placeholder="Ej. Grua puente linea 3" required>
+              </label>
+              <label>
+                Tipo de grua
+                <select id="craneType" name="craneType">
+                  <option value="Puente">Puente</option>
+                  <option value="Grua viajera">Grua viajera</option>
+                  <option value="Monorriel">Monorriel</option>
+                  <option value="Portico">Portico</option>
+                  <option value="Grua bandera">Grua bandera</option>
+                  <option value="Pluma">Pluma</option>
+                  <option value="Polipasto">Polipasto</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </label>
+              <label>
+                Capacidad nominal
+                <input id="ratedCapacity" name="ratedCapacity" type="text" placeholder="Ej. 10 ton">
+              </label>
+              <label>
+                Serie / identificacion
+                <input id="serialNumber" name="serialNumber" type="text" placeholder="Numero de serie">
+              </label>
+              <label>
+                Folio del checklist
+                <input id="checklistFolio" name="checklistFolio" type="text" placeholder="Folio del checklist de este equipo">
+              </label>
+              <label>
+                Ubicacion puntual del equipo
+                <input id="equipmentLocation" type="text" placeholder="Area, nave o linea">
+              </label>
+            </div>
+          </section>
+
+          <section class="subpanel editor-subpanel">
+            <div class="section-header">
+              <div>
+                <p class="eyebrow">Datos del polipasto</p>
+                <h3>Informacion complementaria</h3>
+              </div>
+            </div>
+
+            <div class="grid two-column">
+              <label>
+                Tipo de polipasto
+                <input id="hoistType" type="text" placeholder="Cable, cadena, manual, electrico">
+              </label>
+              <label>
+                Capacidad del polipasto
+                <input id="hoistCapacity" type="text" placeholder="Ej. 5 ton">
+              </label>
+              <label>
+                Fabricante del polipasto
+                <input id="hoistManufacturer" type="text" placeholder="Fabricante">
+              </label>
+              <label>
+                Modelo del polipasto
+                <input id="hoistModel" type="text" placeholder="Modelo">
+              </label>
+              <label>
+                Serie del polipasto
+                <input id="hoistSerialNumber" type="text" placeholder="Numero de serie">
+              </label>
+              <label>
+                Voltaje del polipasto
+                <input id="hoistVoltage" type="text" placeholder="Ej. 220V / 440V">
+              </label>
+            </div>
+          </section>
+
+          <section class="subpanel editor-subpanel">
+            <div class="section-header">
+              <div>
+                <p class="eyebrow">Hallazgos</p>
+                <h3>Registro de no conformidades</h3>
+              </div>
+              <button id="addFindingButton" class="secondary-button" type="button">Anadir Hallazgo</button>
+            </div>
+            <div id="findingsList" class="findings-list"></div>
+          </section>
+
+          <section class="subpanel editor-subpanel">
+            <div class="section-header">
+              <div>
+                <p class="eyebrow">Resumen</p>
+                <h3>Conclusiones y acciones</h3>
+              </div>
+            </div>
+
+            <div class="grid two-column">
+              <label>
+                Condicion general
+                <select id="overallCondition" name="overallCondition">
+                  <option value="Bueno">Bueno</option>
+                  <option value="Regular">Regular</option>
+                  <option value="Malo">Malo</option>
+                </select>
+              </label>
+              <label>
+                Proxima inspeccion sugerida
+                <input id="nextInspection" name="nextInspection" type="date">
+              </label>
+            </div>
+
+            <label>
+              Resumen del servicio
+              <textarea id="serviceSummary" rows="4" placeholder="Describe el alcance realizado para este equipo"></textarea>
+            </label>
+
+            <label>
+              Recomendaciones
+              <textarea id="recommendations" name="recommendations" rows="5" placeholder="Acciones correctivas, prioridades, observaciones al cliente"></textarea>
+            </label>
+          </section>
+
+          <section class="subpanel editor-subpanel">
+            <div class="section-header">
+              <div>
+                <p class="eyebrow">Evidencia del servicio</p>
+                <h3>Fotografias generales del equipo</h3>
+              </div>
+            </div>
+
+            <div class="upload-actions">
+              <button id="servicePhotoGalleryButton" class="secondary-button" type="button">Elegir de galeria</button>
+              <button id="servicePhotoCameraButton" class="ghost-button" type="button">Tomar foto</button>
+            </div>
+            <input id="servicePhotoGalleryInput" class="file-input-hidden" type="file" accept="image/*" multiple>
+            <input id="servicePhotoCameraInput" class="file-input-hidden" type="file" accept="image/*" capture="environment" multiple>
+
+            <div id="servicePhotoPreview" class="photo-preview large-preview"></div>
+          </section>
+
+          <section class="subpanel editor-subpanel">
+            <div class="section-header">
+              <div>
+                <p class="eyebrow">Checklist escaneado</p>
+                <h3>Imagen JPG del formato fisico de revision</h3>
+              </div>
+            </div>
+
+            <div class="upload-actions">
+              <button id="checklistImageButton" class="secondary-button" type="button">Adjuntar imagen</button>
+              <button id="clearChecklistImageButton" class="ghost-button" type="button">Quitar imagen</button>
+            </div>
+            <input id="checklistImageInput" class="file-input-hidden" type="file" accept="image/jpeg,image/jpg,image/*">
+            <div id="checklistImageStatus" class="inline-empty-state">Todavia no se ha adjuntado una imagen del checklist.</div>
+          </section>
+        </form>
+      </section>
+
+      <section class="panel app-view hidden" id="findingEditorView">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Hallazgo</p>
+            <h2 id="findingEditorTitle">Nuevo hallazgo</h2>
+          </div>
+          <div class="toolbar">
+            <button id="cancelFindingButton" class="ghost-button" type="button">Cancelar</button>
+            <button id="saveFindingButton" class="primary-button" type="button">Guardar el Hallazgo</button>
+          </div>
+        </div>
+
+        <form id="findingEditorForm">
+          <input id="editingFindingId" type="hidden">
+
+          <div class="grid two-column">
+            <label>
+              Categoria del hallazgo
+              <select id="findingCategory" required></select>
+            </label>
+            <label>
+              Incidencia
+              <select id="findingIncidence" required></select>
+            </label>
+          </div>
+
+          <label>
+            Descripcion del hallazgo
+            <textarea id="findingDescription" rows="6" placeholder="Describe con detalle la condicion observada, ubicacion exacta, riesgo y contexto"></textarea>
+          </label>
+
+          <label>
+            Recomendacion para este hallazgo
+            <textarea id="findingRecommendation" rows="4" placeholder="Accion correctiva sugerida, prioridad o seguimiento recomendado"></textarea>
+          </label>
+
+          <div class="upload-actions">
+            <button id="findingPhotoGalleryButton" class="secondary-button" type="button">Elegir de galeria</button>
+            <button id="findingPhotoCameraButton" class="ghost-button" type="button">Tomar foto</button>
+          </div>
+          <input id="findingPhotoGalleryInput" class="file-input-hidden" type="file" accept="image/*" multiple>
+          <input id="findingPhotoCameraInput" class="file-input-hidden" type="file" accept="image/*" capture="environment" multiple>
+
+          <div id="findingPhotoPreview" class="photo-preview large-preview"></div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script src="report-template-config.js"></script>
+  <script src="finding-catalog-config.js"></script>
+  <script src="report-generator.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
