@@ -153,33 +153,19 @@
           <section class="subpanel editor-subpanel">
             <div class="section-header">
               <div>
-                <p class="eyebrow">Catalogo de empresa</p>
-                <h3>Gruas registradas del cliente</h3>
-              </div>
-            </div>
-
-            <div class="grid two-column">
-              <label>
-                Seleccionar grua existente
-                <select id="companyCraneSelector"></select>
-              </label>
-              <div id="companyCraneSelectorStatus" class="inline-empty-state compact-empty-state">Selecciona un cliente para ver sus gruas registradas.</div>
-            </div>
-          </section>
-
-          <section class="subpanel editor-subpanel">
-            <div class="section-header">
-              <div>
                 <p class="eyebrow">Datos del equipo</p>
                 <h3>Caracteristicas de la grua</h3>
               </div>
             </div>
 
-            <input id="craneId" name="craneId" type="hidden">
             <div class="grid three-column">
               <label>
+                ID de grua / identificador de equipo
+                <input id="craneId" name="craneId" type="text" placeholder="Ej. GR-001, serie o tag interno" required>
+              </label>
+              <label>
                 Nombre o tag del equipo
-                <input id="equipmentName" type="text" placeholder="Ej. Grua puente linea 3, GR-001 o tag interno" required>
+                <input id="equipmentName" type="text" placeholder="Ej. Grua puente linea 3" required>
               </label>
               <label>
                 Tipo de grua
@@ -283,24 +269,14 @@
               </label>
             </div>
 
-            <div class="field-block">
-              <span class="field-label">Resumen del servicio</span>
-              <div class="checkbox-grid service-task-grid">
-                <label class="checkbox-card">
-                  <input id="serviceTaskCleaning" type="checkbox">
-                  Se realizo limpieza general del equipo.
-                </label>
-                <label class="checkbox-card">
-                  <input id="serviceTaskLubrication" type="checkbox">
-                  Se lubrico cadena/cable de carga
-                </label>
-              </div>
-              <textarea id="serviceSummary" class="generated-summary" rows="3" readonly placeholder="Marca las acciones realizadas para generar el resumen"></textarea>
-            </div>
+            <label>
+              Resumen del servicio
+              <textarea id="serviceSummary" rows="4" placeholder="Describe el alcance realizado para este equipo"></textarea>
+            </label>
 
             <label>
               Recomendaciones
-              <textarea id="recommendations" name="recommendations" rows="5" readonly></textarea>
+              <textarea id="recommendations" name="recommendations" rows="5" placeholder="Acciones correctivas, prioridades, observaciones al cliente"></textarea>
             </label>
           </section>
 
@@ -431,29 +407,11 @@
         </div>
 
         <div class="subpanel">
-          <div class="grid three-column">
+          <div class="grid two-column">
             <label>
               Empresa
               <input id="companyRegistryClient" list="companyRegistryClientOptions" type="text" placeholder="Selecciona o escribe una empresa">
               <datalist id="companyRegistryClientOptions"></datalist>
-            </label>
-            <label>
-              Frecuencia de mantenimiento
-              <select id="companyMaintenanceFrequency">
-                <option value="">Selecciona frecuencia</option>
-                <option value="1">Cada 1 mes</option>
-                <option value="2">Cada 2 meses</option>
-                <option value="3">Cada 3 meses</option>
-                <option value="4">Cada 4 meses</option>
-                <option value="5">Cada 5 meses</option>
-                <option value="6">Cada 6 meses</option>
-                <option value="7">Cada 7 meses</option>
-                <option value="8">Cada 8 meses</option>
-                <option value="9">Cada 9 meses</option>
-                <option value="10">Cada 10 meses</option>
-                <option value="11">Cada 11 meses</option>
-                <option value="12">Cada 12 meses</option>
-              </select>
             </label>
             <div class="history-actions">
               <button id="syncCompanyRegistryButton" class="ghost-button" type="button">Tomar datos de reportes guardados</button>

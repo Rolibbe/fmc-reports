@@ -1,0 +1,10 @@
+{
+  "name": "Inspecciones de Gruas",
+  "short_name": "Gruas",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f5f1e8",
+  "theme_color": "#0f4c5c",
+  "lang": "es-MX",
+  "icons": []
+}

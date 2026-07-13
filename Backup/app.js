@@ -25,10 +25,6 @@ const DB_VERSION = 1;
 const STORE_NAME = "inspections";
 const CLIENT_PLANTS_FILE = "clientes-plantas.txt";
 const COMPANY_CRANE_REGISTRY_KEY = "company-crane-registry-v1";
-const COMPANY_MAINTENANCE_FREQUENCY_KEY = "company-maintenance-frequency-v1";
-const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
-const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
-const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -42,7 +38,6 @@ const fallbackClientPlants = [
   "HUTCHINSON SEAL DE MEXICO",
   "SEAL FOR LIFE INDUSTRIES MEXICO",
   "PRODIMAT INDUSTRIAL Y DE LA CONSTRUCCION",
-  "PRODUCTOS UROLOGOS DE MEXICO, S.A. DE C.V.",
   "GARRET MOTION MEXICO",
   "GARRET TRANSPORTATION INC",
   "OPTI-SOURCE",
@@ -72,7 +67,6 @@ let currentChecklistImage = null;
 let editingPhotos = [];
 let draggedEquipmentId = null;
 let didDragEquipment = false;
-let draggedCompanyCraneId = null;
 
 const REPORT_IMAGE_MAX_SIZE = 1600;
 const REPORT_CHECKLIST_MAX_SIZE = 1900;
@@ -127,7 +121,6 @@ const elements = {
   newCompanyCraneButton: document.getElementById("newCompanyCraneButton"),
   companyRegistryClient: document.getElementById("companyRegistryClient"),
   companyRegistryClientOptions: document.getElementById("companyRegistryClientOptions"),
-  companyMaintenanceFrequency: document.getElementById("companyMaintenanceFrequency"),
   companyRegistrySummary: document.getElementById("companyRegistrySummary"),
   companyCraneList: document.getElementById("companyCraneList"),
   companyCraneFormPanel: document.getElementById("companyCraneFormPanel"),
@@ -152,8 +145,6 @@ const elements = {
   equipmentEditorTitle: document.getElementById("equipmentEditorTitle"),
   equipmentEditorForm: document.getElementById("equipmentEditorForm"),
   editingEquipmentId: document.getElementById("editingEquipmentId"),
-  companyCraneSelector: document.getElementById("companyCraneSelector"),
-  companyCraneSelectorStatus: document.getElementById("companyCraneSelectorStatus"),
   craneId: document.getElementById("craneId"),
   equipmentName: document.getElementById("equipmentName"),
   craneType: document.getElementById("craneType"),
@@ -171,8 +162,6 @@ const elements = {
   addFindingButton: document.getElementById("addFindingButton"),
   overallCondition: document.getElementById("overallCondition"),
   nextInspection: document.getElementById("nextInspection"),
-  serviceTaskCleaning: document.getElementById("serviceTaskCleaning"),
-  serviceTaskLubrication: document.getElementById("serviceTaskLubrication"),
   serviceSummary: document.getElementById("serviceSummary"),
   recommendations: document.getElementById("recommendations"),
   servicePhotoGalleryButton: document.getElementById("servicePhotoGalleryButton"),
@@ -225,9 +214,6 @@ function setupAppActions() {
   elements.addEquipmentButton.addEventListener("click", () => openEquipmentEditor());
   elements.importInspectionButton.addEventListener("click", () => elements.importInspectionInput.click());
   elements.importInspectionInput.addEventListener("change", handleInspectionImport);
-  elements.companyCraneSelector.addEventListener("change", handleCompanyCraneSelection);
-  elements.serviceTaskCleaning.addEventListener("change", syncServiceSummaryFromTasks);
-  elements.serviceTaskLubrication.addEventListener("change", syncServiceSummaryFromTasks);
   elements.cancelEquipmentButton.addEventListener("click", closeEquipmentEditor);
   elements.saveEquipmentButton.addEventListener("click", saveEquipmentFromEditor);
   elements.addFindingButton.addEventListener("click", () => openFindingEditor());
@@ -265,10 +251,8 @@ function setupAppActions() {
   elements.saveCompanyCraneButton.addEventListener("click", saveCompanyCraneFromForm);
   elements.companyRegistryClient.addEventListener("input", () => {
     closeCompanyCraneForm();
-    loadCompanyMaintenanceFrequency();
     renderCompanyCraneRegistry();
   });
-  elements.companyMaintenanceFrequency.addEventListener("change", saveCompanyMaintenanceFrequency);
   elements.closeConsolidatedHistoryButton.addEventListener("click", () => showView("inspection"));
   elements.refreshConsolidatedHistoryButton.addEventListener("click", renderConsolidatedHistory);
   elements.exportConsolidatedHistoryButton.addEventListener("click", exportConsolidatedHistoryCsv);
@@ -371,7 +355,6 @@ async function openCompanyCraneRegistry() {
   }
 
   await seedCompanyRegistryFromReports(false);
-  loadCompanyMaintenanceFrequency();
   renderCompanyCraneRegistry();
   showView("companyCraneRegistry");
 }
@@ -399,7 +382,6 @@ function renderCompanyCraneRegistry() {
 }
 
 function renderCompanyRegistrySummary(client, cranes) {
-  const frequency = getCompanyMaintenanceFrequency(client);
   elements.companyRegistrySummary.innerHTML = `
     <article class="history-stat">
       <span>Empresa</span>
@@ -416,10 +398,6 @@ function renderCompanyRegistrySummary(client, cranes) {
     <article class="history-stat">
       <span>Con modelo</span>
       <strong>${cranes.filter((crane) => crane.model).length}</strong>
-    </article>
-    <article class="history-stat">
-      <span>Frecuencia</span>
-      <strong>${escapeHtml(formatMaintenanceFrequency(frequency))}</strong>
     </article>
   `;
 }
@@ -440,14 +418,6 @@ function renderCompanyCraneList(client, cranes) {
   cranes.forEach((crane) => {
     const card = document.createElement("article");
     card.className = "company-crane-card";
-    card.draggable = true;
-    card.dataset.companyCraneId = crane.id;
-    card.title = "Arrastra para cambiar el orden";
-    card.addEventListener("dragstart", (event) => handleCompanyCraneDragStart(event, crane.id));
-    card.addEventListener("dragover", handleCompanyCraneDragOver);
-    card.addEventListener("dragleave", handleCompanyCraneDragLeave);
-    card.addEventListener("drop", (event) => handleCompanyCraneDrop(event, crane.id));
-    card.addEventListener("dragend", handleCompanyCraneDragEnd);
     card.innerHTML = `
       <div class="company-crane-main">
         <div>
@@ -560,117 +530,6 @@ function deleteCompanyCrane(craneId) {
   renderCompanyCraneRegistry();
 }
 
-function handleCompanyCraneDragStart(event, craneId) {
-  draggedCompanyCraneId = craneId;
-  event.currentTarget.classList.add("is-dragging");
-  event.dataTransfer.effectAllowed = "move";
-  event.dataTransfer.setData("text/plain", craneId);
-}
-
-function handleCompanyCraneDragOver(event) {
-  if (!draggedCompanyCraneId || event.currentTarget.dataset.companyCraneId === draggedCompanyCraneId) {
-    return;
-  }
-
-  event.preventDefault();
-  event.dataTransfer.dropEffect = "move";
-  const position = getEquipmentDropPosition(event, event.currentTarget);
-  setEquipmentDropIndicator(event.currentTarget, position);
-}
-
-function handleCompanyCraneDragLeave(event) {
-  if (!event.currentTarget.contains(event.relatedTarget)) {
-    clearEquipmentDropIndicator(event.currentTarget);
-  }
-}
-
-function handleCompanyCraneDrop(event, targetCraneId) {
-  event.preventDefault();
-  const sourceCraneId = draggedCompanyCraneId || event.dataTransfer.getData("text/plain");
-  const position = getEquipmentDropPosition(event, event.currentTarget);
-  clearCompanyCraneDragStates();
-
-  if (!sourceCraneId || sourceCraneId === targetCraneId) {
-    return;
-  }
-
-  reorderCompanyCrane(sourceCraneId, targetCraneId, position);
-}
-
-function handleCompanyCraneDragEnd() {
-  draggedCompanyCraneId = null;
-  clearCompanyCraneDragStates();
-}
-
-function clearCompanyCraneDragStates() {
-  elements.companyCraneList.querySelectorAll(".company-crane-card").forEach((item) => {
-    item.classList.remove("is-dragging", "drop-before", "drop-after");
-  });
-}
-
-function reorderCompanyCrane(sourceCraneId, targetCraneId, position) {
-  const client = normalizeClientName(elements.companyRegistryClient.value);
-  const registry = readCompanyCraneRegistry();
-  const cranes = registry[client] || [];
-  const sourceIndex = cranes.findIndex((crane) => crane.id === sourceCraneId);
-  const targetIndex = cranes.findIndex((crane) => crane.id === targetCraneId);
-
-  if (sourceIndex < 0 || targetIndex < 0) {
-    return;
-  }
-
-  const [movedCrane] = cranes.splice(sourceIndex, 1);
-  let insertIndex = cranes.findIndex((crane) => crane.id === targetCraneId);
-  if (position === "after") {
-    insertIndex += 1;
-  }
-  cranes.splice(insertIndex, 0, movedCrane);
-  registry[client] = cranes;
-  writeCompanyCraneRegistry(registry);
-  renderCompanyCraneRegistry();
-}
-
-function upsertCatalogCraneFromEquipment(equipment) {
-  const client = normalizeClientName(elements.plantName.value);
-  if (!client) {
-    return equipment.catalogCraneId || "";
-  }
-
-  const candidate = craneRegistryEntryFromEquipment(equipment);
-  if (!candidate.craneId && !candidate.serialNumber && !candidate.model && !candidate.type) {
-    return equipment.catalogCraneId || "";
-  }
-
-  const registry = readCompanyCraneRegistry();
-  const cranes = registry[client] || [];
-  const selectedId = elements.companyCraneSelector.value && elements.companyCraneSelector.value !== "__new__"
-    ? elements.companyCraneSelector.value
-    : equipment.catalogCraneId;
-  const existingIndex = selectedId
-    ? cranes.findIndex((crane) => crane.id === selectedId)
-    : cranes.findIndex((crane) => sameCatalogCrane(crane, candidate));
-  const now = new Date().toISOString();
-
-  if (existingIndex >= 0) {
-    const existing = cranes[existingIndex];
-    cranes[existingIndex] = {
-      ...existing,
-      ...candidate,
-      id: existing.id,
-      notes: existing.notes || candidate.notes || "",
-      createdAt: existing.createdAt || now,
-      updatedAt: now
-    };
-    registry[client] = cranes;
-    writeCompanyCraneRegistry(registry);
-    return existing.id;
-  }
-
-  registry[client] = cranes.concat(candidate);
-  writeCompanyCraneRegistry(registry);
-  return candidate.id;
-}
-
 async function syncCompanyRegistryFromReports() {
   const added = await seedCompanyRegistryFromReports(true);
   await populateCompanyRegistryClientOptions();
@@ -752,53 +611,6 @@ function normalizeCatalogKey(value) {
   return String(value || "").trim().toUpperCase();
 }
 
-function formatMaintenanceFrequency(months) {
-  const value = Number(months);
-  if (!value) {
-    return "No definida";
-  }
-  return value === 1 ? "Cada 1 mes" : `Cada ${value} meses`;
-}
-
-function loadCompanyMaintenanceFrequency() {
-  const client = normalizeClientName(elements.companyRegistryClient.value);
-  elements.companyMaintenanceFrequency.value = getCompanyMaintenanceFrequency(client);
-}
-
-function saveCompanyMaintenanceFrequency() {
-  const client = normalizeClientName(elements.companyRegistryClient.value);
-  if (!client) {
-    elements.companyMaintenanceFrequency.value = "";
-    window.alert("Selecciona una empresa antes de definir la frecuencia.");
-    return;
-  }
-
-  const frequencies = readCompanyMaintenanceFrequencies();
-  frequencies[client] = elements.companyMaintenanceFrequency.value;
-  writeCompanyMaintenanceFrequencies(frequencies);
-  renderCompanyCraneRegistry();
-}
-
-function getCompanyMaintenanceFrequency(client) {
-  if (!client) {
-    return "";
-  }
-  return readCompanyMaintenanceFrequencies()[normalizeClientName(client)] || "";
-}
-
-function readCompanyMaintenanceFrequencies() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(COMPANY_MAINTENANCE_FREQUENCY_KEY) || "{}");
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch (error) {
-    return {};
-  }
-}
-
-function writeCompanyMaintenanceFrequencies(frequencies) {
-  localStorage.setItem(COMPANY_MAINTENANCE_FREQUENCY_KEY, JSON.stringify(frequencies));
-}
-
 function readCompanyCraneRegistry() {
   try {
     const parsed = JSON.parse(localStorage.getItem(COMPANY_CRANE_REGISTRY_KEY) || "{}");
@@ -836,7 +648,6 @@ function openEquipmentEditor(equipmentId) {
 
 function loadEquipmentIntoEditor(equipment) {
   elements.equipmentEditorForm.reset();
-  populateCompanyCraneSelector(equipment.catalogCraneId || "");
   elements.craneId.value = equipment.craneId;
   elements.equipmentName.value = equipment.equipmentName;
   elements.craneType.value = equipment.craneType;
@@ -852,8 +663,8 @@ function loadEquipmentIntoEditor(equipment) {
   elements.hoistVoltage.value = equipment.hoistVoltage;
   elements.overallCondition.value = equipment.overallCondition;
   elements.nextInspection.value = equipment.nextInspection;
-  applyServiceTasksFromSummary(equipment.serviceSummary);
-  applyFixedRecommendation();
+  elements.serviceSummary.value = equipment.serviceSummary;
+  elements.recommendations.value = equipment.recommendations;
   currentEquipmentFindings = equipment.findings.slice();
   currentEquipmentServicePhotos = equipment.servicePhotos.slice();
   currentChecklistImage = equipment.checklistImage ? { ...equipment.checklistImage } : null;
@@ -867,156 +678,9 @@ function closeEquipmentEditor() {
   showView("inspection");
 }
 
-function populateCompanyCraneSelector(selectedCatalogCraneId = "") {
-  const client = normalizeClientName(elements.plantName.value);
-  const registry = readCompanyCraneRegistry();
-  const cranes = client ? registry[client] || [] : [];
-
-  if (!client) {
-    elements.companyCraneSelector.innerHTML = '<option value="__new__">Nueva grua</option>';
-    elements.companyCraneSelector.disabled = true;
-    elements.companyCraneSelectorStatus.textContent = "Selecciona un cliente para ver sus gruas registradas.";
-    return;
-  }
-
-  elements.companyCraneSelector.disabled = false;
-  elements.companyCraneSelector.innerHTML = [
-    '<option value="__new__">Nueva grua para esta empresa</option>',
-    ...cranes.map((crane) => `<option value="${escapeHtml(crane.id)}">${escapeHtml(formatCatalogCraneOption(crane))}</option>`)
-  ].join("");
-  elements.companyCraneSelector.value = selectedCatalogCraneId && cranes.some((crane) => crane.id === selectedCatalogCraneId)
-    ? selectedCatalogCraneId
-    : "__new__";
-  elements.companyCraneSelectorStatus.textContent = cranes.length
-    ? `${cranes.length} grua(s) registradas para ${client}.`
-    : "Esta empresa no tiene gruas registradas todavia. Captura una nueva y se guardara en el catalogo.";
-}
-
-function formatCatalogCraneOption(crane) {
-  return [
-    crane.craneId || "Sin ID",
-    crane.type,
-    crane.model,
-    crane.serialNumber
-  ].filter(Boolean).join(" | ");
-}
-
-function handleCompanyCraneSelection() {
-  const selectedCraneId = elements.companyCraneSelector.value;
-  if (!selectedCraneId || selectedCraneId === "__new__") {
-    clearEquipmentIdentityFields();
-    return;
-  }
-
-  const client = normalizeClientName(elements.plantName.value);
-  const registry = readCompanyCraneRegistry();
-  const crane = (registry[client] || []).find((item) => item.id === selectedCraneId);
-  if (crane) {
-    applyCatalogCraneToEquipmentEditor(crane);
-  }
-}
-
-function clearEquipmentIdentityFields() {
-  elements.craneId.value = "";
-  elements.equipmentName.value = "";
-  elements.craneType.value = "Puente";
-  elements.ratedCapacity.value = "";
-  elements.serialNumber.value = "";
-  elements.equipmentLocation.value = "";
-  elements.hoistCapacity.value = "";
-  elements.hoistManufacturer.value = "";
-  elements.hoistModel.value = "";
-  elements.hoistSerialNumber.value = "";
-  elements.hoistVoltage.value = "";
-}
-
-function applyCatalogCraneToEquipmentEditor(crane) {
-  elements.craneId.value = crane.craneId || "";
-  elements.equipmentName.value = crane.craneId || crane.type || "Grua";
-  elements.craneType.value = mapCatalogCraneTypeToOption(crane.type);
-  elements.ratedCapacity.value = crane.structureCapacity || "";
-  elements.serialNumber.value = crane.serialNumber || "";
-  elements.equipmentLocation.value = crane.area || "";
-  elements.hoistCapacity.value = crane.hoistCapacity || "";
-  elements.hoistManufacturer.value = crane.brand || "";
-  elements.hoistModel.value = crane.model || "";
-  elements.hoistSerialNumber.value = crane.serialNumber || "";
-  elements.hoistVoltage.value = crane.voltage || "";
-  elements.overallCondition.value = mapCatalogStatusToCondition(crane.status);
-}
-
-function mapCatalogCraneTypeToOption(type) {
-  const normalized = String(type || "").trim().toLowerCase();
-  const options = Array.from(elements.craneType.options).map((option) => option.value);
-  const direct = options.find((option) => option.toLowerCase() === normalized);
-  if (direct) {
-    return direct;
-  }
-  if (normalized.includes("viajera")) {
-    return "Grua viajera";
-  }
-  if (normalized.includes("puente")) {
-    return "Puente";
-  }
-  if (normalized.includes("bandera")) {
-    return "Grua bandera";
-  }
-  if (normalized.includes("monorriel")) {
-    return "Monorriel";
-  }
-  if (normalized.includes("portico") || normalized.includes("pórtico")) {
-    return "Portico";
-  }
-  if (normalized.includes("polipasto")) {
-    return "Polipasto";
-  }
-  return "Otro";
-}
-
-function mapCatalogStatusToCondition(status) {
-  const normalized = String(status || "").trim().toLowerCase();
-  if (["bueno", "regular", "malo"].includes(normalized)) {
-    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-  }
-  return elements.overallCondition.value || "Bueno";
-}
-
-function getSelectedServiceTaskLines() {
-  const lines = [];
-  if (elements.serviceTaskCleaning.checked) {
-    lines.push(SERVICE_CLEANING_TEXT);
-  }
-  if (elements.serviceTaskLubrication.checked) {
-    lines.push(SERVICE_LUBRICATION_TEXT);
-  }
-  return lines;
-}
-
-function syncServiceSummaryFromTasks() {
-  elements.serviceSummary.value = getSelectedServiceTaskLines().join("\n");
-}
-
-function applyServiceTasksFromSummary(summary) {
-  const normalizedSummary = String(summary || "").toLowerCase();
-  elements.serviceTaskCleaning.checked = normalizedSummary.includes("limpieza general del equipo");
-  elements.serviceTaskLubrication.checked = normalizedSummary.includes("lubrico cadena/cable de carga")
-    || normalizedSummary.includes("lubrico cadena de carga")
-    || normalizedSummary.includes("lubricacion");
-  syncServiceSummaryFromTasks();
-
-  if (!elements.serviceSummary.value && summary) {
-    elements.serviceSummary.value = summary;
-  }
-}
-
-function applyFixedRecommendation() {
-  elements.recommendations.value = FIXED_RECOMMENDATION_TEXT;
-}
-
 function resetEquipmentEditorState() {
   elements.equipmentEditorForm.reset();
   elements.editingEquipmentId.value = "";
-  populateCompanyCraneSelector();
   currentEquipmentFindings = [];
   currentEquipmentServicePhotos = [];
   currentChecklistImage = null;
@@ -1024,10 +688,6 @@ function resetEquipmentEditorState() {
   nextDate.setMonth(nextDate.getMonth() + 6);
   elements.overallCondition.value = "Bueno";
   elements.nextInspection.value = nextDate.toISOString().slice(0, 10);
-  elements.serviceTaskCleaning.checked = false;
-  elements.serviceTaskLubrication.checked = false;
-  syncServiceSummaryFromTasks();
-  applyFixedRecommendation();
   renderFindingsList();
   renderServicePhotos();
   renderChecklistImageStatus();
@@ -1313,18 +973,12 @@ function saveEquipmentFromEditor() {
     return;
   }
 
-  syncServiceSummaryFromTasks();
-  applyFixedRecommendation();
-
   const equipmentId = elements.editingEquipmentId.value || createId();
   const previousEquipment = currentEquipments.find((item) => item.id === equipmentId);
   const equipment = normalizeEquipment({
     id: equipmentId,
     includeInReport: previousEquipment ? normalizeEquipment(previousEquipment).includeInReport : true,
-    catalogCraneId: elements.companyCraneSelector.value === "__new__"
-      ? ""
-      : elements.companyCraneSelector.value || (previousEquipment ? normalizeEquipment(previousEquipment).catalogCraneId : ""),
-    craneId: elements.equipmentName.value.trim(),
+    craneId: elements.craneId.value.trim(),
     equipmentName: elements.equipmentName.value.trim(),
     craneType: elements.craneType.value,
     ratedCapacity: elements.ratedCapacity.value.trim(),
@@ -1341,12 +995,11 @@ function saveEquipmentFromEditor() {
     overallCondition: elements.overallCondition.value,
     nextInspection: elements.nextInspection.value,
     serviceSummary: elements.serviceSummary.value.trim(),
-    recommendations: FIXED_RECOMMENDATION_TEXT,
+    recommendations: elements.recommendations.value.trim(),
     servicePhotos: currentEquipmentServicePhotos.slice(),
     checklistImage: currentChecklistImage ? { ...currentChecklistImage } : null,
     updatedAt: new Date().toISOString()
   });
-  equipment.catalogCraneId = upsertCatalogCraneFromEquipment(equipment);
 
   const existingIndex = currentEquipments.findIndex((item) => item.id === equipmentId);
   if (existingIndex >= 0) {
@@ -1744,7 +1397,7 @@ async function renderSavedReports() {
           <span>${record.equipments.length} equipo(s)</span>
           <span>${findingsCount} hallazgo(s)</span>
         </div>
-        <p class="saved-cranes">${escapeHtml(craneIds.length ? craneIds.join(" | ") : "Sin nombre/tag capturado")}</p>
+        <p class="saved-cranes">${escapeHtml(craneIds.length ? craneIds.join(" | ") : "Sin ID de grua capturado")}</p>
         <div class="saved-actions">
           <button class="secondary-button" type="button" data-open-id="${record.id}">Abrir</button>
           <button class="secondary-button" type="button" data-duplicate-id="${record.id}">Duplicar</button>
@@ -1901,7 +1554,7 @@ async function openConsolidatedHistory() {
 
 async function renderConsolidatedHistory() {
   const allRows = await buildConsolidatedHistoryRows();
-  await populateConsolidatedClientOptions(allRows);
+  populateConsolidatedClientOptions(allRows);
   const rows = filterConsolidatedRowsByClient(allRows);
   renderConsolidatedHistorySummary(rows);
   renderConsolidatedHistoryTable(rows);
@@ -1947,12 +1600,8 @@ async function buildConsolidatedHistoryRows() {
   });
 }
 
-async function populateConsolidatedClientOptions(rows) {
-  const fileClients = await readClientPlantsFromFile();
-  const clients = normalizeClientNames([
-    ...fileClients,
-    ...rows.map((row) => row.client)
-  ]);
+function populateConsolidatedClientOptions(rows) {
+  const clients = normalizeClientNames(rows.map((row) => row.client));
   elements.consolidatedClientOptions.innerHTML = clients
     .map((clientName) => `<option value="${escapeHtml(clientName)}"></option>`)
     .join("");
@@ -2258,7 +1907,7 @@ function createLegacyEquipment(record) {
     overallCondition: record.overallCondition || "Bueno",
     nextInspection: record.nextInspection || "",
     serviceSummary: "",
-    recommendations: FIXED_RECOMMENDATION_TEXT,
+    recommendations: record.recommendations || "",
     servicePhotos: [],
     checklistImage: null
   };
@@ -2286,7 +1935,7 @@ function createEmptyEquipment() {
     overallCondition: "Bueno",
     nextInspection: nextDate.toISOString().slice(0, 10),
     serviceSummary: "",
-    recommendations: FIXED_RECOMMENDATION_TEXT,
+    recommendations: "",
     servicePhotos: [],
     checklistImage: null
   });
@@ -2301,7 +1950,6 @@ function normalizeEquipment(equipment) {
     ...source,
     id: source.id || createId(),
     includeInReport,
-    catalogCraneId: source.catalogCraneId || "",
     craneId: fallbackCraneId,
     equipmentName: source.equipmentName || "",
     craneType: source.craneType || "Puente",
@@ -2324,7 +1972,7 @@ function normalizeEquipment(equipment) {
     overallCondition: source.overallCondition || "Bueno",
     nextInspection: source.nextInspection || "",
     serviceSummary: source.serviceSummary || "",
-    recommendations: FIXED_RECOMMENDATION_TEXT,
+    recommendations: source.recommendations || "",
     servicePhotos: Array.isArray(source.servicePhotos) ? source.servicePhotos : [],
     checklistImage: source.checklistImage && source.checklistImage.dataUrl
       ? {

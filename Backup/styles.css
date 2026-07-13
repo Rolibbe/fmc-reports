@@ -277,16 +277,6 @@ label {
   font-weight: 600;
 }
 
-.field-block {
-  display: grid;
-  gap: 10px;
-  font-weight: 600;
-}
-
-.field-label {
-  display: inline-flex;
-}
-
 input,
 select,
 textarea {
@@ -302,19 +292,10 @@ textarea {
   resize: vertical;
 }
 
-.generated-summary,
-textarea[readonly] {
-  background: #fbfaf6;
-}
-
 .checkbox-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
-}
-
-.service-task-grid {
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .checkbox-card {
@@ -586,37 +567,10 @@ textarea[readonly] {
 }
 
 .company-crane-card {
-  position: relative;
   padding: 16px;
   border: 1px solid rgba(214, 209, 196, 0.86);
   border-radius: 16px;
   background: rgba(255, 253, 248, 0.86);
-  cursor: grab;
-}
-
-.company-crane-card.is-dragging {
-  opacity: 0.58;
-}
-
-.company-crane-card.drop-before::before,
-.company-crane-card.drop-after::after {
-  content: "";
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  height: 3px;
-  border-radius: 999px;
-  background: var(--brand);
-  box-shadow: 0 0 0 4px rgba(15, 76, 92, 0.12);
-  z-index: 1;
-}
-
-.company-crane-card.drop-before::before {
-  top: -8px;
-}
-
-.company-crane-card.drop-after::after {
-  bottom: -8px;
 }
 
 .company-crane-main {
@@ -822,14 +776,6 @@ textarea[readonly] {
   border-radius: 16px;
   color: var(--muted);
   background: white;
-}
-
-.compact-empty-state {
-  display: flex;
-  align-items: center;
-  min-height: 48px;
-  padding: 12px 14px;
-  font-size: 0.92rem;
 }
 
 .saved-section h2 {
