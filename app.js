@@ -1,7 +1,8 @@
 
 const DB_NAME = "crane-inspections-db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "inspections";
+const MASTER_DATA_STORE_NAME = "masterData";
 const CLIENT_PLANTS_FILE = "clientes-plantas.txt";
 const CONSOLIDATED_EXPORT_TEMPLATE_FILE = "concentrado-general.csv";
 const CONSOLIDATED_EXPORT_DELIMITER = ";";
@@ -142,6 +143,11 @@ const elements = {
   companyCraneFindingsSummary: document.getElementById("companyCraneFindingsSummary"),
   companyCraneFindingsList: document.getElementById("companyCraneFindingsList"),
   closeCompanyCraneFindingsButton: document.getElementById("closeCompanyCraneFindingsButton"),
+  backupPreviewPanel: document.getElementById("backupPreviewPanel"),
+  backupPreviewSummary: document.getElementById("backupPreviewSummary"),
+  backupPreviewWarnings: document.getElementById("backupPreviewWarnings"),
+  cancelBackupImportButton: document.getElementById("cancelBackupImportButton"),
+  confirmBackupImportButton: document.getElementById("confirmBackupImportButton"),
   connectionStatus: document.getElementById("connectionStatus"),
   installButton: document.getElementById("installButton"),
   equipmentEditorTitle: document.getElementById("equipmentEditorTitle"),
@@ -204,6 +210,7 @@ const elements = {
 document.addEventListener("DOMContentLoaded", initializeApp);
 
 async function initializeApp() {
+  await initializeMasterDataStore();
   populateCategoryOptions();
   populateQuickFindingOptions();
   setupAppActions();
@@ -280,6 +287,13 @@ function setupAppActions() {
       closeCompanyCraneFindingsModal();
     }
   });
+  elements.cancelBackupImportButton.addEventListener("click", closeBackupPreview);
+  elements.confirmBackupImportButton.addEventListener("click", confirmFullBackupImport);
+  elements.backupPreviewPanel.addEventListener("click", (event) => {
+    if (event.target === elements.backupPreviewPanel) {
+      closeBackupPreview();
+    }
+  });
   elements.companyCraneFormPanel.addEventListener("click", (event) => {
     if (event.target === elements.companyCraneFormPanel) {
       closeCompanyCraneForm();
@@ -315,6 +329,10 @@ function setupAppActions() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !elements.companyCraneFindingsPanel.classList.contains("hidden")) {
       closeCompanyCraneFindingsModal();
+      return;
+    }
+    if (event.key === "Escape" && !elements.backupPreviewPanel.classList.contains("hidden")) {
+      closeBackupPreview();
       return;
     }
     if (event.key === "Escape" && !elements.companyCraneFormPanel.classList.contains("hidden")) {

@@ -395,16 +395,11 @@ function buildActiveCraneFindingKey(client, craneId) {
 }
 
 function readActiveCraneFindings() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(ACTIVE_CRANE_FINDINGS_KEY) || "{}");
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch (error) {
-    return {};
-  }
+  return getCachedMasterData("activeCraneFindings");
 }
 
 function writeActiveCraneFindings(findings) {
-  localStorage.setItem(ACTIVE_CRANE_FINDINGS_KEY, JSON.stringify(findings || {}));
+  setCachedMasterData("activeCraneFindings", ACTIVE_CRANE_FINDINGS_KEY, findings || {});
 }
 
 function openCompanyCraneForm(craneId) {
@@ -736,29 +731,19 @@ function getCurrentMaintenanceFrequencyMonths() {
 }
 
 function readCompanyMaintenanceFrequencies() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(COMPANY_MAINTENANCE_FREQUENCY_KEY) || "{}");
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch (error) {
-    return {};
-  }
+  return getCachedMasterData("companyMaintenanceFrequencies");
 }
 
 function writeCompanyMaintenanceFrequencies(frequencies) {
-  localStorage.setItem(COMPANY_MAINTENANCE_FREQUENCY_KEY, JSON.stringify(frequencies));
+  setCachedMasterData("companyMaintenanceFrequencies", COMPANY_MAINTENANCE_FREQUENCY_KEY, frequencies);
 }
 
 function readCompanyCraneRegistry() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(COMPANY_CRANE_REGISTRY_KEY) || "{}");
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch (error) {
-    return {};
-  }
+  return getCachedMasterData("companyCraneRegistry");
 }
 
 function writeCompanyCraneRegistry(registry) {
-  localStorage.setItem(COMPANY_CRANE_REGISTRY_KEY, JSON.stringify(registry));
+  setCachedMasterData("companyCraneRegistry", COMPANY_CRANE_REGISTRY_KEY, registry);
 }
 
 function populateCompanyCraneSelector(selectedCatalogCraneId = "") {

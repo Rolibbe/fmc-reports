@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f4c5c">
   <title>Inspecciones de Gruas</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=69">
 </head>
 <body>
   <div class="app-shell">
@@ -568,18 +568,48 @@
           </div>
         </section>
       </section>
+
+      <section id="backupPreviewPanel" class="modal-backdrop hidden">
+        <div class="subpanel modal-panel backup-preview-modal">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Respaldo</p>
+              <h3>Vista previa antes de importar</h3>
+            </div>
+            <div class="toolbar">
+              <button id="cancelBackupImportButton" class="ghost-button" type="button">Cancelar</button>
+              <button id="confirmBackupImportButton" class="primary-button" type="button">Importar</button>
+            </div>
+          </div>
+          <div id="backupPreviewSummary" class="backup-preview-summary"></div>
+          <div id="backupPreviewWarnings" class="backup-preview-warnings hidden"></div>
+          <div class="backup-import-options">
+            <fieldset>
+              <legend>Que quieres importar</legend>
+              <label><input type="radio" name="backupImportScope" value="all" checked> Todo el respaldo</label>
+              <label><input type="radio" name="backupImportScope" value="reports"> Solo reportes</label>
+              <label><input type="radio" name="backupImportScope" value="registry"> Solo empresas y gruas</label>
+            </fieldset>
+            <fieldset>
+              <legend>Como aplicarlo</legend>
+              <label><input type="radio" name="backupImportMode" value="merge" checked> Combinar con lo actual</label>
+              <label><input type="radio" name="backupImportMode" value="replace"> Reemplazar datos de esa seccion</label>
+            </fieldset>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
-  <script src="report-template-config.js?v=67"></script>
-  <script src="finding-catalog-config.js?v=67"></script>
-  <script src="findings.js?v=67"></script>
-  <script src="company-cranes.js?v=67"></script>
-  <script src="equipment.js?v=67"></script>
-  <script src="pdf-actions.js?v=67"></script>
-  <script src="backup.js?v=67"></script>
-  <script src="storage.js?v=67"></script>
-  <script src="report-generator.js?v=67"></script>
-  <script src="app.js?v=67"></script>
+  <script src="report-template-config.js?v=69"></script>
+  <script src="finding-catalog-config.js?v=69"></script>
+  <script src="findings.js?v=69"></script>
+  <script src="company-cranes.js?v=69"></script>
+  <script src="equipment.js?v=69"></script>
+  <script src="pdf-actions.js?v=69"></script>
+  <script src="backup.js?v=69"></script>
+  <script src="storage.js?v=69"></script>
+  <script src="report-generator.js?v=69"></script>
+  <script src="app.js?v=69"></script>
 </body>
 </html>
