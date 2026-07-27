@@ -1,0 +1,83 @@
+// pdf-actions.js
+// Funciones separadas desde app.js para mantener la PWA mas facil de mantener.
+
+async function generatePdfReport() {
+  const popup = window.open("", "_blank");
+  if (!popup) {
+    window.alert("No se pudo abrir la vista PDF. Revisa si el navegador bloqueo la ventana emergente.");
+    return;
+  }
+
+  popup.document.write('<p style="font-family: Arial, sans-serif; padding: 24px;">Generando reporte PDF...</p>');
+  popup.document.close();
+
+  const inspection = await persistInspection();
+  if (!inspection) {
+    popup.close();
+    return;
+  }
+
+  const selectedInspection = await buildPdfInspectionData(inspection);
+  if (!selectedInspection.equipments.length) {
+    popup.close();
+    window.alert("Selecciona al menos un equipo para incluirlo en el PDF.");
+    return;
+  }
+
+  try {
+    await openReportPdfWindow(selectedInspection, popup);
+  } catch (error) {
+    popup.close();
+    window.alert("No se pudo generar el reporte PDF completo.");
+  }
+}
+
+async function buildPdfInspectionData(inspection) {
+  const selectedEquipments = inspection.equipments
+    .map((equipment) => normalizeEquipment(equipment))
+    .filter((equipment) => equipment.includeInReport);
+  const optimizedEquipments = [];
+  for (const equipment of selectedEquipments) {
+    optimizedEquipments.push(await optimizeEquipmentImagesForPdf(equipment));
+  }
+  const craneIds = getInspectionCraneIds({ equipments: optimizedEquipments });
+
+  return {
+    ...inspection,
+    craneId: craneIds[0] || "",
+    craneIds,
+    equipments: optimizedEquipments
+  };
+}
+
+async function optimizeEquipmentImagesForPdf(equipment) {
+  const findings = [];
+  for (const finding of equipment.findings || []) {
+    findings.push({
+      ...finding,
+      photos: await optimizeDataUrlImagesSequential(finding.photos || [])
+    });
+  }
+  const servicePhotos = await optimizeDataUrlImagesSequential(equipment.servicePhotos || []);
+  const checklistImage = equipment.checklistImage && equipment.checklistImage.dataUrl
+    ? {
+        ...equipment.checklistImage,
+        dataUrl: await optimizeDataUrlImage(equipment.checklistImage.dataUrl, REPORT_CHECKLIST_MAX_SIZE)
+      }
+    : equipment.checklistImage;
+
+  return {
+    ...equipment,
+    findings,
+    servicePhotos,
+    checklistImage
+  };
+}
+
+async function optimizeDataUrlImagesSequential(photos) {
+  const optimized = [];
+  for (const photo of photos) {
+    optimized.push(await optimizeDataUrlImage(photo));
+  }
+  return optimized;
+}
