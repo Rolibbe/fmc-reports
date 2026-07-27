@@ -845,9 +845,71 @@ textarea[readonly] {
   white-space: nowrap;
 }
 
-.crane-finding-items {
+.crane-finding-items,
+.crane-finding-check-list {
   display: grid;
   gap: 10px;
+}
+
+.crane-finding-check {
+  display: grid;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  border: 1px solid rgba(214, 209, 196, 0.86);
+  border-radius: 12px;
+  background: #fbfaf6;
+  font-weight: 600;
+}
+
+.crane-finding-check.is-good {
+  border-color: rgba(79, 157, 105, 0.38);
+  background: rgba(79, 157, 105, 0.1);
+}
+
+.crane-finding-check.is-na {
+  border-color: rgba(142, 135, 121, 0.35);
+  background: rgba(142, 135, 121, 0.09);
+}
+
+.crane-finding-check.is-bad {
+  border-color: rgba(214, 95, 95, 0.44);
+  background: rgba(214, 95, 95, 0.09);
+}
+
+.crane-finding-check span {
+  color: var(--ink);
+}
+
+.finding-status-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.finding-status-options label {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.finding-status-options input {
+  width: auto;
+}
+
+.finding-status-options label:has(input:checked) {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
 }
 
 .crane-finding-item {
