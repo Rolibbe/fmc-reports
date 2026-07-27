@@ -55,14 +55,14 @@ async function optimizeEquipmentImagesForPdf(equipment) {
   for (const finding of equipment.findings || []) {
     findings.push({
       ...finding,
-      photos: await optimizeDataUrlImagesSequential(finding.photos || [])
+      photos: await optimizeDataUrlImagesSequential(finding.photos || [], REPORT_PDF_IMAGE_MAX_SIZE)
     });
   }
-  const servicePhotos = await optimizeDataUrlImagesSequential(equipment.servicePhotos || []);
+  const servicePhotos = await optimizeDataUrlImagesSequential(equipment.servicePhotos || [], REPORT_PDF_IMAGE_MAX_SIZE);
   const checklistImage = equipment.checklistImage && equipment.checklistImage.dataUrl
     ? {
         ...equipment.checklistImage,
-        dataUrl: await optimizeDataUrlImage(equipment.checklistImage.dataUrl, REPORT_CHECKLIST_MAX_SIZE)
+        dataUrl: await optimizeDataUrlImage(equipment.checklistImage.dataUrl, REPORT_PDF_CHECKLIST_MAX_SIZE)
       }
     : equipment.checklistImage;
 
@@ -74,10 +74,13 @@ async function optimizeEquipmentImagesForPdf(equipment) {
   };
 }
 
-async function optimizeDataUrlImagesSequential(photos) {
+async function optimizeDataUrlImagesSequential(photos, maxSize = REPORT_PDF_IMAGE_MAX_SIZE) {
   const optimized = [];
   for (const photo of photos) {
-    optimized.push(await optimizeDataUrlImage(photo));
+    const dataUrl = getPhotoDataUrl(photo);
+    if (dataUrl) {
+      optimized.push(await optimizeDataUrlImage(dataUrl, maxSize));
+    }
   }
   return optimized;
 }

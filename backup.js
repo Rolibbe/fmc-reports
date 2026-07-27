@@ -4,11 +4,12 @@
 const FULL_BACKUP_VERSION = 1;
 let pendingFullBackupImport = null;
 
-async function exportFullBackup() {
+async function exportFullBackup(options = {}) {
+  const includePhotos = Boolean(options.includePhotos);
   try {
     const inspections = (await getAllInspections())
       .map(normalizeInspection)
-      .map(createPortableBackupInspection);
+      .map((inspection) => createPortableBackupInspection(inspection, { includePhotos }));
     const exportedAt = new Date().toISOString();
     const companyCraneRegistry = readCompanyCraneRegistry();
     const activeCraneFindings = readActiveCraneFindings();
@@ -17,7 +18,7 @@ async function exportFullBackup() {
       '  "type": "crane-report-full-backup",\n',
       `  "version": ${FULL_BACKUP_VERSION},\n`,
       `  "exportedAt": ${JSON.stringify(exportedAt)},\n`,
-      '  "omitsPhotoData": true,\n',
+      `  "omitsPhotoData": ${JSON.stringify(!includePhotos)},\n`,
       `  "summary": ${JSON.stringify({
         inspections: inspections.length,
         companies: Object.keys(companyCraneRegistry).length,
@@ -43,31 +44,63 @@ async function exportFullBackup() {
     );
 
     const dateStamp = new Date().toISOString().slice(0, 10);
-    downloadBlobParts(chunks, `respaldo-completo-reportes-${dateStamp}.json`, "application/json");
+    const suffix = includePhotos ? "con-fotos" : "sin-fotos";
+    downloadBlobParts(chunks, `respaldo-completo-${suffix}-${dateStamp}.json`, "application/json");
   } catch (error) {
     window.alert(`No se pudo crear el respaldo completo. Detalle: ${error && error.message ? error.message : "error desconocido"}`);
   }
 }
 
-function createPortableBackupInspection(inspection) {
+function createPortableBackupInspection(inspection, options = {}) {
+  const includePhotos = Boolean(options.includePhotos);
   return {
     ...inspection,
     equipments: (inspection.equipments || []).map((equipment) => ({
       ...equipment,
       servicePhotoCount: (equipment.servicePhotos || []).length,
-      servicePhotos: [],
-      checklistImage: equipment.checklistImage
-        ? {
-            name: equipment.checklistImage.name || "checklist.jpg",
-            omittedFromBackup: true
-          }
-        : null,
+      servicePhotos: includePhotos ? normalizeBackupPhotos(equipment.servicePhotos || []) : [],
+      checklistImage: createPortableBackupChecklistImage(equipment.checklistImage, includePhotos),
       findings: (equipment.findings || []).map((finding) => ({
         ...finding,
         photoCount: (finding.photos || []).length,
-        photos: []
+        photos: includePhotos ? normalizeBackupPhotos(finding.photos || []) : []
       }))
     }))
+  };
+}
+
+function normalizeBackupPhotos(photos) {
+  return (photos || [])
+    .map(normalizePhotoEntry)
+    .filter((photo) => photo && (photo.dataUrl || photo.thumbUrl))
+    .map((photo) => ({
+      name: photo.name || "foto.jpg",
+      dataUrl: photo.dataUrl || "",
+      thumbUrl: photo.thumbUrl || "",
+      storedSize: photo.storedSize || estimateDataUrlBytes(photo.dataUrl),
+      createdAt: photo.createdAt || "",
+      removedFromStorage: Boolean(photo.removedFromStorage)
+    }));
+}
+
+function createPortableBackupChecklistImage(checklistImage, includePhotos) {
+  const normalized = normalizeChecklistImage(checklistImage);
+  if (!normalized) {
+    return null;
+  }
+  if (includePhotos) {
+    return {
+      name: normalized.name || "checklist.jpg",
+      dataUrl: normalized.dataUrl || "",
+      thumbUrl: normalized.thumbUrl || "",
+      storedSize: normalized.storedSize || estimateDataUrlBytes(normalized.dataUrl),
+      createdAt: normalized.createdAt || "",
+      removedFromStorage: Boolean(normalized.removedFromStorage)
+    };
+  }
+  return {
+    name: normalized.name || "checklist.jpg",
+    omittedFromBackup: true
   };
 }
 
@@ -91,6 +124,141 @@ async function handleFullBackupImport(event) {
   } catch (error) {
     window.alert(`No se pudo importar el respaldo completo. Detalle: ${error && error.message ? error.message : "archivo invalido"}`);
   }
+}
+
+async function purgeStoredHeavyPhotos() {
+  const records = (await getAllInspections()).map(normalizeInspection);
+  if (!records.length) {
+    window.alert("No hay reportes guardados para limpiar.");
+    return;
+  }
+
+  const summary = summarizeStoredPhotoWeight(records);
+  if (!summary.photos) {
+    window.alert("No se encontraron fotos pesadas guardadas.");
+    return;
+  }
+
+  const message = `Se encontraron ${summary.photos} foto(s) con aproximadamente ${formatBytes(summary.bytes)} guardados.\n\nEsto quitara las fotos grandes de los reportes guardados y conservara miniaturas cuando existan. Los reportes seguiran existiendo, pero esas fotos ya no apareceran completas en PDF ni en respaldos con fotos.\n\nDeseas continuar?`;
+  if (!window.confirm(message)) {
+    return;
+  }
+
+  let changedReports = 0;
+  let removedPhotos = 0;
+  let removedBytes = 0;
+  for (const record of records) {
+    const cleaned = stripHeavyPhotosFromInspection(record);
+    if (cleaned.removedPhotos) {
+      changedReports += 1;
+      removedPhotos += cleaned.removedPhotos;
+      removedBytes += cleaned.removedBytes;
+      await putInspection(cleaned.inspection);
+    }
+  }
+
+  await renderSavedReports();
+  if (elements.consolidatedHistoryView && !elements.consolidatedHistoryView.classList.contains("hidden")) {
+    await renderConsolidatedHistory();
+  }
+  window.alert(`Limpieza terminada.\nReportes actualizados: ${changedReports}.\nFotos pesadas eliminadas: ${removedPhotos}.\nEspacio aproximado liberado: ${formatBytes(removedBytes)}.`);
+}
+
+function summarizeStoredPhotoWeight(records) {
+  return records.reduce((summary, record) => {
+    const result = stripHeavyPhotosFromInspection(record, { previewOnly: true });
+    return {
+      photos: summary.photos + result.removedPhotos,
+      bytes: summary.bytes + result.removedBytes
+    };
+  }, { photos: 0, bytes: 0 });
+}
+
+function stripHeavyPhotosFromInspection(inspection, options = {}) {
+  let removedPhotos = 0;
+  let removedBytes = 0;
+  const equipments = (inspection.equipments || []).map((equipment) => {
+    const serviceResult = stripHeavyPhotoList(equipment.servicePhotos || []);
+    removedPhotos += serviceResult.removedPhotos;
+    removedBytes += serviceResult.removedBytes;
+
+    const findings = (equipment.findings || []).map((finding) => {
+      const findingResult = stripHeavyPhotoList(finding.photos || []);
+      removedPhotos += findingResult.removedPhotos;
+      removedBytes += findingResult.removedBytes;
+      return options.previewOnly ? finding : {
+        ...finding,
+        photos: findingResult.photos
+      };
+    });
+
+    const checklistResult = stripHeavyChecklistImage(equipment.checklistImage);
+    removedPhotos += checklistResult.removedPhotos;
+    removedBytes += checklistResult.removedBytes;
+
+    return options.previewOnly ? equipment : {
+      ...equipment,
+      servicePhotos: serviceResult.photos,
+      checklistImage: checklistResult.image,
+      findings
+    };
+  });
+
+  return {
+    inspection: options.previewOnly ? inspection : { ...inspection, equipments },
+    removedPhotos,
+    removedBytes
+  };
+}
+
+function stripHeavyPhotoList(photos) {
+  const result = {
+    photos: [],
+    removedPhotos: 0,
+    removedBytes: 0
+  };
+
+  (photos || []).forEach((photo) => {
+    const normalized = normalizePhotoEntry(photo);
+    if (!normalized) {
+      return;
+    }
+    if (!normalized.dataUrl) {
+      result.photos.push(normalized);
+      return;
+    }
+    result.removedPhotos += 1;
+    result.removedBytes += estimateDataUrlBytes(normalized.dataUrl);
+    result.photos.push({
+      ...normalized,
+      dataUrl: "",
+      removedFromStorage: true,
+      removedAt: new Date().toISOString()
+    });
+  });
+
+  return result;
+}
+
+function stripHeavyChecklistImage(image) {
+  const normalized = normalizeChecklistImage(image);
+  if (!normalized || !normalized.dataUrl) {
+    return {
+      image: normalized,
+      removedPhotos: 0,
+      removedBytes: 0
+    };
+  }
+  return {
+    image: {
+      ...normalized,
+      dataUrl: "",
+      removedFromStorage: true,
+      removedAt: new Date().toISOString()
+    },
+    removedPhotos: 1,
+    removedBytes: estimateDataUrlBytes(normalized.dataUrl)
+  };
 }
 
 function parseJsonFileContent(text) {

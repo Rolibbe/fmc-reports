@@ -1,6 +1,12 @@
 // company-cranes.js
 // Funciones separadas desde app.js para mantener la PWA mas facil de mantener.
 
+let activeCompanyCraneMaster = {
+  client: "",
+  craneId: "",
+  tab: "data"
+};
+
 async function openCompanyCraneRegistry() {
   await populateCompanyRegistryClientOptions();
 
@@ -239,7 +245,7 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
       if (event.target.closest("button")) {
         return;
       }
-      openCompanyCraneFindingsModal(crane.id);
+      openCompanyCraneFindingsModal(crane.id, "data");
     });
     card.innerHTML = `
       <div class="company-crane-main">
@@ -260,7 +266,7 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
       </div>
       ${crane.notes ? `<p class="company-crane-notes">${escapeHtml(crane.notes)}</p>` : ""}
       ${renderCompanyCraneMaintenanceStatus(maintenance)}
-      <p class="company-crane-open-hint">Clic para ver hallazgos detectados</p>
+      <p class="company-crane-open-hint">Clic para abrir ficha maestra</p>
       <div class="company-crane-actions">
         <button class="secondary-button" type="button" data-edit-company-crane-id="${escapeHtml(crane.id)}">Editar</button>
         <button class="ghost-button" type="button" data-delete-company-crane-id="${escapeHtml(crane.id)}">Quitar</button>
@@ -278,7 +284,7 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
   });
 }
 
-function openCompanyCraneFindingsModal(craneId) {
+function openCompanyCraneFindingsModal(craneId, tab = "data") {
   const client = normalizeClientName(elements.companyRegistryClient.value);
   const registry = readCompanyCraneRegistry();
   const crane = (registry[client] || []).find((item) => item.id === craneId);
@@ -286,12 +292,227 @@ function openCompanyCraneFindingsModal(craneId) {
     return;
   }
 
-  renderCompanyCraneFindingSelector(client, crane);
+  activeCompanyCraneMaster = { client, craneId: crane.id, tab };
+  renderCompanyCraneMasterModal();
   elements.companyCraneFindingsPanel.classList.remove("hidden");
 }
 
 function closeCompanyCraneFindingsModal() {
+  activeCompanyCraneMaster = { client: "", craneId: "", tab: "data" };
   elements.companyCraneFindingsPanel.classList.add("hidden");
+}
+
+async function renderCompanyCraneMasterModal() {
+  const { client, craneId, tab } = activeCompanyCraneMaster;
+  const registry = readCompanyCraneRegistry();
+  const crane = (registry[client] || []).find((item) => item.id === craneId);
+  if (!client || !crane) {
+    return;
+  }
+
+  elements.companyCraneFindingsTitle.textContent = crane.craneId || crane.type || "Detalle de grua";
+  elements.companyCraneFindingsSummary.innerHTML = renderCompanyCraneMasterTabs(tab);
+
+  const tabRenderers = {
+    data: () => renderCompanyCraneDataTab(client, crane),
+    maintenance: () => renderCompanyCraneMaintenanceTab(client, crane),
+    findings: () => renderCompanyCraneFindingsTab(client, crane),
+    history: () => renderCompanyCraneHistoryTab(client, crane),
+    files: () => renderCompanyCraneFilesTab(client, crane)
+  };
+
+  const renderer = tabRenderers[tab] || tabRenderers.data;
+  elements.companyCraneFindingsList.innerHTML = await renderer();
+  wireCompanyCraneMasterTabs();
+  if (tab === "findings") {
+    wireActiveCraneFindingChecks(client, crane);
+  }
+}
+
+function renderCompanyCraneMasterTabs(activeTab) {
+  const tabs = [
+    { key: "data", label: "Datos" },
+    { key: "maintenance", label: "Mantenimiento" },
+    { key: "findings", label: "Hallazgos" },
+    { key: "history", label: "Historial de reportes" },
+    { key: "files", label: "Fotos/documentos" }
+  ];
+
+  return `
+    <div class="crane-master-tabs" role="tablist">
+      ${tabs.map((tab) => `
+        <button class="${activeTab === tab.key ? "is-active" : ""}" type="button" data-crane-master-tab="${escapeHtml(tab.key)}">
+          ${escapeHtml(tab.label)}
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function wireCompanyCraneMasterTabs() {
+  elements.companyCraneFindingsSummary.querySelectorAll("[data-crane-master-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeCompanyCraneMaster.tab = button.dataset.craneMasterTab || "data";
+      renderCompanyCraneMasterModal();
+    });
+  });
+}
+
+function renderCompanyCraneDataTab(client, crane) {
+  return `
+    <div class="crane-master-grid">
+      <article class="crane-master-card">
+        <p class="eyebrow">Identidad</p>
+        <h4>${escapeHtml(crane.craneId || "Sin tag")}</h4>
+        <dl class="crane-master-details">
+          ${renderCraneMasterDetail("Cliente", client)}
+          ${renderCraneMasterDetail("Area", crane.area || "No capturada")}
+          ${renderCraneMasterDetail("Tipo", crane.type || "No capturado")}
+          ${renderCraneMasterDetail("Estado", crane.status || "Sin estado")}
+        </dl>
+      </article>
+      <article class="crane-master-card">
+        <p class="eyebrow">Datos tecnicos</p>
+        <dl class="crane-master-details">
+          ${renderCraneMasterDetail("Capacidad estructura", crane.structureCapacity || "No capturada")}
+          ${renderCraneMasterDetail("Capacidad polipasto", crane.hoistCapacity || "No capturada")}
+          ${renderCraneMasterDetail("Voltaje", crane.voltage || "No capturado")}
+          ${renderCraneMasterDetail("Marca", crane.brand || "No capturada")}
+          ${renderCraneMasterDetail("Modelo", crane.model || "No capturado")}
+          ${renderCraneMasterDetail("Serial", crane.serialNumber || "No capturado")}
+        </dl>
+      </article>
+      <article class="crane-master-card crane-master-card-wide">
+        <p class="eyebrow">Notas</p>
+        <p>${escapeHtml(crane.notes || "Sin notas capturadas.")}</p>
+      </article>
+    </div>
+  `;
+}
+
+async function renderCompanyCraneMaintenanceTab(client, crane) {
+  const lookup = await buildCompanyCraneMaintenanceLookup(client, [crane]);
+  const maintenance = lookup.get(crane.id) || null;
+  return `
+    <div class="crane-master-grid">
+      <article class="crane-master-card">
+        <p class="eyebrow">Mantenimiento</p>
+        ${renderCompanyCraneMaintenanceStatus(maintenance)}
+      </article>
+      <article class="crane-master-card">
+        <p class="eyebrow">Frecuencia</p>
+        <h4>${escapeHtml(formatMaintenanceFrequency(getCompanyMaintenanceFrequency(client)))}</h4>
+        <dl class="crane-master-details">
+          ${renderCraneMasterDetail("Ultimo mantenimiento manual", formatDate(crane.lastMaintenanceDate) || "No definido")}
+          ${renderCraneMasterDetail("Proximo manual", formatDate(crane.nextMaintenanceDate) || "No definido")}
+          ${renderCraneMasterDetail("Fuente actual", maintenance ? (maintenance.manual ? "Manual" : "Reporte guardado") : "Sin fecha")}
+        </dl>
+      </article>
+    </div>
+  `;
+}
+
+function renderCompanyCraneFindingsTab(client, crane) {
+  const selectedFindings = readActiveCraneFindings()[buildActiveCraneFindingKey(client, crane.id)] || {};
+  const selectedCount = Object.keys(selectedFindings).filter((key) => getActiveCraneFindingStatus(selectedFindings, key) === "bad").length;
+  const catalogCount = findingCatalogIndex.length;
+  return `
+    <div class="crane-master-mini-summary">
+      <article class="history-stat"><span>Hallazgos / Mal</span><strong>${selectedCount}</strong></article>
+      <article class="history-stat"><span>Catalogo disponible</span><strong>${catalogCount}</strong></article>
+      <article class="history-stat"><span>Guardado</span><strong>Automatico</strong></article>
+    </div>
+    ${renderActiveCraneFindingGroups(selectedFindings)}
+  `;
+}
+
+async function renderCompanyCraneHistoryTab(client, crane) {
+  const rows = await getCompanyCraneReportHistory(client, crane);
+  if (!rows.length) {
+    return '<div class="inline-empty-state">Todavia no hay reportes guardados para esta grua.</div>';
+  }
+
+  return `
+    <div class="maintenance-table-wrap">
+      <table class="maintenance-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Folio</th>
+            <th>Condicion</th>
+            <th>Hallazgos</th>
+            <th>Proximo mantenimiento</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row) => `
+            <tr>
+              <td>${escapeHtml(formatDate(row.date) || "Sin fecha")}</td>
+              <td><strong>${escapeHtml(row.reportNumber || "Sin folio")}</strong></td>
+              <td>${escapeHtml(row.condition || "Sin condicion")}</td>
+              <td>${row.findingsCount}</td>
+              <td>${escapeHtml(formatDate(row.nextInspection) || "No definido")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function renderCompanyCraneFilesTab(client, crane) {
+  const rows = await getCompanyCraneReportHistory(client, crane);
+  const totals = rows.reduce((summary, row) => ({
+    servicePhotos: summary.servicePhotos + row.servicePhotos,
+    findingPhotos: summary.findingPhotos + row.findingPhotos,
+    checklistImages: summary.checklistImages + (row.hasChecklist ? 1 : 0)
+  }), { servicePhotos: 0, findingPhotos: 0, checklistImages: 0 });
+
+  return `
+    <div class="crane-master-mini-summary">
+      <article class="history-stat"><span>Fotos de servicio</span><strong>${totals.servicePhotos}</strong></article>
+      <article class="history-stat"><span>Fotos de hallazgos</span><strong>${totals.findingPhotos}</strong></article>
+      <article class="history-stat"><span>Checklists</span><strong>${totals.checklistImages}</strong></article>
+    </div>
+    <div class="inline-empty-state">Esta pestaña resume fotos y documentos encontrados en reportes guardados. Los archivos maestros independientes todavia no estan habilitados.</div>
+  `;
+}
+
+async function getCompanyCraneReportHistory(client, crane) {
+  const records = (await getAllInspections()).map(normalizeInspection);
+  const rows = [];
+  records
+    .filter((record) => normalizeClientName(record.plantName) === client)
+    .forEach((record) => {
+      (record.equipments || []).forEach((equipment) => {
+        if (!equipmentMatchesCompanyCrane(crane, equipment)) {
+          return;
+        }
+        const servicePhotos = Array.isArray(equipment.servicePhotos) ? equipment.servicePhotos.length : 0;
+        const findingPhotos = (equipment.findings || []).reduce((sum, finding) => sum + (Array.isArray(finding.photos) ? finding.photos.length : 0), 0);
+        rows.push({
+          date: equipment.maintenanceDate || record.inspectionDate || "",
+          reportNumber: record.reportNumber || "",
+          condition: equipment.overallCondition || "",
+          findingsCount: (equipment.findings || []).length,
+          nextInspection: equipment.nextInspection || "",
+          servicePhotos,
+          findingPhotos,
+          hasChecklist: Boolean(equipment.checklistImage)
+        });
+      });
+    });
+
+  return rows.sort((first, second) => compareDateInput(second.date, first.date));
+}
+
+function renderCraneMasterDetail(label, value) {
+  return `
+    <div>
+      <dt>${escapeHtml(label)}</dt>
+      <dd>${escapeHtml(value || "No capturado")}</dd>
+    </div>
+  `;
 }
 
 function equipmentMatchesCompanyCrane(crane, equipment) {
@@ -385,7 +606,8 @@ function wireActiveCraneFindingChecks(client, crane) {
         delete findings[key][input.dataset.activeFindingValue];
       }
       writeActiveCraneFindings(findings);
-      renderCompanyCraneFindingSelector(client, crane);
+      activeCompanyCraneMaster = { client, craneId: crane.id, tab: "findings" };
+      renderCompanyCraneMasterModal();
     });
   });
 }

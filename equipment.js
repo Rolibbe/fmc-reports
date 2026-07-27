@@ -197,7 +197,7 @@ async function addFindingPhotoFiles(files) {
     return;
   }
 
-  const encoded = await Promise.all(imageFiles.map((file) => imageFileToOptimizedDataUrl(file)));
+  const encoded = await Promise.all(imageFiles.map((file) => imageFileToOptimizedPhoto(file)));
   editingPhotos = editingPhotos.concat(encoded);
   renderEditingPhotos();
 }
@@ -208,7 +208,7 @@ async function addServicePhotoFiles(files) {
     return;
   }
 
-  const encoded = await Promise.all(imageFiles.map((file) => imageFileToOptimizedDataUrl(file)));
+  const encoded = await Promise.all(imageFiles.map((file) => imageFileToOptimizedPhoto(file)));
   currentEquipmentServicePhotos = currentEquipmentServicePhotos.concat(encoded);
   renderServicePhotos();
 }
@@ -221,7 +221,7 @@ async function addChecklistImageFile(files) {
 
   currentChecklistImage = {
     name: file.name,
-    dataUrl: await imageFileToOptimizedDataUrl(file, REPORT_CHECKLIST_MAX_SIZE)
+    ...(await imageFileToOptimizedPhoto(file, REPORT_CHECKLIST_MAX_SIZE))
   };
   renderChecklistImageStatus();
 }
@@ -284,12 +284,13 @@ function renderServicePhotos() {
 }
 
 function renderChecklistImageStatus() {
-  if (!currentChecklistImage || !currentChecklistImage.dataUrl) {
+  if (!currentChecklistImage || (!currentChecklistImage.dataUrl && !currentChecklistImage.thumbUrl)) {
     elements.checklistImageStatus.textContent = "Todavia no se ha adjuntado una imagen del checklist.";
     return;
   }
 
-  elements.checklistImageStatus.textContent = `Imagen adjunta: ${currentChecklistImage.name || "checklist.jpg"}`;
+  const status = currentChecklistImage.dataUrl ? "Imagen adjunta" : "Miniatura conservada";
+  elements.checklistImageStatus.textContent = `${status}: ${currentChecklistImage.name || "checklist.jpg"}`;
 }
 
 function clearChecklistImage() {
@@ -302,7 +303,7 @@ function buildPhotoThumb(photo, onRemove) {
   const wrapper = document.createElement("div");
   wrapper.className = "photo-thumb";
   const img = document.createElement("img");
-  img.src = photo;
+  img.src = getPhotoThumbnailUrl(photo) || getPhotoDataUrl(photo);
   img.alt = "Evidencia fotografica";
   const removeButton = document.createElement("button");
   removeButton.type = "button";
@@ -331,7 +332,7 @@ function saveFindingFromEditor() {
     incidence: elements.findingIncidence.value,
     description: elements.findingDescription.value.trim() || fallbackDescription,
     recommendation: elements.findingRecommendation.value.trim(),
-    photos: editingPhotos.slice(),
+    photos: editingPhotos.map(normalizePhotoEntry),
     updatedAt: new Date().toISOString()
   };
 
@@ -421,8 +422,8 @@ function saveEquipmentFromEditor() {
     nextInspection: elements.nextInspection.value,
     serviceSummary: elements.serviceSummary.value.trim(),
     recommendations: elements.recommendations.value.trim() || FIXED_RECOMMENDATION_TEXT,
-    servicePhotos: currentEquipmentServicePhotos.slice(),
-    checklistImage: currentChecklistImage ? { ...currentChecklistImage } : null,
+    servicePhotos: currentEquipmentServicePhotos.map(normalizePhotoEntry),
+    checklistImage: currentChecklistImage ? normalizeChecklistImage(currentChecklistImage) : null,
     updatedAt: new Date().toISOString()
   });
   equipment.catalogCraneId = upsertCatalogCraneFromEquipment(equipment);
@@ -738,7 +739,8 @@ function normalizeEquipment(equipment) {
     findings: Array.isArray(source.findings)
       ? source.findings.map((finding) => ({
           ...finding,
-          recommendation: finding.recommendation || ""
+          recommendation: finding.recommendation || "",
+          photos: Array.isArray(finding.photos) ? finding.photos.map(normalizePhotoEntry) : []
         }))
       : [],
     overallCondition: source.overallCondition || "Bueno",
@@ -746,13 +748,8 @@ function normalizeEquipment(equipment) {
     nextInspection: source.nextInspection || "",
     serviceSummary: source.serviceSummary || "",
     recommendations: source.recommendations || FIXED_RECOMMENDATION_TEXT,
-    servicePhotos: Array.isArray(source.servicePhotos) ? source.servicePhotos : [],
-    checklistImage: source.checklistImage && source.checklistImage.dataUrl
-      ? {
-          name: source.checklistImage.name || "checklist.jpg",
-          dataUrl: source.checklistImage.dataUrl
-        }
-      : null
+    servicePhotos: Array.isArray(source.servicePhotos) ? source.servicePhotos.map(normalizePhotoEntry) : [],
+    checklistImage: normalizeChecklistImage(source.checklistImage)
   };
 }
 
@@ -770,7 +767,21 @@ async function imageFileToOptimizedDataUrl(file, maxSize = REPORT_IMAGE_MAX_SIZE
   return optimizeDataUrlImage(dataUrl, maxSize);
 }
 
-function optimizeDataUrlImage(dataUrl, maxSize = REPORT_IMAGE_MAX_SIZE) {
+async function imageFileToOptimizedPhoto(file, maxSize = REPORT_IMAGE_MAX_SIZE) {
+  const dataUrl = await fileToDataUrl(file);
+  const optimizedDataUrl = await optimizeDataUrlImage(dataUrl, maxSize, REPORT_IMAGE_QUALITY);
+  const thumbUrl = await optimizeDataUrlImage(dataUrl, REPORT_THUMBNAIL_MAX_SIZE, REPORT_THUMBNAIL_QUALITY);
+  return {
+    name: file.name || "foto.jpg",
+    dataUrl: optimizedDataUrl,
+    thumbUrl,
+    originalSize: file.size || 0,
+    storedSize: estimateDataUrlBytes(optimizedDataUrl),
+    createdAt: new Date().toISOString()
+  };
+}
+
+function optimizeDataUrlImage(dataUrl, maxSize = REPORT_IMAGE_MAX_SIZE, quality = REPORT_IMAGE_QUALITY) {
   if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
     return Promise.resolve(dataUrl);
   }
@@ -789,7 +800,7 @@ function optimizeDataUrlImage(dataUrl, maxSize = REPORT_IMAGE_MAX_SIZE) {
         context.fillStyle = "#ffffff";
         context.fillRect(0, 0, width, height);
         context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", REPORT_IMAGE_QUALITY));
+        resolve(canvas.toDataURL("image/jpeg", quality));
       } catch (error) {
         resolve(dataUrl);
       }
@@ -797,4 +808,61 @@ function optimizeDataUrlImage(dataUrl, maxSize = REPORT_IMAGE_MAX_SIZE) {
     image.onerror = () => resolve(dataUrl);
     image.src = dataUrl;
   });
+}
+
+function normalizePhotoEntry(photo) {
+  if (!photo) {
+    return null;
+  }
+  if (typeof photo === "string") {
+    return {
+      dataUrl: photo,
+      thumbUrl: "",
+      name: "foto.jpg",
+      legacy: true,
+      storedSize: estimateDataUrlBytes(photo)
+    };
+  }
+  if (typeof photo === "object") {
+    return {
+      ...photo,
+      dataUrl: photo.dataUrl || "",
+      thumbUrl: photo.thumbUrl || "",
+      name: photo.name || "foto.jpg",
+      storedSize: photo.storedSize || estimateDataUrlBytes(photo.dataUrl)
+    };
+  }
+  return null;
+}
+
+function normalizeChecklistImage(image) {
+  if (!image) {
+    return null;
+  }
+  if (typeof image === "string") {
+    return normalizePhotoEntry(image);
+  }
+  if (typeof image === "object" && (image.dataUrl || image.thumbUrl || image.omittedFromBackup || image.removedFromStorage)) {
+    return {
+      ...normalizePhotoEntry(image),
+      name: image.name || "checklist.jpg"
+    };
+  }
+  return null;
+}
+
+function getPhotoDataUrl(photo) {
+  return typeof photo === "string" ? photo : photo && photo.dataUrl ? photo.dataUrl : "";
+}
+
+function getPhotoThumbnailUrl(photo) {
+  return photo && typeof photo === "object" && photo.thumbUrl ? photo.thumbUrl : "";
+}
+
+function estimateDataUrlBytes(dataUrl) {
+  if (!dataUrl || typeof dataUrl !== "string") {
+    return 0;
+  }
+  const base64 = dataUrl.split(",")[1] || "";
+  return Math.round(base64.length * 0.75);
 }

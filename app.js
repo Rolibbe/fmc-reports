@@ -60,9 +60,13 @@ let draggedEquipmentId = null;
 let didDragEquipment = false;
 let draggedCompanyCraneId = null;
 
-const REPORT_IMAGE_MAX_SIZE = 1600;
-const REPORT_CHECKLIST_MAX_SIZE = 1900;
-const REPORT_IMAGE_QUALITY = 0.72;
+const REPORT_IMAGE_MAX_SIZE = 1150;
+const REPORT_CHECKLIST_MAX_SIZE = 1500;
+const REPORT_THUMBNAIL_MAX_SIZE = 320;
+const REPORT_PDF_IMAGE_MAX_SIZE = 1300;
+const REPORT_PDF_CHECKLIST_MAX_SIZE = 1700;
+const REPORT_IMAGE_QUALITY = 0.62;
+const REPORT_THUMBNAIL_QUALITY = 0.54;
 
 const elements = {
   sidebar: document.getElementById("sidebar"),
@@ -75,6 +79,7 @@ const elements = {
   equipmentEditorView: document.getElementById("equipmentEditorView"),
   findingEditorView: document.getElementById("findingEditorView"),
   consolidatedHistoryView: document.getElementById("consolidatedHistoryView"),
+  maintenancePanelView: document.getElementById("maintenancePanelView"),
   companyCraneRegistryView: document.getElementById("companyCraneRegistryView"),
   form: document.getElementById("inspectionForm"),
   inspectionId: document.getElementById("inspectionId"),
@@ -95,13 +100,20 @@ const elements = {
   saveInspectionButton: document.getElementById("saveInspectionButton"),
   exportInspectionButton: document.getElementById("exportInspectionButton"),
   exportFullBackupButton: document.getElementById("exportFullBackupButton"),
+  exportFullBackupWithPhotosButton: document.getElementById("exportFullBackupWithPhotosButton"),
+  purgeStoredPhotosButton: document.getElementById("purgeStoredPhotosButton"),
   generatePdfButton: document.getElementById("generatePdfButton"),
   newInspectionButton: document.getElementById("newInspectionButton"),
   savedReports: document.getElementById("savedReports"),
   savedReportsSummary: document.getElementById("savedReportsSummary"),
   refreshReportsButton: document.getElementById("refreshReportsButton"),
   openCompanyCraneRegistryButton: document.getElementById("openCompanyCraneRegistryButton"),
+  openMaintenancePanelButton: document.getElementById("openMaintenancePanelButton"),
   openConsolidatedHistoryButton: document.getElementById("openConsolidatedHistoryButton"),
+  closeMaintenancePanelButton: document.getElementById("closeMaintenancePanelButton"),
+  refreshMaintenancePanelButton: document.getElementById("refreshMaintenancePanelButton"),
+  maintenancePanelSummary: document.getElementById("maintenancePanelSummary"),
+  maintenancePanelContent: document.getElementById("maintenancePanelContent"),
   closeConsolidatedHistoryButton: document.getElementById("closeConsolidatedHistoryButton"),
   refreshConsolidatedHistoryButton: document.getElementById("refreshConsolidatedHistoryButton"),
   exportConsolidatedHistoryButton: document.getElementById("exportConsolidatedHistoryButton"),
@@ -269,12 +281,17 @@ function setupAppActions() {
     await persistInspection();
   });
   elements.exportInspectionButton.addEventListener("click", exportCurrentInspection);
-  elements.exportFullBackupButton.addEventListener("click", exportFullBackup);
+  elements.exportFullBackupButton.addEventListener("click", () => exportFullBackup({ includePhotos: false }));
+  elements.exportFullBackupWithPhotosButton.addEventListener("click", () => exportFullBackup({ includePhotos: true }));
+  elements.purgeStoredPhotosButton.addEventListener("click", purgeStoredHeavyPhotos);
   elements.generatePdfButton.addEventListener("click", generatePdfReport);
   elements.newInspectionButton.addEventListener("click", resetForm);
   elements.refreshReportsButton.addEventListener("click", renderSavedReports);
   elements.openCompanyCraneRegistryButton.addEventListener("click", openCompanyCraneRegistry);
+  elements.openMaintenancePanelButton.addEventListener("click", openMaintenancePanel);
   elements.openConsolidatedHistoryButton.addEventListener("click", openConsolidatedHistory);
+  elements.closeMaintenancePanelButton.addEventListener("click", () => showView("inspection"));
+  elements.refreshMaintenancePanelButton.addEventListener("click", renderMaintenancePanel);
   elements.closeCompanyCraneRegistryButton.addEventListener("click", () => showView("inspection"));
   elements.refreshCompanyCraneRegistryButton.addEventListener("click", renderCompanyCraneRegistry);
   elements.syncCompanyRegistryButton.addEventListener("click", syncCompanyRegistryFromReports);
@@ -423,6 +440,7 @@ function showView(view) {
   elements.equipmentEditorView.classList.toggle("hidden", view !== "equipment");
   elements.findingEditorView.classList.toggle("hidden", view !== "finding");
   elements.consolidatedHistoryView.classList.toggle("hidden", view !== "consolidatedHistory");
+  elements.maintenancePanelView.classList.toggle("hidden", view !== "maintenancePanel");
   elements.companyCraneRegistryView.classList.toggle("hidden", view !== "companyCraneRegistry");
 }
 
@@ -1176,6 +1194,17 @@ function escapeHtml(value) {
 function escapeCsvValue(value, delimiter = ",") {
   const text = String(value || "");
   return text.includes(delimiter) || /["\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) {
+    return `${Math.round(value)} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function downloadTextFile(content, fileName, type) {

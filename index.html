@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f4c5c">
   <title>Inspecciones de Gruas</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css?v=69">
+  <link rel="stylesheet" href="styles.css?v=73">
 </head>
 <body>
   <div class="app-shell">
@@ -68,11 +68,14 @@
               </div>
               <button id="openSidebarButton" type="button">Historial de reportes</button>
               <button id="openCompanyCraneRegistryButton" type="button">Empresas y gruas</button>
+              <button id="openMaintenancePanelButton" type="button">Panel de mantenimiento</button>
               <button id="openConsolidatedHistoryButton" type="button">Concentrado general</button>
               <button id="importInspectionButton" type="button">Importar reporte</button>
               <button id="exportInspectionButton" type="button">Exportar reporte</button>
               <button id="importFullBackupButton" type="button">Importar respaldo completo</button>
-              <button id="exportFullBackupButton" type="button">Exportar respaldo completo</button>
+              <button id="exportFullBackupButton" type="button">Exportar respaldo sin fotos</button>
+              <button id="exportFullBackupWithPhotosButton" type="button">Exportar respaldo con fotos</button>
+              <button id="purgeStoredPhotosButton" type="button">Borrar fotos pesadas guardadas</button>
             </div>
           </div>
         </div>
@@ -432,6 +435,22 @@
         <div id="consolidatedHistoryTable" class="consolidated-table-wrap"></div>
       </section>
 
+      <section class="panel app-view hidden" id="maintenancePanelView">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Mantenimiento</p>
+            <h2>Panel de seguimiento de gruas</h2>
+          </div>
+          <div class="toolbar">
+            <button id="refreshMaintenancePanelButton" class="secondary-button" type="button">Actualizar</button>
+            <button id="closeMaintenancePanelButton" class="ghost-button" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div id="maintenancePanelSummary" class="history-summary"></div>
+        <div id="maintenancePanelContent" class="maintenance-panel-content"></div>
+      </section>
+
       <section class="panel app-view hidden" id="companyCraneRegistryView">
         <div class="section-header">
           <div>
@@ -553,11 +572,11 @@
         </section>
 
         <section id="companyCraneFindingsPanel" class="modal-backdrop hidden">
-          <div class="subpanel modal-panel findings-history-modal">
+          <div class="subpanel modal-panel crane-master-modal">
             <div class="section-header">
               <div>
-                <p class="eyebrow">Hallazgos de grua</p>
-                <h3 id="companyCraneFindingsTitle">Seleccionar hallazgos</h3>
+                <p class="eyebrow">Ficha maestra de grua</p>
+                <h3 id="companyCraneFindingsTitle">Detalle de grua</h3>
               </div>
               <div class="toolbar">
                 <button id="closeCompanyCraneFindingsButton" class="ghost-button" type="button">Cerrar</button>
@@ -601,15 +620,16 @@
     </main>
   </div>
 
-  <script src="report-template-config.js?v=69"></script>
-  <script src="finding-catalog-config.js?v=69"></script>
-  <script src="findings.js?v=69"></script>
-  <script src="company-cranes.js?v=69"></script>
-  <script src="equipment.js?v=69"></script>
-  <script src="pdf-actions.js?v=69"></script>
-  <script src="backup.js?v=69"></script>
-  <script src="storage.js?v=69"></script>
-  <script src="report-generator.js?v=69"></script>
-  <script src="app.js?v=69"></script>
+  <script src="report-template-config.js?v=73"></script>
+  <script src="finding-catalog-config.js?v=73"></script>
+  <script src="findings.js?v=73"></script>
+  <script src="company-cranes.js?v=73"></script>
+  <script src="equipment.js?v=73"></script>
+  <script src="pdf-actions.js?v=73"></script>
+  <script src="backup.js?v=73"></script>
+  <script src="storage.js?v=73"></script>
+  <script src="maintenance-panel.js?v=73"></script>
+  <script src="report-generator.js?v=73"></script>
+  <script src="app.js?v=73"></script>
 </body>
 </html>
