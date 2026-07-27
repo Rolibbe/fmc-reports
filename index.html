@@ -257,6 +257,14 @@
               </div>
               <button id="addFindingButton" class="secondary-button" type="button">Anadir Hallazgo</button>
             </div>
+            <div class="quick-finding-bar">
+              <label>
+                Acceso rapido por numero
+                <input id="quickFindingNumber" list="quickFindingOptions" type="text" inputmode="numeric" placeholder="Ej. 12 o 12, 18, 34">
+                <datalist id="quickFindingOptions"></datalist>
+              </label>
+              <button id="addQuickFindingButton" class="secondary-button" type="button">Agregar por numero</button>
+            </div>
             <div id="findingsList" class="findings-list"></div>
           </section>
 
@@ -268,7 +276,7 @@
               </div>
             </div>
 
-            <div class="grid two-column">
+            <div class="grid three-column">
               <label>
                 Condicion general
                 <select id="overallCondition" name="overallCondition">
@@ -278,7 +286,11 @@
                 </select>
               </label>
               <label>
-                Proxima inspeccion sugerida
+                Fecha de mantenimiento realizado
+                <input id="maintenanceDate" name="maintenanceDate" type="date">
+              </label>
+              <label>
+                Proximo mantenimiento
                 <input id="nextInspection" name="nextInspection" type="date">
               </label>
             </div>
@@ -394,7 +406,7 @@
             <h2>Tabla historica de equipos</h2>
           </div>
           <div class="toolbar">
-            <button id="exportConsolidatedHistoryButton" class="secondary-button" type="button">Exportar CSV</button>
+            <button id="exportConsolidatedHistoryButton" class="secondary-button" type="button">Exportar Excel</button>
             <button id="refreshConsolidatedHistoryButton" class="secondary-button" type="button">Actualizar</button>
             <button id="closeConsolidatedHistoryButton" class="ghost-button" type="button">Volver</button>
           </div>
@@ -464,75 +476,85 @@
         <div id="companyRegistrySummary" class="history-summary"></div>
         <div id="companyCraneList" class="company-crane-list"></div>
 
-        <section id="companyCraneFormPanel" class="subpanel hidden">
-          <div class="section-header">
-            <div>
-              <p class="eyebrow">Grua</p>
-              <h3 id="companyCraneFormTitle">Nueva grua</h3>
+        <section id="companyCraneFormPanel" class="modal-backdrop hidden">
+          <div class="subpanel modal-panel">
+            <div class="section-header">
+              <div>
+                <p class="eyebrow">Grua</p>
+                <h3 id="companyCraneFormTitle">Nueva grua</h3>
+              </div>
+              <div class="toolbar">
+                <button id="cancelCompanyCraneButton" class="ghost-button" type="button">Cancelar</button>
+                <button id="saveCompanyCraneButton" class="primary-button" type="button">Guardar grua</button>
+              </div>
             </div>
-            <div class="toolbar">
-              <button id="cancelCompanyCraneButton" class="ghost-button" type="button">Cancelar</button>
-              <button id="saveCompanyCraneButton" class="primary-button" type="button">Guardar grua</button>
-            </div>
-          </div>
 
-          <form id="companyCraneForm">
-            <input id="editingCompanyCraneId" type="hidden">
-            <div class="grid three-column">
+            <form id="companyCraneForm">
+              <input id="editingCompanyCraneId" type="hidden">
+              <div class="grid three-column">
+                <label>
+                  ID / tag de grua
+                  <input id="registryCraneId" type="text" placeholder="Ej. GR-001">
+                </label>
+                <label>
+                  Area
+                  <input id="registryCraneArea" type="text" placeholder="Area o linea">
+                </label>
+                <label>
+                  Tipo
+                  <input id="registryCraneType" type="text" placeholder="Viajera, puente, bandera">
+                </label>
+                <label>
+                  Capacidad estructura
+                  <input id="registryStructureCapacity" type="text" placeholder="Ej. 2 ton">
+                </label>
+                <label>
+                  Capacidad polipasto
+                  <input id="registryHoistCapacity" type="text" placeholder="Ej. 2 ton">
+                </label>
+                <label>
+                  Voltaje
+                  <input id="registryVoltage" type="text" placeholder="Ej. 115 V">
+                </label>
+                <label>
+                  Marca
+                  <input id="registryBrand" type="text" placeholder="Marca">
+                </label>
+                <label>
+                  Modelo
+                  <input id="registryModel" type="text" placeholder="Modelo">
+                </label>
+                <label>
+                  Serial #
+                  <input id="registrySerialNumber" type="text" placeholder="Numero de serie">
+                </label>
+                <label>
+                  Ultimo mantenimiento
+                  <input id="registryLastMaintenance" type="date">
+                </label>
+                <label>
+                  Proximo mantenimiento
+                  <input id="registryNextMaintenance" type="date">
+                </label>
+                <label>
+                  Estado
+                  <input id="registryCraneStatus" type="text" placeholder="Activo, pendiente, fuera de servicio">
+                </label>
+              </div>
               <label>
-                ID / tag de grua
-                <input id="registryCraneId" type="text" placeholder="Ej. GR-001">
+                Notas
+                <textarea id="registryCraneNotes" rows="3" placeholder="Observaciones del equipo"></textarea>
               </label>
-              <label>
-                Area
-                <input id="registryCraneArea" type="text" placeholder="Area o linea">
-              </label>
-              <label>
-                Tipo
-                <input id="registryCraneType" type="text" placeholder="Viajera, puente, bandera">
-              </label>
-              <label>
-                Capacidad estructura
-                <input id="registryStructureCapacity" type="text" placeholder="Ej. 2 ton">
-              </label>
-              <label>
-                Capacidad polipasto
-                <input id="registryHoistCapacity" type="text" placeholder="Ej. 2 ton">
-              </label>
-              <label>
-                Voltaje
-                <input id="registryVoltage" type="text" placeholder="Ej. 115 V">
-              </label>
-              <label>
-                Marca
-                <input id="registryBrand" type="text" placeholder="Marca">
-              </label>
-              <label>
-                Modelo
-                <input id="registryModel" type="text" placeholder="Modelo">
-              </label>
-              <label>
-                Serial #
-                <input id="registrySerialNumber" type="text" placeholder="Numero de serie">
-              </label>
-              <label>
-                Estado
-                <input id="registryCraneStatus" type="text" placeholder="Activo, pendiente, fuera de servicio">
-              </label>
-            </div>
-            <label>
-              Notas
-              <textarea id="registryCraneNotes" rows="3" placeholder="Observaciones del equipo"></textarea>
-            </label>
-          </form>
+            </form>
+          </div>
         </section>
       </section>
     </main>
   </div>
 
-  <script src="report-template-config.js?v=47"></script>
-  <script src="finding-catalog-config.js?v=47"></script>
-  <script src="report-generator.js?v=47"></script>
-  <script src="app.js?v=47"></script>
+  <script src="report-template-config.js?v=53"></script>
+  <script src="finding-catalog-config.js?v=53"></script>
+  <script src="report-generator.js?v=53"></script>
+  <script src="app.js?v=53"></script>
 </body>
 </html>

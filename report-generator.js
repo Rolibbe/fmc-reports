@@ -127,6 +127,7 @@ async function buildEquipmentData(equipment) {
     summaryText: equipment.serviceSummary && equipment.serviceSummary.trim()
       ? equipment.serviceSummary.trim()
       : buildEquipmentSummary(equipment, findings, totalFindingPhotos, servicePhotos.length),
+    maintenanceDateLabel: formatDate(equipment.maintenanceDate),
     nextInspectionLabel: formatDate(equipment.nextInspection)
   };
 }
@@ -242,13 +243,14 @@ function renderEquipmentPage(report, equipment, index) {
             <td><div class="label">Hallazgos</div><div class="value">${equipment.findings.length}</div></td>
             <td><div class="label">Fotos de servicio</div><div class="value">${equipment.servicePhotos.length}</div></td>
             <td><div class="label">Fotos de hallazgos</div><div class="value">${equipment.totalFindingPhotos}</div></td>
-            <td><div class="label">Proxima inspeccion</div><div class="value">${escapeHtml(equipment.nextInspectionLabel || "No especificada")}</div></td>
+            <td><div class="label">Mantenimiento realizado</div><div class="value">${escapeHtml(equipment.maintenanceDateLabel || "No especificado")}</div></td>
+            <td><div class="label">Proximo mantenimiento</div><div class="value">${escapeHtml(equipment.nextInspectionLabel || "No especificado")}</div></td>
           </tr>
           <tr>
-            <td colspan="4" class="notes-box"><div class="label">Resumen del servicio</div><div class="value">${escapeHtml(equipment.summaryText)}</div></td>
+            <td colspan="5" class="notes-box"><div class="label">Resumen del servicio</div><div class="value">${escapeHtml(equipment.summaryText)}</div></td>
           </tr>
           <tr>
-            <td colspan="4" class="notes-box"><div class="label">Recomendaciones</div><div class="value">${escapeHtml(equipment.recommendationText)}</div></td>
+            <td colspan="5" class="notes-box"><div class="label">Recomendaciones</div><div class="value">${escapeHtml(equipment.recommendationText)}</div></td>
           </tr>
         </table>
       </div>

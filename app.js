@@ -24,11 +24,14 @@ const DB_NAME = "crane-inspections-db";
 const DB_VERSION = 1;
 const STORE_NAME = "inspections";
 const CLIENT_PLANTS_FILE = "clientes-plantas.txt";
+const CONSOLIDATED_EXPORT_TEMPLATE_FILE = "concentrado-general.csv";
+const CONSOLIDATED_EXPORT_DELIMITER = ";";
 const COMPANY_CRANE_REGISTRY_KEY = "company-crane-registry-v1";
 const COMPANY_MAINTENANCE_FREQUENCY_KEY = "company-maintenance-frequency-v1";
 const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
+const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -64,6 +67,7 @@ const fallbackClientPlants = [
 ];
 
 const findingCatalog = sanitizeFindingCatalog(window.FINDING_CATALOG_CONFIG) || fallbackFindingCatalog;
+const findingCatalogIndex = buildFindingCatalogIndex(findingCatalog);
 
 let deferredInstallPrompt = null;
 let currentEquipments = [];
@@ -144,6 +148,8 @@ const elements = {
   registryBrand: document.getElementById("registryBrand"),
   registryModel: document.getElementById("registryModel"),
   registrySerialNumber: document.getElementById("registrySerialNumber"),
+  registryLastMaintenance: document.getElementById("registryLastMaintenance"),
+  registryNextMaintenance: document.getElementById("registryNextMaintenance"),
   registryCraneStatus: document.getElementById("registryCraneStatus"),
   registryCraneNotes: document.getElementById("registryCraneNotes"),
   cancelCompanyCraneButton: document.getElementById("cancelCompanyCraneButton"),
@@ -170,7 +176,11 @@ const elements = {
   hoistVoltage: document.getElementById("hoistVoltage"),
   findingsList: document.getElementById("findingsList"),
   addFindingButton: document.getElementById("addFindingButton"),
+  quickFindingNumber: document.getElementById("quickFindingNumber"),
+  quickFindingOptions: document.getElementById("quickFindingOptions"),
+  addQuickFindingButton: document.getElementById("addQuickFindingButton"),
   overallCondition: document.getElementById("overallCondition"),
+  maintenanceDate: document.getElementById("maintenanceDate"),
   nextInspection: document.getElementById("nextInspection"),
   serviceTaskCleaning: document.getElementById("serviceTaskCleaning"),
   serviceTaskLubrication: document.getElementById("serviceTaskLubrication"),
@@ -207,6 +217,7 @@ document.addEventListener("DOMContentLoaded", initializeApp);
 
 async function initializeApp() {
   populateCategoryOptions();
+  populateQuickFindingOptions();
   setupAppActions();
   await loadClientPlantOptions();
   setDefaultDates();
@@ -227,11 +238,19 @@ function setupAppActions() {
   elements.importInspectionButton.addEventListener("click", () => elements.importInspectionInput.click());
   elements.importInspectionInput.addEventListener("change", handleInspectionImport);
   elements.companyCraneSelector.addEventListener("change", handleCompanyCraneSelection);
+  elements.maintenanceDate.addEventListener("change", updateNextInspectionFromMaintenanceDate);
   elements.serviceTaskCleaning.addEventListener("change", syncServiceSummaryFromTasks);
   elements.serviceTaskLubrication.addEventListener("change", syncServiceSummaryFromTasks);
   elements.cancelEquipmentButton.addEventListener("click", closeEquipmentEditor);
   elements.saveEquipmentButton.addEventListener("click", saveEquipmentFromEditor);
   elements.addFindingButton.addEventListener("click", () => openFindingEditor());
+  elements.addQuickFindingButton.addEventListener("click", addQuickFindingsFromInput);
+  elements.quickFindingNumber.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addQuickFindingsFromInput();
+    }
+  });
   elements.findingCategory.addEventListener("change", () => populateIncidenceOptions());
   elements.findingPhotoGalleryButton.addEventListener("click", () => elements.findingPhotoGalleryInput.click());
   elements.findingPhotoCameraButton.addEventListener("click", () => elements.findingPhotoCameraInput.click());
@@ -264,6 +283,12 @@ function setupAppActions() {
   elements.newCompanyCraneButton.addEventListener("click", () => openCompanyCraneForm());
   elements.cancelCompanyCraneButton.addEventListener("click", closeCompanyCraneForm);
   elements.saveCompanyCraneButton.addEventListener("click", saveCompanyCraneFromForm);
+  elements.companyCraneFormPanel.addEventListener("click", (event) => {
+    if (event.target === elements.companyCraneFormPanel) {
+      closeCompanyCraneForm();
+    }
+  });
+  elements.registryLastMaintenance.addEventListener("change", updateRegistryNextMaintenanceFromLast);
   elements.companyRegistryClient.addEventListener("input", () => {
     closeCompanyCraneForm();
     loadCompanyMaintenanceFrequency();
@@ -272,8 +297,9 @@ function setupAppActions() {
   elements.companyMaintenanceFrequency.addEventListener("change", saveCompanyMaintenanceFrequency);
   elements.closeConsolidatedHistoryButton.addEventListener("click", () => showView("inspection"));
   elements.refreshConsolidatedHistoryButton.addEventListener("click", renderConsolidatedHistory);
-  elements.exportConsolidatedHistoryButton.addEventListener("click", exportConsolidatedHistoryCsv);
+  elements.exportConsolidatedHistoryButton.addEventListener("click", exportConsolidatedHistoryExcel);
   elements.consolidatedClientFilter.addEventListener("input", renderConsolidatedHistory);
+  elements.plantName.addEventListener("change", updateNextInspectionFromMaintenanceDate);
   elements.clearConsolidatedClientFilterButton.addEventListener("click", () => {
     elements.consolidatedClientFilter.value = "";
     renderConsolidatedHistory();
@@ -287,6 +313,11 @@ function setupAppActions() {
   document.addEventListener("click", (event) => {
     if (!elements.toolsMenuButton.contains(event.target) && !elements.toolsMenuList.contains(event.target)) {
       closeToolsMenu();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !elements.companyCraneFormPanel.classList.contains("hidden")) {
+      closeCompanyCraneForm();
     }
   });
   window.addEventListener("beforeinstallprompt", (event) => {
@@ -311,6 +342,82 @@ function populateCategoryOptions() {
     .map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
     .join("");
   populateIncidenceOptions();
+}
+
+function buildFindingCatalogIndex(catalog) {
+  return Object.entries(catalog || {}).flatMap(([category, incidences]) => {
+    return (incidences || []).map((incidence) => {
+      const number = getFindingCatalogNumber(incidence);
+      return {
+        number,
+        category,
+        incidence
+      };
+    }).filter((item) => item.number);
+  });
+}
+
+function populateQuickFindingOptions() {
+  elements.quickFindingOptions.innerHTML = findingCatalogIndex
+    .map((item) => `<option value="${escapeHtml(item.number)}" label="${escapeHtml(`${item.category} - ${removeFindingCatalogNumber(item.incidence)}`)}"></option>`)
+    .join("");
+}
+
+function getFindingCatalogNumber(value) {
+  const match = String(value || "").match(/^(\d+)\.\s*/);
+  return match ? match[1] : "";
+}
+
+function addQuickFindingsFromInput() {
+  const rawValue = elements.quickFindingNumber.value.trim();
+  const numbers = parseQuickFindingNumbers(rawValue);
+  if (!numbers.length) {
+    window.alert("Escribe el numero del hallazgo que quieres agregar.");
+    return;
+  }
+
+  const missingNumbers = [];
+  const addedFindings = [];
+  numbers.forEach((number) => {
+    const catalogItem = findingCatalogIndex.find((item) => item.number === number);
+    if (!catalogItem) {
+      missingNumbers.push(number);
+      return;
+    }
+
+    addedFindings.push(createFindingFromCatalogItem(catalogItem));
+  });
+
+  if (addedFindings.length) {
+    currentEquipmentFindings = currentEquipmentFindings.concat(addedFindings);
+    renderFindingsList();
+    elements.quickFindingNumber.value = "";
+  }
+
+  if (missingNumbers.length) {
+    window.alert(`No encontre hallazgos con numero: ${missingNumbers.join(", ")}.`);
+  }
+}
+
+function parseQuickFindingNumbers(value) {
+  return Array.from(new Set(String(value || "")
+    .split(/[,\s]+/)
+    .map((item) => item.trim().replace(/^#/, ""))
+    .filter(Boolean)
+    .map((item) => item.match(/\d+/)?.[0] || "")
+    .filter(Boolean)));
+}
+
+function createFindingFromCatalogItem(catalogItem) {
+  return {
+    id: createId(),
+    category: catalogItem.category,
+    incidence: catalogItem.incidence,
+    description: buildGenericFindingDescription(catalogItem.category, catalogItem.incidence),
+    recommendation: "",
+    photos: [],
+    updatedAt: new Date().toISOString()
+  };
 }
 
 async function loadClientPlantOptions() {
@@ -373,7 +480,7 @@ async function openCompanyCraneRegistry() {
 
   await seedCompanyRegistryFromReports(false);
   loadCompanyMaintenanceFrequency();
-  renderCompanyCraneRegistry();
+  await renderCompanyCraneRegistry();
   showView("companyCraneRegistry");
 }
 
@@ -390,13 +497,14 @@ async function populateCompanyRegistryClientOptions() {
     .join("");
 }
 
-function renderCompanyCraneRegistry() {
+async function renderCompanyCraneRegistry() {
   const client = normalizeClientName(elements.companyRegistryClient.value);
   const registry = readCompanyCraneRegistry();
   const cranes = client ? registry[client] || [] : [];
+  const maintenanceLookup = client ? await buildCompanyCraneMaintenanceLookup(client, cranes) : new Map();
 
   renderCompanyRegistrySummary(client, cranes);
-  renderCompanyCraneList(client, cranes);
+  renderCompanyCraneList(client, cranes, maintenanceLookup);
 }
 
 function renderCompanyRegistrySummary(client, cranes) {
@@ -425,7 +533,154 @@ function renderCompanyRegistrySummary(client, cranes) {
   `;
 }
 
-function renderCompanyCraneList(client, cranes) {
+async function buildCompanyCraneMaintenanceLookup(client, cranes) {
+  const records = (await getAllInspections()).map(normalizeInspection);
+  const frequencyMonths = Number(getCompanyMaintenanceFrequency(client)) || DEFAULT_MAINTENANCE_FREQUENCY_MONTHS;
+  const lookup = new Map();
+
+  cranes.forEach((crane) => {
+    const maintenanceDate = crane.lastMaintenanceDate || "";
+    const nextMaintenance = crane.nextMaintenanceDate || (maintenanceDate ? addMonthsToDateInput(maintenanceDate, frequencyMonths) : "");
+    if (!maintenanceDate && !nextMaintenance) {
+      return;
+    }
+
+    lookup.set(crane.id, {
+      maintenanceDate,
+      nextMaintenance,
+      daysRemaining: calculateDaysUntil(nextMaintenance),
+      frequencyMonths,
+      reportNumber: "",
+      condition: crane.status || "",
+      manual: true
+    });
+  });
+
+  records
+    .filter((record) => normalizeClientName(record.plantName) === client)
+    .forEach((record) => {
+      (record.equipments || []).forEach((equipment) => {
+        const matchedCrane = findMatchingCompanyCrane(cranes, equipment);
+        if (!matchedCrane) {
+          return;
+        }
+
+        const maintenanceDate = equipment.maintenanceDate || record.inspectionDate || "";
+        if (!maintenanceDate) {
+          return;
+        }
+
+        const nextMaintenance = equipment.nextInspection || addMonthsToDateInput(maintenanceDate, frequencyMonths);
+        const current = lookup.get(matchedCrane.id);
+        if (current?.manual || (current && compareDateInput(current.maintenanceDate, maintenanceDate) >= 0)) {
+          return;
+        }
+
+        lookup.set(matchedCrane.id, {
+          maintenanceDate,
+          nextMaintenance,
+          daysRemaining: calculateDaysUntil(nextMaintenance),
+          frequencyMonths,
+          reportNumber: record.reportNumber || "",
+          condition: equipment.overallCondition || ""
+        });
+      });
+    });
+
+  return lookup;
+}
+
+function findMatchingCompanyCrane(cranes, equipment) {
+  if (equipment.catalogCraneId) {
+    const selected = cranes.find((crane) => crane.id === equipment.catalogCraneId);
+    if (selected) {
+      return selected;
+    }
+  }
+
+  const candidate = craneRegistryEntryFromEquipment(equipment);
+  return cranes.find((crane) => sameCatalogCrane(crane, candidate));
+}
+
+function compareDateInput(firstDate, secondDate) {
+  return new Date(firstDate || 0).getTime() - new Date(secondDate || 0).getTime();
+}
+
+function renderCompanyCraneMaintenanceStatus(maintenance) {
+  if (!maintenance) {
+    return `
+      <div class="company-crane-maintenance maintenance-empty">
+        <div class="maintenance-row">
+          <span>Ultimo mantenimiento</span>
+          <strong>No registrado</strong>
+        </div>
+        <div class="maintenance-track"><span class="maintenance-fill maintenance-neutral" style="width: 0%"></span></div>
+      </div>
+    `;
+  }
+
+  const status = getMaintenanceUrgencyStatus(maintenance);
+  const daysLabel = formatMaintenanceDaysLabel(maintenance.daysRemaining);
+  return `
+    <div class="company-crane-maintenance">
+      <div class="maintenance-row">
+        <span>Ultimo mantenimiento</span>
+        <strong>${escapeHtml(formatDate(maintenance.maintenanceDate))}</strong>
+      </div>
+      <div class="maintenance-row">
+        <span>Proximo mantenimiento</span>
+        <strong>${escapeHtml(formatDate(maintenance.nextMaintenance) || "No definido")}</strong>
+      </div>
+      <div class="maintenance-row">
+        <span>Dias restantes</span>
+        <strong class="${escapeHtml(status.className)}">${escapeHtml(daysLabel)}</strong>
+      </div>
+      <div class="maintenance-track" title="${escapeHtml(status.label)}">
+        <span class="maintenance-fill ${escapeHtml(status.className)}" style="width: ${status.percent}%"></span>
+      </div>
+      ${maintenance.reportNumber ? `<p class="maintenance-source">Ultimo reporte: ${escapeHtml(maintenance.reportNumber)}</p>` : ""}
+    </div>
+  `;
+}
+
+function getMaintenanceUrgencyStatus(maintenance) {
+  const daysRemaining = Number(maintenance.daysRemaining);
+  const maintenanceTime = new Date(maintenance.maintenanceDate || 0).getTime();
+  const nextTime = new Date(maintenance.nextMaintenance || 0).getTime();
+  const totalDays = maintenanceTime && nextTime ? Math.max(1, Math.ceil((nextTime - maintenanceTime) / 86400000)) : 1;
+  const elapsedDays = Number.isFinite(daysRemaining) ? Math.max(0, totalDays - daysRemaining) : 0;
+  const percent = Number.isFinite(daysRemaining) && daysRemaining <= 0
+    ? 100
+    : Math.min(100, Math.max(8, Math.round((elapsedDays / totalDays) * 100)));
+
+  if (!Number.isFinite(daysRemaining)) {
+    return { className: "maintenance-neutral", label: "Sin fecha de proximo mantenimiento", percent: 0 };
+  }
+  if (daysRemaining <= 15) {
+    return { className: "maintenance-red", label: "Muy cerca o vencido", percent };
+  }
+  if (daysRemaining <= 60) {
+    return { className: "maintenance-yellow", label: "Cerca", percent };
+  }
+  return { className: "maintenance-green", label: "Lejos", percent };
+}
+
+function formatMaintenanceDaysLabel(daysRemaining) {
+  if (daysRemaining === "") {
+    return "No definido";
+  }
+
+  const days = Number(daysRemaining);
+  if (days < 0) {
+    return `Vencido hace ${Math.abs(days)} dia(s)`;
+  }
+  if (days === 0) {
+    return "Vence hoy";
+  }
+  return `${days} dia(s)`;
+}
+
+function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
   elements.companyCraneList.innerHTML = "";
 
   if (!client) {
@@ -439,6 +694,7 @@ function renderCompanyCraneList(client, cranes) {
   }
 
   cranes.forEach((crane) => {
+    const maintenance = maintenanceLookup.get(crane.id) || null;
     const card = document.createElement("article");
     card.className = "company-crane-card";
     card.draggable = true;
@@ -467,6 +723,7 @@ function renderCompanyCraneList(client, cranes) {
         <span>Serial: ${escapeHtml(crane.serialNumber || "No capturado")}</span>
       </div>
       ${crane.notes ? `<p class="company-crane-notes">${escapeHtml(crane.notes)}</p>` : ""}
+      ${renderCompanyCraneMaintenanceStatus(maintenance)}
       <div class="company-crane-actions">
         <button class="secondary-button" type="button" data-edit-company-crane-id="${escapeHtml(crane.id)}">Editar</button>
         <button class="ghost-button" type="button" data-delete-company-crane-id="${escapeHtml(crane.id)}">Quitar</button>
@@ -505,15 +762,29 @@ function openCompanyCraneForm(craneId) {
   elements.registryBrand.value = crane ? crane.brand : "";
   elements.registryModel.value = crane ? crane.model : "";
   elements.registrySerialNumber.value = crane ? crane.serialNumber : "";
+  elements.registryLastMaintenance.value = crane ? crane.lastMaintenanceDate || "" : "";
+  elements.registryNextMaintenance.value = crane ? crane.nextMaintenanceDate || "" : "";
   elements.registryCraneStatus.value = crane ? crane.status : "";
   elements.registryCraneNotes.value = crane ? crane.notes : "";
   elements.companyCraneFormPanel.classList.remove("hidden");
+  elements.registryCraneId.focus();
 }
 
 function closeCompanyCraneForm() {
   elements.companyCraneForm.reset();
   elements.editingCompanyCraneId.value = "";
   elements.companyCraneFormPanel.classList.add("hidden");
+}
+
+function updateRegistryNextMaintenanceFromLast() {
+  if (!elements.registryLastMaintenance.value) {
+    return;
+  }
+
+  elements.registryNextMaintenance.value = addMonthsToDateInput(
+    elements.registryLastMaintenance.value,
+    Number(getCompanyMaintenanceFrequency(elements.companyRegistryClient.value)) || DEFAULT_MAINTENANCE_FREQUENCY_MONTHS
+  );
 }
 
 function saveCompanyCraneFromForm() {
@@ -538,6 +809,8 @@ function saveCompanyCraneFromForm() {
     brand: elements.registryBrand.value.trim(),
     model: elements.registryModel.value.trim(),
     serialNumber: elements.registrySerialNumber.value.trim(),
+    lastMaintenanceDate: elements.registryLastMaintenance.value,
+    nextMaintenanceDate: elements.registryNextMaintenance.value,
     status: elements.registryCraneStatus.value.trim(),
     notes: elements.registryCraneNotes.value.trim(),
     updatedAt: now,
@@ -659,6 +932,8 @@ function upsertCatalogCraneFromEquipment(equipment) {
       ...candidate,
       id: existing.id,
       notes: existing.notes || candidate.notes || "",
+      lastMaintenanceDate: existing.lastMaintenanceDate || candidate.lastMaintenanceDate || "",
+      nextMaintenanceDate: existing.nextMaintenanceDate || candidate.nextMaintenanceDate || "",
       createdAt: existing.createdAt || now,
       updatedAt: now
     };
@@ -726,6 +1001,8 @@ function craneRegistryEntryFromEquipment(equipment) {
     brand: source.hoistManufacturer || "",
     model: source.hoistModel || "",
     serialNumber: source.hoistSerialNumber || source.serialNumber || "",
+    lastMaintenanceDate: source.maintenanceDate || "",
+    nextMaintenanceDate: source.nextInspection || "",
     status: source.overallCondition || "",
     notes: "",
     createdAt: new Date().toISOString(),
@@ -785,6 +1062,36 @@ function getCompanyMaintenanceFrequency(client) {
     return "";
   }
   return readCompanyMaintenanceFrequencies()[normalizeClientName(client)] || "";
+}
+
+function getCurrentMaintenanceFrequencyMonths() {
+  const companyFrequency = Number(getCompanyMaintenanceFrequency(elements.plantName.value));
+  return companyFrequency || DEFAULT_MAINTENANCE_FREQUENCY_MONTHS;
+}
+
+function updateNextInspectionFromMaintenanceDate() {
+  if (!elements.maintenanceDate || !elements.nextInspection || !elements.maintenanceDate.value) {
+    return;
+  }
+
+  elements.nextInspection.value = addMonthsToDateInput(
+    elements.maintenanceDate.value,
+    getCurrentMaintenanceFrequencyMonths()
+  );
+}
+
+function addMonthsToDateInput(dateValue, months) {
+  const parts = String(dateValue || "").split("-").map(Number);
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
+    return "";
+  }
+
+  const [year, month, day] = parts;
+  const target = new Date(year, month - 1, 1);
+  target.setMonth(target.getMonth() + Number(months || 0));
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(day, lastDay));
+  return target.toISOString().slice(0, 10);
 }
 
 function readCompanyMaintenanceFrequencies() {
@@ -862,7 +1169,9 @@ function loadEquipmentIntoEditor(equipment) {
   elements.hoistSerialNumber.value = equipment.hoistSerialNumber;
   elements.hoistVoltage.value = equipment.hoistVoltage;
   elements.overallCondition.value = equipment.overallCondition;
+  elements.maintenanceDate.value = equipment.maintenanceDate || elements.inspectionDate.value || "";
   elements.nextInspection.value = equipment.nextInspection;
+  updateNextInspectionFromMaintenanceDate();
   applyServiceTasksFromSummary(equipment.serviceSummary);
   elements.recommendations.value = equipment.recommendations || FIXED_RECOMMENDATION_TEXT;
   currentEquipmentFindings = equipment.findings.slice();
@@ -1048,7 +1357,11 @@ function resetEquipmentEditorState() {
   const nextDate = new Date();
   nextDate.setMonth(nextDate.getMonth() + 6);
   elements.overallCondition.value = "Bueno";
-  elements.nextInspection.value = nextDate.toISOString().slice(0, 10);
+  elements.maintenanceDate.value = elements.inspectionDate.value || new Date().toISOString().slice(0, 10);
+  updateNextInspectionFromMaintenanceDate();
+  if (!elements.nextInspection.value) {
+    elements.nextInspection.value = nextDate.toISOString().slice(0, 10);
+  }
   elements.serviceTaskCleaning.checked = false;
   elements.serviceTaskLubrication.checked = false;
   syncServiceSummaryFromTasks();
@@ -1338,6 +1651,8 @@ function saveEquipmentFromEditor() {
     return;
   }
 
+  updateNextInspectionFromMaintenanceDate();
+
   const equipmentId = elements.editingEquipmentId.value || createId();
   const previousEquipment = currentEquipments.find((item) => item.id === equipmentId);
   const equipment = normalizeEquipment({
@@ -1361,6 +1676,7 @@ function saveEquipmentFromEditor() {
     hoistVoltage: elements.hoistVoltage.value.trim(),
     findings: currentEquipmentFindings.slice(),
     overallCondition: elements.overallCondition.value,
+    maintenanceDate: elements.maintenanceDate.value,
     nextInspection: elements.nextInspection.value,
     serviceSummary: elements.serviceSummary.value.trim(),
     recommendations: elements.recommendations.value.trim() || FIXED_RECOMMENDATION_TEXT,
@@ -1954,7 +2270,7 @@ async function buildConsolidatedHistoryRows() {
         model: equipment.hoistModel || "",
         serialNumber: equipment.hoistSerialNumber || equipment.serialNumber || "",
         serviceFolio: equipment.checklistFolio || "",
-        serviceDate: record.inspectionDate || "",
+        serviceDate: equipment.maintenanceDate || record.inspectionDate || "",
         nextMaintenance: equipment.nextInspection || "",
         daysToNextMaintenance: calculateDaysUntil(equipment.nextInspection),
         performedBy: record.technicianName || "",
@@ -2036,19 +2352,129 @@ function renderConsolidatedHistoryTable(rows) {
   wireConsolidatedCommentInputs();
 }
 
-async function exportConsolidatedHistoryCsv() {
+async function exportConsolidatedHistoryExcel() {
+  await persistVisibleConsolidatedComments();
   const rows = filterConsolidatedRowsByClient(await buildConsolidatedHistoryRows());
   if (!rows.length) {
     window.alert("No hay datos guardados para exportar.");
     return;
   }
 
-  const csvRows = [
-    consolidatedHistoryColumns.map((column) => column.label),
-    ...rows.map((row) => consolidatedHistoryColumns.map((column) => row[column.key] || ""))
-  ];
-  const csv = csvRows.map((row) => row.map(escapeCsvValue).join(",")).join("\r\n");
-  downloadTextFile(csv, "concentrado-general.csv", "text/csv;charset=utf-8");
+  const exportColumns = await readConsolidatedExportColumns();
+  const workbookHtml = buildConsolidatedExcelWorkbook(exportColumns, rows);
+  downloadTextFile(workbookHtml, "concentrado-general.xls", "application/vnd.ms-excel;charset=utf-8");
+}
+
+function buildConsolidatedExcelWorkbook(columns, rows) {
+  const generatedAt = formatDate(new Date().toISOString().slice(0, 10));
+  return `\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Concentrado General</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+  <style>
+    body { font-family: Calibri, Arial, sans-serif; }
+    table { border-collapse: collapse; }
+    th, td { border: 1px solid #000000; padding: 5px 7px; font-size: 11pt; vertical-align: middle; mso-number-format:"\\@"; }
+    th { background: #b7f7c6; font-weight: 700; text-align: center; white-space: nowrap; }
+    td { background: #ffffff; }
+    .title { background: #ffffff; border: none; font-size: 14pt; font-weight: 700; text-align: left; }
+    .meta { background: #ffffff; border: none; color: #666666; font-size: 10pt; }
+    .comment { min-width: 240px; white-space: normal; }
+    .number { text-align: center; }
+  </style>
+</head>
+<body>
+  <table>
+    <tr><td class="title" colspan="${columns.length}">CONCENTRADO GENERAL</td></tr>
+    <tr><td class="meta" colspan="${columns.length}">Generado: ${escapeExcelHtml(generatedAt)} | Registros: ${rows.length}</td></tr>
+    <tr>${columns.map((column) => `<th>${escapeExcelHtml(column.label)}</th>`).join("")}</tr>
+    ${rows.map((row) => `<tr>${columns.map((column) => renderConsolidatedExcelCell(row, column)).join("")}</tr>`).join("")}
+  </table>
+</body>
+</html>`;
+}
+
+function renderConsolidatedExcelCell(row, column) {
+  const value = column.key ? row[column.key] || "" : "";
+  const className = column.key === "comments"
+    ? "comment"
+    : column.key === "daysToNextMaintenance"
+      ? "number"
+      : "";
+  return `<td${className ? ` class="${className}"` : ""}>${escapeExcelHtml(value)}</td>`;
+}
+
+function escapeExcelHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+async function readConsolidatedExportColumns() {
+  try {
+    const response = await fetch(CONSOLIDATED_EXPORT_TEMPLATE_FILE, { cache: "no-store" });
+    if (!response.ok) {
+      return consolidatedHistoryColumns;
+    }
+
+    const text = await response.text();
+    const headerLine = text.split(/\r?\n/).find((line) => line.trim());
+    if (!headerLine) {
+      return consolidatedHistoryColumns;
+    }
+
+    const labels = parseDelimitedRow(headerLine, CONSOLIDATED_EXPORT_DELIMITER);
+    const columns = labels.map((label) => {
+      const matchedColumn = consolidatedHistoryColumns.find((column) => normalizeExportHeader(column.label) === normalizeExportHeader(label));
+      return matchedColumn || { key: "", label };
+    });
+    return columns.length ? columns : consolidatedHistoryColumns;
+  } catch (error) {
+    return consolidatedHistoryColumns;
+  }
+}
+
+function parseDelimitedRow(line, delimiter) {
+  const values = [];
+  let current = "";
+  let quoted = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const nextChar = line[index + 1];
+
+    if (char === '"' && quoted && nextChar === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+
+    if (char === delimiter && !quoted) {
+      values.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current.trim());
+  return values;
+}
+
+function normalizeExportHeader(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
 }
 
 function shortenServiceType(serviceType) {
@@ -2084,6 +2510,13 @@ function wireConsolidatedCommentInputs() {
       await updateConsolidatedComment(input.dataset.inspectionId, input.dataset.equipmentId, input.value);
     });
   });
+}
+
+async function persistVisibleConsolidatedComments() {
+  const inputs = Array.from(elements.consolidatedHistoryTable.querySelectorAll(".consolidated-comment-input"));
+  for (const input of inputs) {
+    await updateConsolidatedComment(input.dataset.inspectionId, input.dataset.equipmentId, input.value);
+  }
 }
 
 async function updateConsolidatedComment(inspectionId, equipmentId, value) {
@@ -2278,6 +2711,7 @@ function createLegacyEquipment(record) {
     hoistVoltage: "",
     findings: Array.isArray(record.findings) ? record.findings : [],
     overallCondition: record.overallCondition || "Bueno",
+    maintenanceDate: record.maintenanceDate || record.inspectionDate || "",
     nextInspection: record.nextInspection || "",
     serviceSummary: "",
     recommendations: record.recommendations || FIXED_RECOMMENDATION_TEXT,
@@ -2306,6 +2740,7 @@ function createEmptyEquipment() {
     hoistVoltage: "",
     findings: [],
     overallCondition: "Bueno",
+    maintenanceDate: elements.inspectionDate ? elements.inspectionDate.value : new Date().toISOString().slice(0, 10),
     nextInspection: nextDate.toISOString().slice(0, 10),
     serviceSummary: "",
     recommendations: FIXED_RECOMMENDATION_TEXT,
@@ -2344,6 +2779,7 @@ function normalizeEquipment(equipment) {
         }))
       : [],
     overallCondition: source.overallCondition || "Bueno",
+    maintenanceDate: source.maintenanceDate || source.serviceDate || "",
     nextInspection: source.nextInspection || "",
     serviceSummary: source.serviceSummary || "",
     recommendations: source.recommendations || FIXED_RECOMMENDATION_TEXT,
@@ -2485,9 +2921,9 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function escapeCsvValue(value) {
+function escapeCsvValue(value, delimiter = ",") {
   const text = String(value || "");
-  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  return text.includes(delimiter) || /["\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 function downloadTextFile(content, fileName, type) {

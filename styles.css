@@ -161,6 +161,22 @@ h1 {
   justify-content: flex-end;
 }
 
+.quick-finding-bar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fbfaf6;
+}
+
+.quick-finding-bar label {
+  margin: 0;
+}
+
 .primary-button,
 .secondary-button,
 .ghost-button {
@@ -479,6 +495,31 @@ textarea[readonly] {
   padding: 16px;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 24, 28, 0.32);
+}
+
+.modal-panel {
+  width: min(1180px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  box-shadow: 0 24px 70px rgba(17, 24, 28, 0.24);
+}
+
+.modal-panel .section-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-bottom: 12px;
+  background: inherit;
+}
+
 .image-drop-zone.is-drag-over {
   background: rgba(216, 231, 235, 0.58);
   border-color: var(--brand);
@@ -651,6 +692,81 @@ textarea[readonly] {
 .company-crane-notes {
   margin-top: 12px;
   color: var(--ink);
+}
+
+.company-crane-maintenance {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.maintenance-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.maintenance-row strong {
+  color: var(--ink);
+  text-align: right;
+}
+
+.maintenance-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #ece7dc;
+}
+
+.maintenance-fill {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+}
+
+.maintenance-fill.maintenance-green {
+  background: #4f9d69;
+}
+
+.maintenance-row strong.maintenance-green {
+  color: #2f7548 !important;
+}
+
+.maintenance-fill.maintenance-yellow {
+  background: #e2b84f;
+}
+
+.maintenance-row strong.maintenance-yellow {
+  color: #956f13 !important;
+}
+
+.maintenance-fill.maintenance-red {
+  background: #d65f5f;
+}
+
+.maintenance-row strong.maintenance-red {
+  color: #a43737 !important;
+}
+
+.maintenance-fill.maintenance-neutral {
+  background: #c7c1b6;
+}
+
+.maintenance-row strong.maintenance-neutral {
+  color: var(--muted) !important;
+}
+
+.maintenance-source {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 .company-crane-actions {
@@ -860,6 +976,10 @@ textarea[readonly] {
 
   .section-header {
     flex-direction: column;
+  }
+
+  .quick-finding-bar {
+    grid-template-columns: 1fr;
   }
 
   .list-card-shell {
