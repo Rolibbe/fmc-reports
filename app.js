@@ -2681,20 +2681,33 @@ async function handleInspectionImport(event) {
 async function exportFullBackup() {
   try {
     const inspections = (await getAllInspections()).map(normalizeInspection);
-    const payload = {
-      type: "crane-report-full-backup",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      data: {
-        inspections,
-        companyCraneRegistry: readCompanyCraneRegistry(),
-        companyMaintenanceFrequencies: readCompanyMaintenanceFrequencies()
-      }
-    };
+    const exportedAt = new Date().toISOString();
+    const chunks = [
+      '{\n',
+      '  "type": "crane-report-full-backup",\n',
+      '  "version": 1,\n',
+      `  "exportedAt": ${JSON.stringify(exportedAt)},\n`,
+      '  "data": {\n',
+      '    "inspections": [\n'
+    ];
+
+    inspections.forEach((inspection, index) => {
+      chunks.push(index ? ",\n" : "");
+      chunks.push(JSON.stringify(inspection, null, 2).replace(/^/gm, "      "));
+    });
+
+    chunks.push(
+      '\n    ],\n',
+      `    "companyCraneRegistry": ${JSON.stringify(readCompanyCraneRegistry(), null, 2).replace(/^/gm, "    ")},\n`,
+      `    "companyMaintenanceFrequencies": ${JSON.stringify(readCompanyMaintenanceFrequencies(), null, 2).replace(/^/gm, "    ")}\n`,
+      '  }\n',
+      '}\n'
+    );
+
     const dateStamp = new Date().toISOString().slice(0, 10);
-    downloadTextFile(JSON.stringify(payload, null, 2), `respaldo-completo-reportes-${dateStamp}.json`, "application/json");
+    downloadBlobParts(chunks, `respaldo-completo-reportes-${dateStamp}.json`, "application/json");
   } catch (error) {
-    window.alert("No se pudo crear el respaldo completo.");
+    window.alert(`No se pudo crear el respaldo completo. Detalle: ${error && error.message ? error.message : "error desconocido"}`);
   }
 }
 
@@ -3082,18 +3095,22 @@ function escapeCsvValue(value, delimiter = ",") {
 
 function downloadTextFile(content, fileName, type) {
   try {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadBlobParts([content], fileName, type);
   } catch (error) {
     window.alert("No se pudo exportar el archivo. Revisa los permisos de descarga del navegador.");
   }
+}
+
+function downloadBlobParts(parts, fileName, type) {
+  const blob = new Blob(parts, { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function downloadInspectionJson(inspection) {
