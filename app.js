@@ -2693,13 +2693,13 @@ async function exportFullBackup() {
 
     inspections.forEach((inspection, index) => {
       chunks.push(index ? ",\n" : "");
-      chunks.push(JSON.stringify(inspection, null, 2).replace(/^/gm, "      "));
+      chunks.push(JSON.stringify(inspection));
     });
 
     chunks.push(
       '\n    ],\n',
-      `    "companyCraneRegistry": ${JSON.stringify(readCompanyCraneRegistry(), null, 2).replace(/^/gm, "    ")},\n`,
-      `    "companyMaintenanceFrequencies": ${JSON.stringify(readCompanyMaintenanceFrequencies(), null, 2).replace(/^/gm, "    ")}\n`,
+      `    "companyCraneRegistry": ${JSON.stringify(readCompanyCraneRegistry())},\n`,
+      `    "companyMaintenanceFrequencies": ${JSON.stringify(readCompanyMaintenanceFrequencies())}\n`,
       '  }\n',
       '}\n'
     );
@@ -2721,7 +2721,7 @@ async function handleFullBackupImport(event) {
 
   try {
     const text = await file.text();
-    const backup = normalizeFullBackup(JSON.parse(text));
+    const backup = normalizeFullBackup(parseJsonFileContent(text));
     if (!backup) {
       window.alert("Ese archivo no parece ser un respaldo completo de esta app.");
       return;
@@ -2743,8 +2743,15 @@ async function handleFullBackupImport(event) {
     renderEquipmentList();
     window.alert(`Respaldo importado. Reportes: ${result.inspections}. Empresas en catalogo: ${result.companies}.`);
   } catch (error) {
-    window.alert("No se pudo importar el respaldo completo. Verifica que sea un JSON exportado desde esta app.");
+    window.alert(`No se pudo importar el respaldo completo. Detalle: ${error && error.message ? error.message : "archivo invalido"}`);
   }
+}
+
+function parseJsonFileContent(text) {
+  const cleanedText = String(text || "")
+    .replace(/^\uFEFF/, "")
+    .trim();
+  return JSON.parse(cleanedText);
 }
 
 function normalizeFullBackup(backup) {
