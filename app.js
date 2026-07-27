@@ -28,6 +28,7 @@ const CONSOLIDATED_EXPORT_TEMPLATE_FILE = "concentrado-general.csv";
 const CONSOLIDATED_EXPORT_DELIMITER = ";";
 const COMPANY_CRANE_REGISTRY_KEY = "company-crane-registry-v1";
 const COMPANY_MAINTENANCE_FREQUENCY_KEY = "company-maintenance-frequency-v1";
+const REPAIRED_CRANE_FINDINGS_KEY = "repaired-crane-findings-v1";
 const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
@@ -157,6 +158,11 @@ const elements = {
   registryCraneNotes: document.getElementById("registryCraneNotes"),
   cancelCompanyCraneButton: document.getElementById("cancelCompanyCraneButton"),
   saveCompanyCraneButton: document.getElementById("saveCompanyCraneButton"),
+  companyCraneFindingsPanel: document.getElementById("companyCraneFindingsPanel"),
+  companyCraneFindingsTitle: document.getElementById("companyCraneFindingsTitle"),
+  companyCraneFindingsSummary: document.getElementById("companyCraneFindingsSummary"),
+  companyCraneFindingsList: document.getElementById("companyCraneFindingsList"),
+  closeCompanyCraneFindingsButton: document.getElementById("closeCompanyCraneFindingsButton"),
   connectionStatus: document.getElementById("connectionStatus"),
   installButton: document.getElementById("installButton"),
   equipmentEditorTitle: document.getElementById("equipmentEditorTitle"),
@@ -289,6 +295,12 @@ function setupAppActions() {
   elements.newCompanyCraneButton.addEventListener("click", () => openCompanyCraneForm());
   elements.cancelCompanyCraneButton.addEventListener("click", closeCompanyCraneForm);
   elements.saveCompanyCraneButton.addEventListener("click", saveCompanyCraneFromForm);
+  elements.closeCompanyCraneFindingsButton.addEventListener("click", closeCompanyCraneFindingsModal);
+  elements.companyCraneFindingsPanel.addEventListener("click", (event) => {
+    if (event.target === elements.companyCraneFindingsPanel) {
+      closeCompanyCraneFindingsModal();
+    }
+  });
   elements.companyCraneFormPanel.addEventListener("click", (event) => {
     if (event.target === elements.companyCraneFormPanel) {
       closeCompanyCraneForm();
@@ -322,6 +334,10 @@ function setupAppActions() {
     }
   });
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !elements.companyCraneFindingsPanel.classList.contains("hidden")) {
+      closeCompanyCraneFindingsModal();
+      return;
+    }
     if (event.key === "Escape" && !elements.companyCraneFormPanel.classList.contains("hidden")) {
       closeCompanyCraneForm();
     }
@@ -711,6 +727,12 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
     card.addEventListener("dragleave", handleCompanyCraneDragLeave);
     card.addEventListener("drop", (event) => handleCompanyCraneDrop(event, crane.id));
     card.addEventListener("dragend", handleCompanyCraneDragEnd);
+    card.addEventListener("click", (event) => {
+      if (event.target.closest("button")) {
+        return;
+      }
+      openCompanyCraneFindingsModal(crane.id);
+    });
     card.innerHTML = `
       <div class="company-crane-main">
         <div>
@@ -730,6 +752,7 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
       </div>
       ${crane.notes ? `<p class="company-crane-notes">${escapeHtml(crane.notes)}</p>` : ""}
       ${renderCompanyCraneMaintenanceStatus(maintenance)}
+      <p class="company-crane-open-hint">Clic para ver hallazgos detectados</p>
       <div class="company-crane-actions">
         <button class="secondary-button" type="button" data-edit-company-crane-id="${escapeHtml(crane.id)}">Editar</button>
         <button class="ghost-button" type="button" data-delete-company-crane-id="${escapeHtml(crane.id)}">Quitar</button>
@@ -745,6 +768,153 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
   elements.companyCraneList.querySelectorAll("[data-delete-company-crane-id]").forEach((button) => {
     button.addEventListener("click", () => deleteCompanyCrane(button.dataset.deleteCompanyCraneId));
   });
+}
+
+async function openCompanyCraneFindingsModal(craneId) {
+  const client = normalizeClientName(elements.companyRegistryClient.value);
+  const registry = readCompanyCraneRegistry();
+  const crane = (registry[client] || []).find((item) => item.id === craneId);
+  if (!client || !crane) {
+    return;
+  }
+
+  const history = await buildCompanyCraneFindingHistory(client, crane);
+  renderCompanyCraneFindingHistory(crane, history);
+  elements.companyCraneFindingsPanel.classList.remove("hidden");
+}
+
+function closeCompanyCraneFindingsModal() {
+  elements.companyCraneFindingsPanel.classList.add("hidden");
+}
+
+async function buildCompanyCraneFindingHistory(client, crane) {
+  const repairedFindings = readRepairedCraneFindings();
+  const records = (await getAllInspections())
+    .map(normalizeInspection)
+    .filter((record) => normalizeClientName(record.plantName) === client)
+    .sort((a, b) => new Date(b.inspectionDate || b.updatedAt || 0) - new Date(a.inspectionDate || a.updatedAt || 0));
+
+  return records.flatMap((record) => {
+    return (record.equipments || [])
+      .filter((equipment) => equipmentMatchesCompanyCrane(crane, equipment))
+      .map((equipment) => ({
+        record,
+        equipment,
+        findings: (Array.isArray(equipment.findings) ? equipment.findings : [])
+          .filter((finding) => !repairedFindings[buildRepairedFindingKey(client, crane.id, record.id, equipment.id, finding.id)])
+      }));
+  });
+}
+
+function equipmentMatchesCompanyCrane(crane, equipment) {
+  if (equipment.catalogCraneId && equipment.catalogCraneId === crane.id) {
+    return true;
+  }
+
+  const candidate = craneRegistryEntryFromEquipment(equipment);
+  return sameCatalogCrane(crane, candidate);
+}
+
+function renderCompanyCraneFindingHistory(crane, history) {
+  const findingsCount = history.reduce((sum, item) => sum + item.findings.length, 0);
+  const reportsWithFindings = history.filter((item) => item.findings.length).length;
+  const lastService = history[0]?.equipment.maintenanceDate || history[0]?.record.inspectionDate || "";
+
+  elements.companyCraneFindingsTitle.textContent = crane.craneId || crane.type || "Hallazgos de la grua";
+  elements.companyCraneFindingsSummary.innerHTML = `
+    <article class="history-stat">
+      <span>Reportes revisados</span>
+      <strong>${history.length}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Reportes con hallazgos</span>
+      <strong>${reportsWithFindings}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Hallazgos acumulados</span>
+      <strong>${findingsCount}</strong>
+    </article>
+    <article class="history-stat">
+      <span>Ultimo servicio</span>
+      <strong>${escapeHtml(formatDate(lastService) || "No registrado")}</strong>
+    </article>
+  `;
+
+  if (!history.length) {
+    elements.companyCraneFindingsList.innerHTML = '<div class="inline-empty-state">No encontre reportes guardados para esta grua.</div>';
+    return;
+  }
+
+  elements.companyCraneFindingsList.innerHTML = history.map((item) => renderCraneFindingHistoryGroup(crane, item)).join("");
+  wireRepairedFindingButtons(crane);
+}
+
+function renderCraneFindingHistoryGroup(crane, item) {
+  const serviceDate = item.equipment.maintenanceDate || item.record.inspectionDate || "";
+  return `
+    <article class="crane-finding-history-group">
+      <div class="crane-finding-history-header">
+        <div>
+          <p class="eyebrow">${escapeHtml(item.record.reportNumber || "Sin reporte")}</p>
+          <h4>${escapeHtml(formatDate(serviceDate) || "Fecha no capturada")}</h4>
+        </div>
+        <span>${item.findings.length} hallazgo(s)</span>
+      </div>
+      ${item.findings.length
+        ? `<div class="crane-finding-items">${item.findings.map((finding, index) => renderCraneFindingHistoryItem(crane, item, finding, index)).join("")}</div>`
+        : '<div class="inline-empty-state compact-empty-state">Este reporte no tiene hallazgos para la grua.</div>'}
+    </article>
+  `;
+}
+
+function renderCraneFindingHistoryItem(crane, item, finding, index) {
+  const client = normalizeClientName(elements.companyRegistryClient.value);
+  return `
+    <article class="crane-finding-item" data-repaired-finding-key="${escapeHtml(buildRepairedFindingKey(client, crane.id, item.record.id, item.equipment.id, finding.id))}">
+      <div class="crane-finding-item-header">
+        <strong>${index + 1}. ${escapeHtml(finding.category || "Hallazgo")}</strong>
+        <button class="ghost-button repaired-finding-button" type="button" data-repaired-finding-key="${escapeHtml(buildRepairedFindingKey(client, crane.id, item.record.id, item.equipment.id, finding.id))}">Reparado</button>
+      </div>
+      <span>${escapeHtml(finding.incidence || "Incidencia no capturada")}</span>
+      ${finding.description ? `<p>${escapeHtml(finding.description)}</p>` : ""}
+      ${finding.recommendation ? `<p><b>Recomendacion:</b> ${escapeHtml(finding.recommendation)}</p>` : ""}
+      <small>${(finding.photos || []).length} foto(s)</small>
+    </article>
+  `;
+}
+
+function wireRepairedFindingButtons(crane) {
+  elements.companyCraneFindingsList.querySelectorAll(".repaired-finding-button").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!window.confirm("Marcar este hallazgo como reparado y ocultarlo del historial de esta grua?")) {
+        return;
+      }
+
+      const repairedFindings = readRepairedCraneFindings();
+      repairedFindings[button.dataset.repairedFindingKey] = {
+        repairedAt: new Date().toISOString()
+      };
+      writeRepairedCraneFindings(repairedFindings);
+      await openCompanyCraneFindingsModal(crane.id);
+    });
+  });
+}
+
+function buildRepairedFindingKey(client, craneId, inspectionId, equipmentId, findingId) {
+  return [normalizeClientName(client), craneId || "", inspectionId || "", equipmentId || "", findingId || ""].join("|");
+}
+
+function readRepairedCraneFindings() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(REPAIRED_CRANE_FINDINGS_KEY) || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function writeRepairedCraneFindings(repairedFindings) {
+  localStorage.setItem(REPAIRED_CRANE_FINDINGS_KEY, JSON.stringify(repairedFindings || {}));
 }
 
 function openCompanyCraneForm(craneId) {
@@ -2699,7 +2869,8 @@ async function exportFullBackup() {
     chunks.push(
       '\n    ],\n',
       `    "companyCraneRegistry": ${JSON.stringify(readCompanyCraneRegistry())},\n`,
-      `    "companyMaintenanceFrequencies": ${JSON.stringify(readCompanyMaintenanceFrequencies())}\n`,
+      `    "companyMaintenanceFrequencies": ${JSON.stringify(readCompanyMaintenanceFrequencies())},\n`,
+      `    "repairedCraneFindings": ${JSON.stringify(readRepairedCraneFindings())}\n`,
       '  }\n',
       '}\n'
     );
@@ -2767,6 +2938,9 @@ function normalizeFullBackup(backup) {
       : {},
     companyMaintenanceFrequencies: data.companyMaintenanceFrequencies && typeof data.companyMaintenanceFrequencies === "object"
       ? data.companyMaintenanceFrequencies
+      : {},
+    repairedCraneFindings: data.repairedCraneFindings && typeof data.repairedCraneFindings === "object"
+      ? data.repairedCraneFindings
       : {}
   };
 }
@@ -2778,6 +2952,7 @@ async function replaceDataWithFullBackup(backup) {
   }
   writeCompanyCraneRegistry(normalizeCompanyCraneRegistryKeys(backup.companyCraneRegistry));
   writeCompanyMaintenanceFrequencies(normalizePlainObjectKeys(backup.companyMaintenanceFrequencies));
+  writeRepairedCraneFindings(backup.repairedCraneFindings);
   return {
     inspections: backup.inspections.length,
     companies: Object.keys(backup.companyCraneRegistry).length
@@ -2793,6 +2968,10 @@ async function mergeFullBackup(backup) {
   writeCompanyMaintenanceFrequencies({
     ...readCompanyMaintenanceFrequencies(),
     ...normalizePlainObjectKeys(backup.companyMaintenanceFrequencies)
+  });
+  writeRepairedCraneFindings({
+    ...readRepairedCraneFindings(),
+    ...backup.repairedCraneFindings
   });
 
   const registry = readCompanyCraneRegistry();
