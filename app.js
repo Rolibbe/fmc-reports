@@ -109,8 +109,11 @@ const elements = {
   addEquipmentButton: document.getElementById("addEquipmentButton"),
   importInspectionButton: document.getElementById("importInspectionButton"),
   importInspectionInput: document.getElementById("importInspectionInput"),
+  importFullBackupButton: document.getElementById("importFullBackupButton"),
+  importFullBackupInput: document.getElementById("importFullBackupInput"),
   saveInspectionButton: document.getElementById("saveInspectionButton"),
   exportInspectionButton: document.getElementById("exportInspectionButton"),
+  exportFullBackupButton: document.getElementById("exportFullBackupButton"),
   generatePdfButton: document.getElementById("generatePdfButton"),
   newInspectionButton: document.getElementById("newInspectionButton"),
   savedReports: document.getElementById("savedReports"),
@@ -237,6 +240,8 @@ function setupAppActions() {
   elements.addEquipmentButton.addEventListener("click", () => openEquipmentEditor());
   elements.importInspectionButton.addEventListener("click", () => elements.importInspectionInput.click());
   elements.importInspectionInput.addEventListener("change", handleInspectionImport);
+  elements.importFullBackupButton.addEventListener("click", () => elements.importFullBackupInput.click());
+  elements.importFullBackupInput.addEventListener("change", handleFullBackupImport);
   elements.companyCraneSelector.addEventListener("change", handleCompanyCraneSelection);
   elements.maintenanceDate.addEventListener("change", updateNextInspectionFromMaintenanceDate);
   elements.serviceTaskCleaning.addEventListener("change", syncServiceSummaryFromTasks);
@@ -272,6 +277,7 @@ function setupAppActions() {
     await persistInspection();
   });
   elements.exportInspectionButton.addEventListener("click", exportCurrentInspection);
+  elements.exportFullBackupButton.addEventListener("click", exportFullBackup);
   elements.generatePdfButton.addEventListener("click", generatePdfReport);
   elements.newInspectionButton.addEventListener("click", resetForm);
   elements.refreshReportsButton.addEventListener("click", renderSavedReports);
@@ -2672,6 +2678,150 @@ async function handleInspectionImport(event) {
   }
 }
 
+async function exportFullBackup() {
+  try {
+    const inspections = (await getAllInspections()).map(normalizeInspection);
+    const payload = {
+      type: "crane-report-full-backup",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      data: {
+        inspections,
+        companyCraneRegistry: readCompanyCraneRegistry(),
+        companyMaintenanceFrequencies: readCompanyMaintenanceFrequencies()
+      }
+    };
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    downloadTextFile(JSON.stringify(payload, null, 2), `respaldo-completo-reportes-${dateStamp}.json`, "application/json");
+  } catch (error) {
+    window.alert("No se pudo crear el respaldo completo.");
+  }
+}
+
+async function handleFullBackupImport(event) {
+  const [file] = Array.from(event.target.files || []);
+  elements.importFullBackupInput.value = "";
+
+  if (!file) {
+    return;
+  }
+
+  try {
+    const text = await file.text();
+    const backup = normalizeFullBackup(JSON.parse(text));
+    if (!backup) {
+      window.alert("Ese archivo no parece ser un respaldo completo de esta app.");
+      return;
+    }
+
+    const replaceExisting = window.confirm(
+      "Quieres reemplazar TODO lo guardado en este dispositivo con el respaldo?\n\nAceptar = reemplazar todo.\nCancelar = combinar con lo actual."
+    );
+    if (replaceExisting && !window.confirm("Esta accion borrara los datos locales actuales antes de importar. Deseas continuar?")) {
+      return;
+    }
+
+    const result = replaceExisting
+      ? await replaceDataWithFullBackup(backup)
+      : await mergeFullBackup(backup);
+
+    await populateCompanyRegistryClientOptions();
+    await renderSavedReports();
+    renderEquipmentList();
+    window.alert(`Respaldo importado. Reportes: ${result.inspections}. Empresas en catalogo: ${result.companies}.`);
+  } catch (error) {
+    window.alert("No se pudo importar el respaldo completo. Verifica que sea un JSON exportado desde esta app.");
+  }
+}
+
+function normalizeFullBackup(backup) {
+  const data = backup && backup.data ? backup.data : backup;
+  if (!data || !Array.isArray(data.inspections)) {
+    return null;
+  }
+
+  return {
+    inspections: data.inspections.map(normalizeInspection),
+    companyCraneRegistry: data.companyCraneRegistry && typeof data.companyCraneRegistry === "object"
+      ? data.companyCraneRegistry
+      : {},
+    companyMaintenanceFrequencies: data.companyMaintenanceFrequencies && typeof data.companyMaintenanceFrequencies === "object"
+      ? data.companyMaintenanceFrequencies
+      : {}
+  };
+}
+
+async function replaceDataWithFullBackup(backup) {
+  await clearAllInspections();
+  for (const inspection of backup.inspections) {
+    await putInspection(inspection);
+  }
+  writeCompanyCraneRegistry(normalizeCompanyCraneRegistryKeys(backup.companyCraneRegistry));
+  writeCompanyMaintenanceFrequencies(normalizePlainObjectKeys(backup.companyMaintenanceFrequencies));
+  return {
+    inspections: backup.inspections.length,
+    companies: Object.keys(backup.companyCraneRegistry).length
+  };
+}
+
+async function mergeFullBackup(backup) {
+  for (const inspection of backup.inspections) {
+    await putInspection(inspection);
+  }
+
+  writeCompanyCraneRegistry(mergeCompanyCraneRegistries(readCompanyCraneRegistry(), backup.companyCraneRegistry));
+  writeCompanyMaintenanceFrequencies({
+    ...readCompanyMaintenanceFrequencies(),
+    ...normalizePlainObjectKeys(backup.companyMaintenanceFrequencies)
+  });
+
+  const registry = readCompanyCraneRegistry();
+  return {
+    inspections: backup.inspections.length,
+    companies: Object.keys(registry).length
+  };
+}
+
+function mergeCompanyCraneRegistries(currentRegistry, backupRegistry) {
+  const merged = normalizeCompanyCraneRegistryKeys(currentRegistry);
+  const normalizedBackup = normalizeCompanyCraneRegistryKeys(backupRegistry);
+
+  Object.entries(normalizedBackup).forEach(([client, cranes]) => {
+    const currentCranes = merged[client] || [];
+    cranes.forEach((incomingCrane) => {
+      const existingIndex = currentCranes.findIndex((crane) => crane.id === incomingCrane.id || sameCatalogCrane(crane, incomingCrane));
+      if (existingIndex >= 0) {
+        currentCranes[existingIndex] = {
+          ...currentCranes[existingIndex],
+          ...incomingCrane,
+          id: currentCranes[existingIndex].id || incomingCrane.id
+        };
+      } else {
+        currentCranes.push(incomingCrane);
+      }
+    });
+    merged[client] = currentCranes;
+  });
+
+  return merged;
+}
+
+function normalizeCompanyCraneRegistryKeys(registry) {
+  const normalized = {};
+  Object.entries(registry || {}).forEach(([client, cranes]) => {
+    normalized[normalizeClientName(client)] = Array.isArray(cranes) ? cranes : [];
+  });
+  return normalized;
+}
+
+function normalizePlainObjectKeys(source) {
+  const normalized = {};
+  Object.entries(source || {}).forEach(([key, value]) => {
+    normalized[normalizeClientName(key)] = value;
+  });
+  return normalized;
+}
+
 function normalizeInspection(record) {
   const source = record || {};
   const equipments = Array.isArray(source.equipments) && source.equipments.length
@@ -2879,6 +3029,10 @@ async function getAllInspections() {
 
 async function deleteInspection(id) {
   return withStore("readwrite", (store) => store.delete(id));
+}
+
+async function clearAllInspections() {
+  return withStore("readwrite", (store) => store.clear());
 }
 
 function registerServiceWorker() {
