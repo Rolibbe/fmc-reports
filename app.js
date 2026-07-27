@@ -43,6 +43,7 @@ const fallbackClientPlants = [
   "SEAL FOR LIFE INDUSTRIES MEXICO",
   "PRODIMAT INDUSTRIAL Y DE LA CONSTRUCCION",
   "PRODUCTOS UROLOGOS DE MEXICO, S.A. DE C.V.",
+  "ROCK WEST COMPOSITES",
   "GARRET MOTION MEXICO",
   "GARRET TRANSPORTATION INC",
   "OPTI-SOURCE",
@@ -819,9 +820,19 @@ function populateIncidenceOptions(selectedIncidence) {
     .map((incidence) => `<option value="${escapeHtml(incidence)}">${escapeHtml(incidence)}</option>`)
     .join("");
 
-  if (selectedIncidence && incidences.includes(selectedIncidence)) {
-    elements.findingIncidence.value = selectedIncidence;
+  if (selectedIncidence) {
+    const selectedValue = incidences.includes(selectedIncidence)
+      ? selectedIncidence
+      : incidences.find((incidence) => removeFindingCatalogNumber(incidence) === removeFindingCatalogNumber(selectedIncidence));
+
+    if (selectedValue) {
+      elements.findingIncidence.value = selectedValue;
+    }
   }
+}
+
+function removeFindingCatalogNumber(value) {
+  return String(value || "").replace(/^\d+\.\s*/, "").trim();
 }
 
 function openEquipmentEditor(equipmentId) {
@@ -853,7 +864,7 @@ function loadEquipmentIntoEditor(equipment) {
   elements.overallCondition.value = equipment.overallCondition;
   elements.nextInspection.value = equipment.nextInspection;
   applyServiceTasksFromSummary(equipment.serviceSummary);
-  applyFixedRecommendation();
+  elements.recommendations.value = equipment.recommendations || FIXED_RECOMMENDATION_TEXT;
   currentEquipmentFindings = equipment.findings.slice();
   currentEquipmentServicePhotos = equipment.servicePhotos.slice();
   currentChecklistImage = equipment.checklistImage ? { ...equipment.checklistImage } : null;
@@ -993,7 +1004,12 @@ function getSelectedServiceTaskLines() {
 }
 
 function syncServiceSummaryFromTasks() {
-  elements.serviceSummary.value = getSelectedServiceTaskLines().join("\n");
+  const selectedLines = getSelectedServiceTaskLines();
+  const currentLines = elements.serviceSummary.value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !isManagedServiceTaskLine(line));
+  elements.serviceSummary.value = [...selectedLines, ...currentLines].join("\n");
 }
 
 function applyServiceTasksFromSummary(summary) {
@@ -1002,15 +1018,24 @@ function applyServiceTasksFromSummary(summary) {
   elements.serviceTaskLubrication.checked = normalizedSummary.includes("lubrico cadena/cable de carga")
     || normalizedSummary.includes("lubrico cadena de carga")
     || normalizedSummary.includes("lubricacion");
-  syncServiceSummaryFromTasks();
+  elements.serviceSummary.value = summary || "";
 
-  if (!elements.serviceSummary.value && summary) {
-    elements.serviceSummary.value = summary;
+  if (!elements.serviceSummary.value) {
+    syncServiceSummaryFromTasks();
   }
 }
 
-function applyFixedRecommendation() {
-  elements.recommendations.value = FIXED_RECOMMENDATION_TEXT;
+function isManagedServiceTaskLine(line) {
+  const normalizedLine = String(line || "").trim().toLowerCase();
+  return normalizedLine === SERVICE_CLEANING_TEXT.toLowerCase()
+    || normalizedLine === SERVICE_LUBRICATION_TEXT.toLowerCase()
+    || normalizedLine === "se lubrico cadena de carga";
+}
+
+function applyDefaultRecommendation() {
+  if (!elements.recommendations.value.trim()) {
+    elements.recommendations.value = FIXED_RECOMMENDATION_TEXT;
+  }
 }
 
 function resetEquipmentEditorState() {
@@ -1027,7 +1052,7 @@ function resetEquipmentEditorState() {
   elements.serviceTaskCleaning.checked = false;
   elements.serviceTaskLubrication.checked = false;
   syncServiceSummaryFromTasks();
-  applyFixedRecommendation();
+  applyDefaultRecommendation();
   renderFindingsList();
   renderServicePhotos();
   renderChecklistImageStatus();
@@ -1313,9 +1338,6 @@ function saveEquipmentFromEditor() {
     return;
   }
 
-  syncServiceSummaryFromTasks();
-  applyFixedRecommendation();
-
   const equipmentId = elements.editingEquipmentId.value || createId();
   const previousEquipment = currentEquipments.find((item) => item.id === equipmentId);
   const equipment = normalizeEquipment({
@@ -1341,7 +1363,7 @@ function saveEquipmentFromEditor() {
     overallCondition: elements.overallCondition.value,
     nextInspection: elements.nextInspection.value,
     serviceSummary: elements.serviceSummary.value.trim(),
-    recommendations: FIXED_RECOMMENDATION_TEXT,
+    recommendations: elements.recommendations.value.trim() || FIXED_RECOMMENDATION_TEXT,
     servicePhotos: currentEquipmentServicePhotos.slice(),
     checklistImage: currentChecklistImage ? { ...currentChecklistImage } : null,
     updatedAt: new Date().toISOString()
@@ -2258,7 +2280,7 @@ function createLegacyEquipment(record) {
     overallCondition: record.overallCondition || "Bueno",
     nextInspection: record.nextInspection || "",
     serviceSummary: "",
-    recommendations: FIXED_RECOMMENDATION_TEXT,
+    recommendations: record.recommendations || FIXED_RECOMMENDATION_TEXT,
     servicePhotos: [],
     checklistImage: null
   };
@@ -2324,7 +2346,7 @@ function normalizeEquipment(equipment) {
     overallCondition: source.overallCondition || "Bueno",
     nextInspection: source.nextInspection || "",
     serviceSummary: source.serviceSummary || "",
-    recommendations: FIXED_RECOMMENDATION_TEXT,
+    recommendations: source.recommendations || FIXED_RECOMMENDATION_TEXT,
     servicePhotos: Array.isArray(source.servicePhotos) ? source.servicePhotos : [],
     checklistImage: source.checklistImage && source.checklistImage.dataUrl
       ? {
