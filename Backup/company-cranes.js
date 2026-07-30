@@ -12,9 +12,7 @@ async function openCompanyCraneRegistry() {
   await populateCompanyRegistryClientOptions();
 
   if (!elements.companyRegistryClient.value.trim()) {
-    selectCompanyRegistryClient(elements.plantName.value || "", { render: false });
-  } else {
-    elements.companyRegistrySearch.value = elements.companyRegistryClient.value;
+    elements.companyRegistryClient.value = elements.plantName.value || "";
   }
 
   await seedCompanyRegistryFromReports(false);
@@ -24,12 +22,16 @@ async function openCompanyCraneRegistry() {
 }
 
 async function populateCompanyRegistryClientOptions() {
-  const clients = await getCompanyRegistryClientNames();
+  const fileClients = await readClientPlantsFromFile();
+  const registry = readCompanyCraneRegistry();
+  const clients = normalizeClientNames([
+    ...fileClients,
+    ...Object.keys(registry)
+  ]);
 
   elements.companyRegistryClientOptions.innerHTML = clients
     .map((client) => `<option value="${escapeHtml(client)}"></option>`)
     .join("");
-  await renderCompanyRegistryClientCards();
 }
 
 async function renderCompanyCraneRegistry() {
@@ -38,69 +40,8 @@ async function renderCompanyCraneRegistry() {
   const cranes = client ? registry[client] || [] : [];
   const maintenanceLookup = client ? await buildCompanyCraneMaintenanceLookup(client, cranes) : new Map();
 
-  await renderCompanyRegistryClientCards();
   renderCompanyRegistrySummary(client, cranes);
   renderCompanyCraneList(client, cranes, maintenanceLookup);
-}
-
-async function getCompanyRegistryClientNames() {
-  const fileClients = await readClientPlantsFromFile();
-  const registry = readCompanyCraneRegistry();
-  const records = (await getAllInspections()).map(normalizeInspection);
-  return normalizeClientNames([
-    ...fileClients,
-    ...Object.keys(registry),
-    ...records.map((record) => record.plantName)
-  ]);
-}
-
-async function renderCompanyRegistryClientCards() {
-  if (!elements.companyRegistryCards) {
-    return;
-  }
-
-  const clients = await getCompanyRegistryClientNames();
-  const registry = readCompanyCraneRegistry();
-  const records = (await getAllInspections()).map(normalizeInspection);
-  const selectedClient = normalizeClientName(elements.companyRegistryClient.value);
-  const filter = normalizeClientName(elements.companyRegistrySearch.value);
-  const visibleClients = filter
-    ? clients.filter((client) => client.includes(filter))
-    : clients;
-
-  if (!visibleClients.length) {
-    elements.companyRegistryCards.innerHTML = '<div class="inline-empty-state compact-empty-state">No hay empresas que coincidan. Puedes usar el texto escrito como nueva empresa.</div>';
-    return;
-  }
-
-  elements.companyRegistryCards.innerHTML = visibleClients.map((client) => {
-    const clientReports = records.filter((record) => normalizeClientName(record.plantName) === client);
-    const latestReport = clientReports.sort((a, b) => new Date(b.inspectionDate || b.updatedAt || 0) - new Date(a.inspectionDate || a.updatedAt || 0))[0];
-    const cranes = Array.isArray(registry[client]) ? registry[client] : [];
-    return `
-      <button class="company-selector-card ${selectedClient === client ? "is-selected" : ""}" type="button" data-company-registry-card="${escapeHtml(client)}">
-        <strong>${escapeHtml(client)}</strong>
-        <span>${cranes.length} grua(s) registrada(s)</span>
-        <small>${clientReports.length} reporte(s) | Ultima visita: ${escapeHtml(latestReport ? formatDate(latestReport.inspectionDate) : "Sin reportes")}</small>
-      </button>
-    `;
-  }).join("");
-
-  elements.companyRegistryCards.querySelectorAll("[data-company-registry-card]").forEach((button) => {
-    button.addEventListener("click", () => selectCompanyRegistryClient(button.dataset.companyRegistryCard));
-  });
-}
-
-function selectCompanyRegistryClient(clientName, options = {}) {
-  const client = normalizeClientName(clientName);
-  elements.companyRegistryClient.value = client;
-  elements.companyRegistrySearch.value = client;
-  closeCompanyCraneForm();
-  loadCompanyMaintenanceFrequency();
-  if (options.render === false) {
-    return;
-  }
-  renderCompanyCraneRegistry();
 }
 
 function renderCompanyRegistrySummary(client, cranes) {

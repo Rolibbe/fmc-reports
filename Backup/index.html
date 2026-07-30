@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f4c5c">
   <title>Inspecciones de Gruas</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=83">
 </head>
 <body>
   <div class="app-shell">
@@ -23,12 +23,6 @@
         </p>
       </div>
 
-      <div class="status-card">
-        <p class="status-label">Estado</p>
-        <p id="connectionStatus" class="status-value">Verificando conectividad...</p>
-        <button id="installButton" class="secondary-button" hidden>Instalar app</button>
-      </div>
-
       <section class="saved-section">
         <div class="section-header">
           <div>
@@ -42,42 +36,80 @@
       </section>
     </aside>
 
+    <nav class="app-nav" aria-label="Menu principal">
+      <div class="app-brand">
+        <span class="brand-mark">FMC</span>
+        <div>
+          <strong>Reportes de gruas</strong>
+          <small>Operacion y mantenimiento</small>
+        </div>
+      </div>
+
+      <div class="nav-group">
+        <p class="nav-label">Operacion</p>
+        <button id="newInspectionButton" class="nav-action nav-action-strong" type="button">Nuevo reporte</button>
+        <button id="saveInspectionButton" class="nav-action" type="button">Guardar reporte</button>
+        <button id="generatePdfButton" class="nav-action nav-action-primary" type="button">Generar PDF</button>
+      </div>
+
+      <div class="nav-group">
+        <p class="nav-label">Modulos</p>
+        <button id="openCompaniesDashboardButton" class="nav-link nav-action-strong" type="button">Empresas / reportes</button>
+        <button id="openSidebarButton" class="nav-link" type="button">Archivo de reportes</button>
+        <button id="openCompanyCraneRegistryButton" class="nav-link" type="button">Empresas y gruas</button>
+        <button id="openMaintenancePanelButton" class="nav-link" type="button">Mantenimiento</button>
+        <button id="openConsolidatedHistoryButton" class="nav-link" type="button">Concentrado general</button>
+        <button id="openSettingsButton" class="nav-link" type="button">Configuracion</button>
+      </div>
+
+      <div class="nav-group nav-data-group">
+        <p class="nav-label">Datos</p>
+        <button id="toolsMenuButton" class="nav-link nav-link-with-menu" type="button" aria-label="Abrir opciones de datos" aria-expanded="false" aria-controls="toolsMenuList">
+          Importar / Exportar
+          <span class="nav-caret">v</span>
+        </button>
+        <div id="toolsMenuList" class="tools-side-panel nav-submenu hidden">
+          <div class="tools-side-header">
+            <div>
+              <p class="eyebrow">Datos</p>
+              <strong>Respaldos</strong>
+            </div>
+            <button type="button" aria-label="Cerrar herramientas">Cerrar</button>
+          </div>
+          <button id="importInspectionButton" type="button">Importar reporte</button>
+          <button id="exportInspectionButton" type="button">Exportar reporte</button>
+          <button id="importFullBackupButton" type="button">Importar respaldo completo</button>
+          <button id="exportFullBackupButton" type="button">Exportar respaldo sin fotos</button>
+          <button id="exportFullBackupWithPhotosButton" type="button">Exportar respaldo con fotos</button>
+          <button id="purgeStoredPhotosButton" type="button">Borrar fotos pesadas guardadas</button>
+        </div>
+      </div>
+
+      <div class="nav-footer">
+        <span id="connectionStatus" class="nav-status">Verificando conectividad...</span>
+        <button id="installButton" class="nav-install" hidden>Instalar app</button>
+      </div>
+    </nav>
+
     <main class="main-content">
       <section class="panel app-view" id="inspectionView">
-        <div class="section-header">
+        <div class="page-hero">
           <div>
             <p class="eyebrow">Captura en campo</p>
             <h2>Nuevo reporte</h2>
+            <p class="page-subtitle">Registra cliente, equipos inspeccionados, hallazgos, evidencias y genera el PDF final desde un solo flujo.</p>
           </div>
-          <div class="toolbar">
-            <button id="newInspectionButton" class="ghost-button" type="button">Nueva</button>
-            <button id="saveInspectionButton" class="secondary-button" type="button">Guardar</button>
-            <button id="generatePdfButton" class="primary-button" type="button">Generar PDF</button>
-            <button id="toolsMenuButton" class="ghost-button tools-menu-button" type="button" aria-label="Abrir herramientas" aria-expanded="false" aria-controls="toolsMenuList">
-              <span></span>
-              <span></span>
-              <span></span>
-            </button>
-            <div id="toolsMenuList" class="tools-side-panel hidden">
-              <div class="tools-side-header">
-                <div>
-                  <p class="eyebrow">Menu</p>
-                  <strong>Herramientas</strong>
-                </div>
-                <button type="button" aria-label="Cerrar herramientas">Cerrar</button>
-              </div>
-              <button id="openSidebarButton" type="button">Historial de reportes</button>
-              <button id="openCompanyCraneRegistryButton" type="button">Empresas y gruas</button>
-              <button id="openConsolidatedHistoryButton" type="button">Concentrado general</button>
-              <button id="importInspectionButton" type="button">Importar reporte</button>
-              <button id="exportInspectionButton" type="button">Exportar reporte</button>
-            </div>
+          <div class="page-hero-badge">
+            <span>Offline</span>
+            <strong>Listo para campo</strong>
           </div>
         </div>
 
         <form id="inspectionForm">
           <input id="inspectionId" type="hidden">
           <input id="importInspectionInput" class="file-input-hidden" type="file" accept="application/json">
+          <input id="importFullBackupInput" class="file-input-hidden" type="file" accept="application/json">
+          <datalist id="polipastoOptions"></datalist>
 
           <div class="grid two-column">
             <label>
@@ -135,6 +167,41 @@
         </form>
       </section>
 
+      <section class="panel app-view hidden" id="companiesView">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Empresas</p>
+            <h2>Reportes organizados por cliente</h2>
+          </div>
+          <div class="toolbar">
+            <button id="refreshCompaniesButton" class="secondary-button" type="button">Actualizar</button>
+            <button id="closeCompaniesButton" class="ghost-button" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div id="companiesSummary" class="history-summary"></div>
+
+        <div class="companies-layout">
+          <section class="subpanel companies-list-panel">
+            <div class="section-header">
+              <div>
+                <p class="eyebrow">Clientes</p>
+                <h3>Selecciona una empresa</h3>
+              </div>
+            </div>
+            <label>
+              Buscar empresa
+              <input id="companyDashboardSearch" type="text" placeholder="Escribe cliente o planta">
+            </label>
+            <div id="companiesList" class="companies-list"></div>
+          </section>
+
+          <section class="subpanel company-detail-panel" id="companyDetailPanel">
+            <div class="inline-empty-state">Selecciona una empresa para ver sus gruas, reportes, mantenimiento y hallazgos.</div>
+          </section>
+        </div>
+      </section>
+
       <section class="panel app-view hidden" id="equipmentEditorView">
         <div class="section-header">
           <div>
@@ -153,19 +220,33 @@
           <section class="subpanel editor-subpanel">
             <div class="section-header">
               <div>
+                <p class="eyebrow">Catalogo de empresa</p>
+                <h3>Gruas registradas del cliente</h3>
+              </div>
+            </div>
+
+            <div class="grid two-column">
+              <label>
+                Seleccionar grua existente
+                <select id="companyCraneSelector"></select>
+              </label>
+              <div id="companyCraneSelectorStatus" class="inline-empty-state compact-empty-state">Selecciona un cliente para ver sus gruas registradas.</div>
+            </div>
+          </section>
+
+          <section class="subpanel editor-subpanel">
+            <div class="section-header">
+              <div>
                 <p class="eyebrow">Datos del equipo</p>
                 <h3>Caracteristicas de la grua</h3>
               </div>
             </div>
 
+            <input id="craneId" name="craneId" type="hidden">
             <div class="grid three-column">
               <label>
-                ID de grua / identificador de equipo
-                <input id="craneId" name="craneId" type="text" placeholder="Ej. GR-001, serie o tag interno" required>
-              </label>
-              <label>
                 Nombre o tag del equipo
-                <input id="equipmentName" type="text" placeholder="Ej. Grua puente linea 3" required>
+                <input id="equipmentName" type="text" placeholder="Ej. Grua puente linea 3, GR-001 o tag interno" required>
               </label>
               <label>
                 Tipo de grua
@@ -209,6 +290,10 @@
 
             <div class="grid two-column">
               <label>
+                Nombre del polipasto
+                <input id="hoistName" list="polipastoOptions" type="text" placeholder="Ej. CM Lodestar">
+              </label>
+              <label>
                 Tipo de polipasto
                 <input id="hoistType" type="text" placeholder="Cable, cadena, manual, electrico">
               </label>
@@ -218,11 +303,11 @@
               </label>
               <label>
                 Fabricante del polipasto
-                <input id="hoistManufacturer" type="text" placeholder="Fabricante">
+                <input id="hoistManufacturer" list="polipastoOptions" type="text" placeholder="Fabricante">
               </label>
               <label>
                 Modelo del polipasto
-                <input id="hoistModel" type="text" placeholder="Modelo">
+                <input id="hoistModel" list="polipastoOptions" type="text" placeholder="Modelo">
               </label>
               <label>
                 Serie del polipasto
@@ -243,6 +328,14 @@
               </div>
               <button id="addFindingButton" class="secondary-button" type="button">Anadir Hallazgo</button>
             </div>
+            <div class="quick-finding-bar">
+              <label>
+                Acceso rapido por numero
+                <input id="quickFindingNumber" list="quickFindingOptions" type="text" inputmode="numeric" placeholder="Ej. 12 o 12, 18, 34">
+                <datalist id="quickFindingOptions"></datalist>
+              </label>
+              <button id="addQuickFindingButton" class="secondary-button" type="button">Agregar por numero</button>
+            </div>
             <div id="findingsList" class="findings-list"></div>
           </section>
 
@@ -254,7 +347,7 @@
               </div>
             </div>
 
-            <div class="grid two-column">
+            <div class="grid three-column">
               <label>
                 Condicion general
                 <select id="overallCondition" name="overallCondition">
@@ -264,19 +357,33 @@
                 </select>
               </label>
               <label>
-                Proxima inspeccion sugerida
+                Fecha de mantenimiento realizado
+                <input id="maintenanceDate" name="maintenanceDate" type="date">
+              </label>
+              <label>
+                Proximo mantenimiento
                 <input id="nextInspection" name="nextInspection" type="date">
               </label>
             </div>
 
-            <label>
-              Resumen del servicio
-              <textarea id="serviceSummary" rows="4" placeholder="Describe el alcance realizado para este equipo"></textarea>
-            </label>
+            <div class="field-block">
+              <span class="field-label">Resumen del servicio</span>
+              <div class="checkbox-grid service-task-grid">
+                <label class="checkbox-card">
+                  <input id="serviceTaskCleaning" type="checkbox">
+                  Se realizo limpieza general del equipo.
+                </label>
+                <label class="checkbox-card">
+                  <input id="serviceTaskLubrication" type="checkbox">
+                  Se lubrico cadena/cable de carga
+                </label>
+              </div>
+              <textarea id="serviceSummary" class="generated-summary" rows="3" placeholder="Marca las acciones realizadas o escribe el resumen del servicio"></textarea>
+            </div>
 
             <label>
               Recomendaciones
-              <textarea id="recommendations" name="recommendations" rows="5" placeholder="Acciones correctivas, prioridades, observaciones al cliente"></textarea>
+              <textarea id="recommendations" name="recommendations" rows="5" placeholder="Escribe o ajusta las recomendaciones para este equipo"></textarea>
             </label>
           </section>
 
@@ -370,7 +477,7 @@
             <h2>Tabla historica de equipos</h2>
           </div>
           <div class="toolbar">
-            <button id="exportConsolidatedHistoryButton" class="secondary-button" type="button">Exportar CSV</button>
+            <button id="exportConsolidatedHistoryButton" class="secondary-button" type="button">Exportar Excel</button>
             <button id="refreshConsolidatedHistoryButton" class="secondary-button" type="button">Actualizar</button>
             <button id="closeConsolidatedHistoryButton" class="ghost-button" type="button">Volver</button>
           </div>
@@ -393,6 +500,122 @@
         <div id="consolidatedHistoryTable" class="consolidated-table-wrap"></div>
       </section>
 
+      <section class="panel app-view hidden" id="maintenancePanelView">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Mantenimiento</p>
+            <h2>Panel de seguimiento de gruas</h2>
+          </div>
+          <div class="toolbar">
+            <button id="refreshMaintenancePanelButton" class="secondary-button" type="button">Actualizar</button>
+            <button id="closeMaintenancePanelButton" class="ghost-button" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div id="maintenancePanelSummary" class="history-summary"></div>
+        <div id="maintenancePanelContent" class="maintenance-panel-content"></div>
+      </section>
+
+      <section class="panel app-view hidden" id="settingsView">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Configuracion</p>
+            <h2>Ajustes generales de la app</h2>
+          </div>
+          <div class="toolbar">
+            <button id="resetSettingsButton" class="ghost-button" type="button">Restaurar</button>
+            <button id="saveSettingsButton" class="secondary-button" type="button">Guardar configuracion</button>
+            <button id="closeSettingsButton" class="ghost-button" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <section class="subpanel">
+            <p class="eyebrow">Clientes</p>
+            <label>
+              Lista de clientes
+              <textarea id="settingsClientPlants" rows="12" placeholder="Un cliente por linea"></textarea>
+            </label>
+          </section>
+
+          <section class="subpanel">
+            <p class="eyebrow">Mantenimiento y textos</p>
+            <div class="grid two-column">
+              <label>
+                Frecuencia por defecto
+                <select id="settingsDefaultFrequency">
+                  <option value="1">Cada 1 mes</option>
+                  <option value="2">Cada 2 meses</option>
+                  <option value="3">Cada 3 meses</option>
+                  <option value="4">Cada 4 meses</option>
+                  <option value="5">Cada 5 meses</option>
+                  <option value="6">Cada 6 meses</option>
+                  <option value="7">Cada 7 meses</option>
+                  <option value="8">Cada 8 meses</option>
+                  <option value="9">Cada 9 meses</option>
+                  <option value="10">Cada 10 meses</option>
+                  <option value="11">Cada 11 meses</option>
+                  <option value="12">Cada 12 meses</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              Texto fijo de recomendaciones
+              <textarea id="settingsRecommendationText" rows="5"></textarea>
+            </label>
+          </section>
+
+          <section class="subpanel">
+            <p class="eyebrow">Polipastos</p>
+            <label>
+              Agregar polipasto
+              <div class="inline-input-action">
+                <input id="settingsNewPolipasto" type="text" placeholder="Nombre igual a la imagen, ej. CM Lodestar">
+                <button id="addSettingsPolipastoButton" class="secondary-button" type="button">Agregar</button>
+              </div>
+            </label>
+            <label>
+              Lista de polipastos
+              <textarea id="settingsPolipastos" rows="7" placeholder="Un polipasto por linea"></textarea>
+            </label>
+          </section>
+
+          <section class="subpanel">
+            <p class="eyebrow">Fotos</p>
+            <div class="grid three-column">
+              <label>
+                Tamano maximo foto
+                <input id="settingsPhotoMaxSize" type="number" min="700" max="1800" step="50">
+              </label>
+              <label>
+                Tamano maximo checklist
+                <input id="settingsChecklistMaxSize" type="number" min="900" max="2200" step="50">
+              </label>
+              <label>
+                Calidad
+                <input id="settingsPhotoQuality" type="number" min="0.35" max="0.9" step="0.01">
+              </label>
+            </div>
+          </section>
+
+          <section class="subpanel">
+            <p class="eyebrow">Plantilla PDF</p>
+            <div class="grid two-column">
+              <label>Empresa <input id="settingsPdfCompanyName" type="text"></label>
+              <label>Subtitulo <input id="settingsPdfSubtitle" type="text"></label>
+              <label>Titulo del reporte <input id="settingsPdfTitle" type="text"></label>
+              <label>Revision <input id="settingsPdfRevision" type="text"></label>
+              <label>Color acento <input id="settingsPdfAccentColor" type="color"></label>
+              <label>Color encabezado <input id="settingsPdfHeaderColor" type="color"></label>
+            </div>
+            <label>
+              Pie de pagina
+              <textarea id="settingsPdfFooter" rows="3"></textarea>
+            </label>
+          </section>
+        </div>
+      </section>
+
       <section class="panel app-view hidden" id="companyCraneRegistryView">
         <div class="section-header">
           <div>
@@ -407,11 +630,29 @@
         </div>
 
         <div class="subpanel">
-          <div class="grid two-column">
+          <div class="grid three-column">
             <label>
               Empresa
               <input id="companyRegistryClient" list="companyRegistryClientOptions" type="text" placeholder="Selecciona o escribe una empresa">
               <datalist id="companyRegistryClientOptions"></datalist>
+            </label>
+            <label>
+              Frecuencia de mantenimiento
+              <select id="companyMaintenanceFrequency">
+                <option value="">Selecciona frecuencia</option>
+                <option value="1">Cada 1 mes</option>
+                <option value="2">Cada 2 meses</option>
+                <option value="3">Cada 3 meses</option>
+                <option value="4">Cada 4 meses</option>
+                <option value="5">Cada 5 meses</option>
+                <option value="6">Cada 6 meses</option>
+                <option value="7">Cada 7 meses</option>
+                <option value="8">Cada 8 meses</option>
+                <option value="9">Cada 9 meses</option>
+                <option value="10">Cada 10 meses</option>
+                <option value="11">Cada 11 meses</option>
+                <option value="12">Cada 12 meses</option>
+              </select>
             </label>
             <div class="history-actions">
               <button id="syncCompanyRegistryButton" class="ghost-button" type="button">Tomar datos de reportes guardados</button>
@@ -422,75 +663,167 @@
         <div id="companyRegistrySummary" class="history-summary"></div>
         <div id="companyCraneList" class="company-crane-list"></div>
 
-        <section id="companyCraneFormPanel" class="subpanel hidden">
+        <section id="companyCraneFormPanel" class="modal-backdrop hidden">
+          <div class="subpanel modal-panel">
+            <div class="section-header">
+              <div>
+                <p class="eyebrow">Grua</p>
+                <h3 id="companyCraneFormTitle">Nueva grua</h3>
+              </div>
+              <div class="toolbar">
+                <button id="cancelCompanyCraneButton" class="ghost-button" type="button">Cancelar</button>
+                <button id="saveCompanyCraneButton" class="primary-button" type="button">Guardar grua</button>
+              </div>
+            </div>
+
+            <form id="companyCraneForm">
+              <input id="editingCompanyCraneId" type="hidden">
+              <div class="grid three-column">
+                <label>
+                  ID / tag de grua
+                  <input id="registryCraneId" type="text" placeholder="Ej. GR-001">
+                </label>
+                <label>
+                  Area
+                  <input id="registryCraneArea" type="text" placeholder="Area o linea">
+                </label>
+                <label>
+                  Tipo
+                  <input id="registryCraneType" type="text" placeholder="Viajera, puente, bandera">
+                </label>
+                <label>
+                  Capacidad estructura
+                  <input id="registryStructureCapacity" type="text" placeholder="Ej. 2 ton">
+                </label>
+                <label>
+                  Nombre del polipasto
+                  <input id="registryHoistName" list="polipastoOptions" type="text" placeholder="Ej. CM Lodestar">
+                </label>
+                <label>
+                  Capacidad polipasto
+                  <input id="registryHoistCapacity" type="text" placeholder="Ej. 2 ton">
+                </label>
+                <label>
+                  Voltaje
+                  <input id="registryVoltage" type="text" placeholder="Ej. 115 V">
+                </label>
+                <label>
+                  Marca
+                  <input id="registryBrand" list="polipastoOptions" type="text" placeholder="Marca">
+                </label>
+                <label>
+                  Modelo
+                  <input id="registryModel" list="polipastoOptions" type="text" placeholder="Modelo">
+                </label>
+                <label>
+                  Serial #
+                  <input id="registrySerialNumber" type="text" placeholder="Numero de serie">
+                </label>
+                <label>
+                  Ultimo mantenimiento
+                  <input id="registryLastMaintenance" type="date">
+                </label>
+                <label>
+                  Proximo mantenimiento
+                  <input id="registryNextMaintenance" type="date">
+                </label>
+                <label>
+                  Estado
+                  <input id="registryCraneStatus" type="text" placeholder="Activo, pendiente, fuera de servicio">
+                </label>
+                <div class="field-block registry-image-field">
+                  <span class="field-label">Imagen de la grua</span>
+                  <div class="upload-actions">
+                    <button id="registryCraneImageButton" class="secondary-button" type="button">Elegir imagen</button>
+                    <button id="clearRegistryCraneImageButton" class="ghost-button" type="button">Quitar imagen</button>
+                  </div>
+                  <input id="registryCraneImageInput" class="file-input-hidden" type="file" accept="image/*">
+                  <div id="registryCraneImagePreview" class="registry-image-preview image-drop-zone">Sin imagen de grua.</div>
+                </div>
+              </div>
+              <label>
+                Notas
+                <textarea id="registryCraneNotes" rows="3" placeholder="Observaciones del equipo"></textarea>
+              </label>
+            </form>
+          </div>
+        </section>
+
+        <section id="companyCraneFindingsPanel" class="modal-backdrop hidden">
+          <div class="subpanel modal-panel crane-master-modal">
+            <div class="section-header">
+              <div>
+                <p class="eyebrow">Ficha maestra de grua</p>
+                <h3 id="companyCraneFindingsTitle">Detalle de grua</h3>
+              </div>
+              <div class="toolbar">
+                <button id="closeCompanyCraneFindingsButton" class="ghost-button" type="button">Cerrar</button>
+              </div>
+            </div>
+            <div id="companyCraneFindingsSummary" class="history-summary"></div>
+            <div id="companyCraneFindingsList" class="crane-findings-history-list"></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="backupPreviewPanel" class="modal-backdrop hidden">
+        <div class="subpanel modal-panel backup-preview-modal">
           <div class="section-header">
             <div>
-              <p class="eyebrow">Grua</p>
-              <h3 id="companyCraneFormTitle">Nueva grua</h3>
+              <p class="eyebrow">Respaldo</p>
+              <h3>Vista previa antes de importar</h3>
             </div>
             <div class="toolbar">
-              <button id="cancelCompanyCraneButton" class="ghost-button" type="button">Cancelar</button>
-              <button id="saveCompanyCraneButton" class="primary-button" type="button">Guardar grua</button>
+              <button id="cancelBackupImportButton" class="ghost-button" type="button">Cancelar</button>
+              <button id="confirmBackupImportButton" class="primary-button" type="button">Importar</button>
             </div>
           </div>
+          <div id="backupPreviewSummary" class="backup-preview-summary"></div>
+          <div id="backupPreviewWarnings" class="backup-preview-warnings hidden"></div>
+          <div class="backup-import-options">
+            <fieldset>
+              <legend>Que quieres importar</legend>
+              <label><input type="radio" name="backupImportScope" value="all" checked> Todo el respaldo</label>
+              <label><input type="radio" name="backupImportScope" value="reports"> Solo reportes</label>
+              <label><input type="radio" name="backupImportScope" value="registry"> Solo empresas y gruas</label>
+            </fieldset>
+            <fieldset>
+              <legend>Como aplicarlo</legend>
+              <label><input type="radio" name="backupImportMode" value="merge" checked> Combinar con lo actual</label>
+              <label><input type="radio" name="backupImportMode" value="replace"> Reemplazar datos de esa seccion</label>
+            </fieldset>
+          </div>
+        </div>
+      </section>
 
-          <form id="companyCraneForm">
-            <input id="editingCompanyCraneId" type="hidden">
-            <div class="grid three-column">
-              <label>
-                ID / tag de grua
-                <input id="registryCraneId" type="text" placeholder="Ej. GR-001">
-              </label>
-              <label>
-                Area
-                <input id="registryCraneArea" type="text" placeholder="Area o linea">
-              </label>
-              <label>
-                Tipo
-                <input id="registryCraneType" type="text" placeholder="Viajera, puente, bandera">
-              </label>
-              <label>
-                Capacidad estructura
-                <input id="registryStructureCapacity" type="text" placeholder="Ej. 2 ton">
-              </label>
-              <label>
-                Capacidad polipasto
-                <input id="registryHoistCapacity" type="text" placeholder="Ej. 2 ton">
-              </label>
-              <label>
-                Voltaje
-                <input id="registryVoltage" type="text" placeholder="Ej. 115 V">
-              </label>
-              <label>
-                Marca
-                <input id="registryBrand" type="text" placeholder="Marca">
-              </label>
-              <label>
-                Modelo
-                <input id="registryModel" type="text" placeholder="Modelo">
-              </label>
-              <label>
-                Serial #
-                <input id="registrySerialNumber" type="text" placeholder="Numero de serie">
-              </label>
-              <label>
-                Estado
-                <input id="registryCraneStatus" type="text" placeholder="Activo, pendiente, fuera de servicio">
-              </label>
+      <section id="appDialogPanel" class="modal-backdrop hidden">
+        <div class="subpanel modal-panel app-dialog-modal">
+          <div class="section-header">
+            <div>
+              <p id="appDialogEyebrow" class="eyebrow">Mensaje</p>
+              <h3 id="appDialogTitle">Confirmar accion</h3>
             </div>
-            <label>
-              Notas
-              <textarea id="registryCraneNotes" rows="3" placeholder="Observaciones del equipo"></textarea>
-            </label>
-          </form>
-        </section>
+          </div>
+          <p id="appDialogMessage" class="app-dialog-message"></p>
+          <div id="appDialogDetails" class="app-dialog-details hidden"></div>
+          <div id="appDialogActions" class="toolbar app-dialog-actions"></div>
+        </div>
       </section>
     </main>
   </div>
 
-  <script src="report-template-config.js"></script>
-  <script src="finding-catalog-config.js"></script>
-  <script src="report-generator.js"></script>
-  <script src="app.js"></script>
+  <script src="report-template-config.js?v=83"></script>
+  <script src="finding-catalog-config.js?v=83"></script>
+  <script src="findings.js?v=83"></script>
+  <script src="company-cranes.js?v=83"></script>
+  <script src="equipment.js?v=83"></script>
+  <script src="pdf-actions.js?v=83"></script>
+  <script src="backup.js?v=83"></script>
+  <script src="storage.js?v=83"></script>
+  <script src="settings.js?v=83"></script>
+  <script src="maintenance-panel.js?v=83"></script>
+  <script src="companies.js?v=83"></script>
+  <script src="report-generator.js?v=83"></script>
+  <script src="app.js?v=83"></script>
 </body>
 </html>

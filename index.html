@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f4c5c">
   <title>Inspecciones de Gruas</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css?v=82">
+  <link rel="stylesheet" href="styles.css?v=85">
 </head>
 <body>
   <div class="app-shell">
@@ -502,6 +502,28 @@
             </label>
           </section>
 
+          <section class="subpanel cloud-settings-panel">
+            <p class="eyebrow">Nube / Supabase</p>
+            <h3>Sincronizacion entre dispositivos</h3>
+            <p id="cloudSyncStatus" class="cloud-sync-status">Sin sesion en la nube.</p>
+            <div class="grid two-column">
+              <label>
+                Correo
+                <input id="cloudEmail" type="email" placeholder="usuario@empresa.com">
+              </label>
+              <label>
+                Contrasena
+                <input id="cloudPassword" type="password" placeholder="Contrasena de Supabase">
+              </label>
+            </div>
+            <div class="toolbar cloud-toolbar">
+              <button id="cloudSignInButton" class="primary-button" type="button">Iniciar sesion</button>
+              <button id="cloudSignOutButton" class="ghost-button" type="button">Cerrar sesion</button>
+              <button id="syncCompaniesCranesButton" class="secondary-button" type="button">Sincronizar todo</button>
+            </div>
+            <small class="cloud-helper">Este modulo mantiene la app offline y combina el catalogo maestro cuando haya internet.</small>
+          </section>
+
           <section class="subpanel">
             <p class="eyebrow">Mantenimiento y textos</p>
             <div class="grid two-column">
@@ -594,12 +616,19 @@
         </div>
 
         <div class="subpanel">
-          <div class="grid three-column">
-            <label>
-              Empresa
-              <input id="companyRegistryClient" list="companyRegistryClientOptions" type="text" placeholder="Selecciona o escribe una empresa">
+          <div class="company-selector-layout">
+            <div class="company-selector-panel">
+              <label>
+                Buscar empresa
+                <input id="companyRegistrySearch" type="text" placeholder="Escribe para filtrar empresas">
+              </label>
+              <input id="companyRegistryClient" type="hidden">
               <datalist id="companyRegistryClientOptions"></datalist>
-            </label>
+              <div class="company-selector-actions">
+                <button id="selectCompanyRegistrySearchButton" class="secondary-button" type="button">Usar empresa escrita</button>
+              </div>
+              <div id="companyRegistryCards" class="company-selector-cards"></div>
+            </div>
             <label>
               Frecuencia de mantenimiento
               <select id="companyMaintenanceFrequency">
@@ -776,17 +805,19 @@
     </main>
   </div>
 
-  <script src="report-template-config.js?v=82"></script>
-  <script src="finding-catalog-config.js?v=82"></script>
-  <script src="findings.js?v=82"></script>
-  <script src="company-cranes.js?v=82"></script>
-  <script src="equipment.js?v=82"></script>
-  <script src="pdf-actions.js?v=82"></script>
-  <script src="backup.js?v=82"></script>
-  <script src="storage.js?v=82"></script>
-  <script src="settings.js?v=82"></script>
-  <script src="maintenance-panel.js?v=82"></script>
-  <script src="report-generator.js?v=82"></script>
-  <script src="app.js?v=82"></script>
+  <script src="report-template-config.js?v=85"></script>
+  <script src="finding-catalog-config.js?v=85"></script>
+  <script src="findings.js?v=85"></script>
+  <script src="company-cranes.js?v=85"></script>
+  <script src="equipment.js?v=85"></script>
+  <script src="pdf-actions.js?v=85"></script>
+  <script src="backup.js?v=85"></script>
+  <script src="storage.js?v=85"></script>
+  <script src="settings.js?v=85"></script>
+  <script src="maintenance-panel.js?v=85"></script>
+  <script src="report-generator.js?v=85"></script>
+  <script src="supabase-config.js?v=85"></script>
+  <script src="cloud-sync.js?v=85"></script>
+  <script src="app.js?v=85"></script>
 </body>
 </html>

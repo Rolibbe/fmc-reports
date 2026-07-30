@@ -1,30 +1,19 @@
 
-function sanitizeFindingCatalog(source) {
-  if (!source || typeof source !== "object") {
-    return null;
-  }
-
-  const normalized = Object.entries(source)
-    .map(([category, incidences]) => ({
-      category: String(category || "").trim(),
-      incidences: Array.isArray(incidences)
-        ? incidences.map((item) => String(item || "").trim()).filter(Boolean)
-        : []
-    }))
-    .filter((item) => item.category && item.incidences.length);
-
-  if (!normalized.length) {
-    return null;
-  }
-
-  return Object.fromEntries(normalized.map((item) => [item.category, item.incidences]));
-}
-
 const DB_NAME = "crane-inspections-db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "inspections";
+const MASTER_DATA_STORE_NAME = "masterData";
 const CLIENT_PLANTS_FILE = "clientes-plantas.txt";
+const POLIPASTOS_FILE = "Polipastos/Lista Polipastos.txt";
+const CONSOLIDATED_EXPORT_TEMPLATE_FILE = "concentrado-general.csv";
+const CONSOLIDATED_EXPORT_DELIMITER = ";";
 const COMPANY_CRANE_REGISTRY_KEY = "company-crane-registry-v1";
+const COMPANY_MAINTENANCE_FREQUENCY_KEY = "company-maintenance-frequency-v1";
+const ACTIVE_CRANE_FINDINGS_KEY = "active-crane-findings-v1";
+const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
+const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
+const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
+const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -38,6 +27,8 @@ const fallbackClientPlants = [
   "HUTCHINSON SEAL DE MEXICO",
   "SEAL FOR LIFE INDUSTRIES MEXICO",
   "PRODIMAT INDUSTRIAL Y DE LA CONSTRUCCION",
+  "PRODUCTOS UROLOGOS DE MEXICO, S.A. DE C.V.",
+  "ROCK WEST COMPOSITES",
   "GARRET MOTION MEXICO",
   "GARRET TRANSPORTATION INC",
   "OPTI-SOURCE",
@@ -57,7 +48,13 @@ const fallbackClientPlants = [
   "H3 DE TIJUANA"
 ];
 
+const fallbackPolipastos = [
+  "CM Lodestar",
+  "R&M"
+];
+
 const findingCatalog = sanitizeFindingCatalog(window.FINDING_CATALOG_CONFIG) || fallbackFindingCatalog;
+const findingCatalogIndex = buildFindingCatalogIndex(findingCatalog);
 
 let deferredInstallPrompt = null;
 let currentEquipments = [];
@@ -67,10 +64,16 @@ let currentChecklistImage = null;
 let editingPhotos = [];
 let draggedEquipmentId = null;
 let didDragEquipment = false;
+let draggedCompanyCraneId = null;
+let appDialogResolver = null;
 
-const REPORT_IMAGE_MAX_SIZE = 1600;
-const REPORT_CHECKLIST_MAX_SIZE = 1900;
-const REPORT_IMAGE_QUALITY = 0.72;
+const REPORT_IMAGE_MAX_SIZE = 1150;
+const REPORT_CHECKLIST_MAX_SIZE = 1500;
+const REPORT_THUMBNAIL_MAX_SIZE = 320;
+const REPORT_PDF_IMAGE_MAX_SIZE = 1300;
+const REPORT_PDF_CHECKLIST_MAX_SIZE = 1700;
+const REPORT_IMAGE_QUALITY = 0.62;
+const REPORT_THUMBNAIL_QUALITY = 0.54;
 
 const elements = {
   sidebar: document.getElementById("sidebar"),
@@ -80,12 +83,16 @@ const elements = {
   toolsMenuButton: document.getElementById("toolsMenuButton"),
   toolsMenuList: document.getElementById("toolsMenuList"),
   inspectionView: document.getElementById("inspectionView"),
+  companiesView: document.getElementById("companiesView"),
   equipmentEditorView: document.getElementById("equipmentEditorView"),
   findingEditorView: document.getElementById("findingEditorView"),
   consolidatedHistoryView: document.getElementById("consolidatedHistoryView"),
+  maintenancePanelView: document.getElementById("maintenancePanelView"),
+  settingsView: document.getElementById("settingsView"),
   companyCraneRegistryView: document.getElementById("companyCraneRegistryView"),
   form: document.getElementById("inspectionForm"),
   inspectionId: document.getElementById("inspectionId"),
+  polipastoOptions: document.getElementById("polipastoOptions"),
   reportNumber: document.getElementById("reportNumber"),
   serviceType: document.getElementById("serviceType"),
   inspectionDate: document.getElementById("inspectionDate"),
@@ -98,15 +105,52 @@ const elements = {
   addEquipmentButton: document.getElementById("addEquipmentButton"),
   importInspectionButton: document.getElementById("importInspectionButton"),
   importInspectionInput: document.getElementById("importInspectionInput"),
+  importFullBackupButton: document.getElementById("importFullBackupButton"),
+  importFullBackupInput: document.getElementById("importFullBackupInput"),
   saveInspectionButton: document.getElementById("saveInspectionButton"),
   exportInspectionButton: document.getElementById("exportInspectionButton"),
+  exportFullBackupButton: document.getElementById("exportFullBackupButton"),
+  exportFullBackupWithPhotosButton: document.getElementById("exportFullBackupWithPhotosButton"),
+  purgeStoredPhotosButton: document.getElementById("purgeStoredPhotosButton"),
   generatePdfButton: document.getElementById("generatePdfButton"),
   newInspectionButton: document.getElementById("newInspectionButton"),
   savedReports: document.getElementById("savedReports"),
   savedReportsSummary: document.getElementById("savedReportsSummary"),
   refreshReportsButton: document.getElementById("refreshReportsButton"),
+  openCompaniesDashboardButton: document.getElementById("openCompaniesDashboardButton"),
+  refreshCompaniesButton: document.getElementById("refreshCompaniesButton"),
+  closeCompaniesButton: document.getElementById("closeCompaniesButton"),
+  companiesSummary: document.getElementById("companiesSummary"),
+  companyDashboardSearch: document.getElementById("companyDashboardSearch"),
+  companiesList: document.getElementById("companiesList"),
+  companyDetailPanel: document.getElementById("companyDetailPanel"),
   openCompanyCraneRegistryButton: document.getElementById("openCompanyCraneRegistryButton"),
+  openMaintenancePanelButton: document.getElementById("openMaintenancePanelButton"),
   openConsolidatedHistoryButton: document.getElementById("openConsolidatedHistoryButton"),
+  openSettingsButton: document.getElementById("openSettingsButton"),
+  closeSettingsButton: document.getElementById("closeSettingsButton"),
+  saveSettingsButton: document.getElementById("saveSettingsButton"),
+  resetSettingsButton: document.getElementById("resetSettingsButton"),
+  settingsClientPlants: document.getElementById("settingsClientPlants"),
+  settingsDefaultFrequency: document.getElementById("settingsDefaultFrequency"),
+  settingsRecommendationText: document.getElementById("settingsRecommendationText"),
+  settingsNewPolipasto: document.getElementById("settingsNewPolipasto"),
+  addSettingsPolipastoButton: document.getElementById("addSettingsPolipastoButton"),
+  settingsPolipastos: document.getElementById("settingsPolipastos"),
+  settingsPhotoMaxSize: document.getElementById("settingsPhotoMaxSize"),
+  settingsChecklistMaxSize: document.getElementById("settingsChecklistMaxSize"),
+  settingsPhotoQuality: document.getElementById("settingsPhotoQuality"),
+  settingsPdfCompanyName: document.getElementById("settingsPdfCompanyName"),
+  settingsPdfSubtitle: document.getElementById("settingsPdfSubtitle"),
+  settingsPdfTitle: document.getElementById("settingsPdfTitle"),
+  settingsPdfRevision: document.getElementById("settingsPdfRevision"),
+  settingsPdfFooter: document.getElementById("settingsPdfFooter"),
+  settingsPdfAccentColor: document.getElementById("settingsPdfAccentColor"),
+  settingsPdfHeaderColor: document.getElementById("settingsPdfHeaderColor"),
+  closeMaintenancePanelButton: document.getElementById("closeMaintenancePanelButton"),
+  refreshMaintenancePanelButton: document.getElementById("refreshMaintenancePanelButton"),
+  maintenancePanelSummary: document.getElementById("maintenancePanelSummary"),
+  maintenancePanelContent: document.getElementById("maintenancePanelContent"),
   closeConsolidatedHistoryButton: document.getElementById("closeConsolidatedHistoryButton"),
   refreshConsolidatedHistoryButton: document.getElementById("refreshConsolidatedHistoryButton"),
   exportConsolidatedHistoryButton: document.getElementById("exportConsolidatedHistoryButton"),
@@ -121,6 +165,7 @@ const elements = {
   newCompanyCraneButton: document.getElementById("newCompanyCraneButton"),
   companyRegistryClient: document.getElementById("companyRegistryClient"),
   companyRegistryClientOptions: document.getElementById("companyRegistryClientOptions"),
+  companyMaintenanceFrequency: document.getElementById("companyMaintenanceFrequency"),
   companyRegistrySummary: document.getElementById("companyRegistrySummary"),
   companyCraneList: document.getElementById("companyCraneList"),
   companyCraneFormPanel: document.getElementById("companyCraneFormPanel"),
@@ -131,20 +176,45 @@ const elements = {
   registryCraneArea: document.getElementById("registryCraneArea"),
   registryCraneType: document.getElementById("registryCraneType"),
   registryStructureCapacity: document.getElementById("registryStructureCapacity"),
+  registryHoistName: document.getElementById("registryHoistName"),
   registryHoistCapacity: document.getElementById("registryHoistCapacity"),
   registryVoltage: document.getElementById("registryVoltage"),
   registryBrand: document.getElementById("registryBrand"),
   registryModel: document.getElementById("registryModel"),
   registrySerialNumber: document.getElementById("registrySerialNumber"),
+  registryLastMaintenance: document.getElementById("registryLastMaintenance"),
+  registryNextMaintenance: document.getElementById("registryNextMaintenance"),
   registryCraneStatus: document.getElementById("registryCraneStatus"),
+  registryCraneImageButton: document.getElementById("registryCraneImageButton"),
+  clearRegistryCraneImageButton: document.getElementById("clearRegistryCraneImageButton"),
+  registryCraneImageInput: document.getElementById("registryCraneImageInput"),
+  registryCraneImagePreview: document.getElementById("registryCraneImagePreview"),
   registryCraneNotes: document.getElementById("registryCraneNotes"),
   cancelCompanyCraneButton: document.getElementById("cancelCompanyCraneButton"),
   saveCompanyCraneButton: document.getElementById("saveCompanyCraneButton"),
+  companyCraneFindingsPanel: document.getElementById("companyCraneFindingsPanel"),
+  companyCraneFindingsTitle: document.getElementById("companyCraneFindingsTitle"),
+  companyCraneFindingsSummary: document.getElementById("companyCraneFindingsSummary"),
+  companyCraneFindingsList: document.getElementById("companyCraneFindingsList"),
+  closeCompanyCraneFindingsButton: document.getElementById("closeCompanyCraneFindingsButton"),
+  backupPreviewPanel: document.getElementById("backupPreviewPanel"),
+  backupPreviewSummary: document.getElementById("backupPreviewSummary"),
+  backupPreviewWarnings: document.getElementById("backupPreviewWarnings"),
+  cancelBackupImportButton: document.getElementById("cancelBackupImportButton"),
+  confirmBackupImportButton: document.getElementById("confirmBackupImportButton"),
+  appDialogPanel: document.getElementById("appDialogPanel"),
+  appDialogEyebrow: document.getElementById("appDialogEyebrow"),
+  appDialogTitle: document.getElementById("appDialogTitle"),
+  appDialogMessage: document.getElementById("appDialogMessage"),
+  appDialogDetails: document.getElementById("appDialogDetails"),
+  appDialogActions: document.getElementById("appDialogActions"),
   connectionStatus: document.getElementById("connectionStatus"),
   installButton: document.getElementById("installButton"),
   equipmentEditorTitle: document.getElementById("equipmentEditorTitle"),
   equipmentEditorForm: document.getElementById("equipmentEditorForm"),
   editingEquipmentId: document.getElementById("editingEquipmentId"),
+  companyCraneSelector: document.getElementById("companyCraneSelector"),
+  companyCraneSelectorStatus: document.getElementById("companyCraneSelectorStatus"),
   craneId: document.getElementById("craneId"),
   equipmentName: document.getElementById("equipmentName"),
   craneType: document.getElementById("craneType"),
@@ -152,6 +222,7 @@ const elements = {
   serialNumber: document.getElementById("serialNumber"),
   checklistFolio: document.getElementById("checklistFolio"),
   equipmentLocation: document.getElementById("equipmentLocation"),
+  hoistName: document.getElementById("hoistName"),
   hoistType: document.getElementById("hoistType"),
   hoistCapacity: document.getElementById("hoistCapacity"),
   hoistManufacturer: document.getElementById("hoistManufacturer"),
@@ -160,8 +231,14 @@ const elements = {
   hoistVoltage: document.getElementById("hoistVoltage"),
   findingsList: document.getElementById("findingsList"),
   addFindingButton: document.getElementById("addFindingButton"),
+  quickFindingNumber: document.getElementById("quickFindingNumber"),
+  quickFindingOptions: document.getElementById("quickFindingOptions"),
+  addQuickFindingButton: document.getElementById("addQuickFindingButton"),
   overallCondition: document.getElementById("overallCondition"),
+  maintenanceDate: document.getElementById("maintenanceDate"),
   nextInspection: document.getElementById("nextInspection"),
+  serviceTaskCleaning: document.getElementById("serviceTaskCleaning"),
+  serviceTaskLubrication: document.getElementById("serviceTaskLubrication"),
   serviceSummary: document.getElementById("serviceSummary"),
   recommendations: document.getElementById("recommendations"),
   servicePhotoGalleryButton: document.getElementById("servicePhotoGalleryButton"),
@@ -194,14 +271,19 @@ const elements = {
 document.addEventListener("DOMContentLoaded", initializeApp);
 
 async function initializeApp() {
+  await initializeMasterDataStore();
+  await initializeAppSettings();
   populateCategoryOptions();
+  populateQuickFindingOptions();
   setupAppActions();
   await loadClientPlantOptions();
+  await loadPolipastoOptions();
   setDefaultDates();
   assignNewReportNumber(true);
   resetEquipmentEditorState();
   renderEquipmentList();
   await renderSavedReports();
+  showView("inspection");
   updateConnectivityStatus();
   registerServiceWorker();
 }
@@ -214,9 +296,22 @@ function setupAppActions() {
   elements.addEquipmentButton.addEventListener("click", () => openEquipmentEditor());
   elements.importInspectionButton.addEventListener("click", () => elements.importInspectionInput.click());
   elements.importInspectionInput.addEventListener("change", handleInspectionImport);
+  elements.importFullBackupButton.addEventListener("click", () => elements.importFullBackupInput.click());
+  elements.importFullBackupInput.addEventListener("change", handleFullBackupImport);
+  elements.companyCraneSelector.addEventListener("change", handleCompanyCraneSelection);
+  elements.maintenanceDate.addEventListener("change", updateNextInspectionFromMaintenanceDate);
+  elements.serviceTaskCleaning.addEventListener("change", syncServiceSummaryFromTasks);
+  elements.serviceTaskLubrication.addEventListener("change", syncServiceSummaryFromTasks);
   elements.cancelEquipmentButton.addEventListener("click", closeEquipmentEditor);
   elements.saveEquipmentButton.addEventListener("click", saveEquipmentFromEditor);
   elements.addFindingButton.addEventListener("click", () => openFindingEditor());
+  elements.addQuickFindingButton.addEventListener("click", addQuickFindingsFromInput);
+  elements.quickFindingNumber.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addQuickFindingsFromInput();
+    }
+  });
   elements.findingCategory.addEventListener("change", () => populateIncidenceOptions());
   elements.findingPhotoGalleryButton.addEventListener("click", () => elements.findingPhotoGalleryInput.click());
   elements.findingPhotoCameraButton.addEventListener("click", () => elements.findingPhotoCameraInput.click());
@@ -238,25 +333,74 @@ function setupAppActions() {
     await persistInspection();
   });
   elements.exportInspectionButton.addEventListener("click", exportCurrentInspection);
+  elements.exportFullBackupButton.addEventListener("click", () => exportFullBackup({ includePhotos: false }));
+  elements.exportFullBackupWithPhotosButton.addEventListener("click", () => exportFullBackup({ includePhotos: true }));
+  elements.purgeStoredPhotosButton.addEventListener("click", purgeStoredHeavyPhotos);
   elements.generatePdfButton.addEventListener("click", generatePdfReport);
-  elements.newInspectionButton.addEventListener("click", resetForm);
+  elements.newInspectionButton.addEventListener("click", () => {
+    resetForm();
+    showView("inspection");
+  });
   elements.refreshReportsButton.addEventListener("click", renderSavedReports);
+  elements.openCompaniesDashboardButton.addEventListener("click", openCompaniesDashboard);
+  elements.refreshCompaniesButton.addEventListener("click", renderCompaniesDashboard);
+  elements.closeCompaniesButton.addEventListener("click", () => showView("inspection"));
+  elements.companyDashboardSearch.addEventListener("input", renderCompaniesDashboard);
   elements.openCompanyCraneRegistryButton.addEventListener("click", openCompanyCraneRegistry);
+  elements.openMaintenancePanelButton.addEventListener("click", openMaintenancePanel);
   elements.openConsolidatedHistoryButton.addEventListener("click", openConsolidatedHistory);
+  elements.openSettingsButton.addEventListener("click", openSettingsPanel);
+  elements.closeSettingsButton.addEventListener("click", () => showView("inspection"));
+  elements.saveSettingsButton.addEventListener("click", saveSettingsFromForm);
+  elements.resetSettingsButton.addEventListener("click", resetSettingsToDefaults);
+  elements.addSettingsPolipastoButton.addEventListener("click", addPolipastoToSettingsList);
+  elements.closeMaintenancePanelButton.addEventListener("click", () => showView("inspection"));
+  elements.refreshMaintenancePanelButton.addEventListener("click", renderMaintenancePanel);
   elements.closeCompanyCraneRegistryButton.addEventListener("click", () => showView("inspection"));
   elements.refreshCompanyCraneRegistryButton.addEventListener("click", renderCompanyCraneRegistry);
   elements.syncCompanyRegistryButton.addEventListener("click", syncCompanyRegistryFromReports);
   elements.newCompanyCraneButton.addEventListener("click", () => openCompanyCraneForm());
   elements.cancelCompanyCraneButton.addEventListener("click", closeCompanyCraneForm);
   elements.saveCompanyCraneButton.addEventListener("click", saveCompanyCraneFromForm);
+  elements.closeCompanyCraneFindingsButton.addEventListener("click", closeCompanyCraneFindingsModal);
+  elements.companyCraneFindingsPanel.addEventListener("click", (event) => {
+    if (event.target === elements.companyCraneFindingsPanel) {
+      closeCompanyCraneFindingsModal();
+    }
+  });
+  elements.cancelBackupImportButton.addEventListener("click", closeBackupPreview);
+  elements.confirmBackupImportButton.addEventListener("click", confirmFullBackupImport);
+  elements.backupPreviewPanel.addEventListener("click", (event) => {
+    if (event.target === elements.backupPreviewPanel) {
+      closeBackupPreview();
+    }
+  });
+  elements.appDialogPanel.addEventListener("click", (event) => {
+    if (event.target === elements.appDialogPanel) {
+      resolveAppDialog("cancel");
+    }
+  });
+  elements.companyCraneFormPanel.addEventListener("click", (event) => {
+    if (event.target === elements.companyCraneFormPanel) {
+      closeCompanyCraneForm();
+    }
+  });
+  elements.registryCraneImageButton.addEventListener("click", () => elements.registryCraneImageInput.click());
+  elements.registryCraneImageInput.addEventListener("change", handleRegistryCraneImage);
+  elements.clearRegistryCraneImageButton.addEventListener("click", clearRegistryCraneImage);
+  setupImageDropZone(elements.registryCraneImagePreview, addRegistryCraneImageFile, { single: true });
+  elements.registryLastMaintenance.addEventListener("change", updateRegistryNextMaintenanceFromLast);
   elements.companyRegistryClient.addEventListener("input", () => {
     closeCompanyCraneForm();
+    loadCompanyMaintenanceFrequency();
     renderCompanyCraneRegistry();
   });
+  elements.companyMaintenanceFrequency.addEventListener("change", saveCompanyMaintenanceFrequency);
   elements.closeConsolidatedHistoryButton.addEventListener("click", () => showView("inspection"));
   elements.refreshConsolidatedHistoryButton.addEventListener("click", renderConsolidatedHistory);
-  elements.exportConsolidatedHistoryButton.addEventListener("click", exportConsolidatedHistoryCsv);
+  elements.exportConsolidatedHistoryButton.addEventListener("click", exportConsolidatedHistoryExcel);
   elements.consolidatedClientFilter.addEventListener("input", renderConsolidatedHistory);
+  elements.plantName.addEventListener("change", updateNextInspectionFromMaintenanceDate);
   elements.clearConsolidatedClientFilterButton.addEventListener("click", () => {
     elements.consolidatedClientFilter.value = "";
     renderConsolidatedHistory();
@@ -268,8 +412,28 @@ function setupAppActions() {
   window.addEventListener("online", updateConnectivityStatus);
   window.addEventListener("offline", updateConnectivityStatus);
   document.addEventListener("click", (event) => {
-    if (!elements.toolsMenuButton.contains(event.target) && !elements.toolsMenuList.contains(event.target)) {
+    if (
+      !elements.toolsMenuButton.contains(event.target)
+      && !elements.toolsMenuList.contains(event.target)
+    ) {
       closeToolsMenu();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !elements.companyCraneFindingsPanel.classList.contains("hidden")) {
+      closeCompanyCraneFindingsModal();
+      return;
+    }
+    if (event.key === "Escape" && !elements.backupPreviewPanel.classList.contains("hidden")) {
+      closeBackupPreview();
+      return;
+    }
+    if (event.key === "Escape" && !elements.appDialogPanel.classList.contains("hidden")) {
+      resolveAppDialog("cancel");
+      return;
+    }
+    if (event.key === "Escape" && !elements.companyCraneFormPanel.classList.contains("hidden")) {
+      closeCompanyCraneForm();
     }
   });
   window.addEventListener("beforeinstallprompt", (event) => {
@@ -288,20 +452,17 @@ function setupAppActions() {
   });
 }
 
-function populateCategoryOptions() {
-  const categories = Object.keys(findingCatalog);
-  elements.findingCategory.innerHTML = categories
-    .map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
-    .join("");
-  populateIncidenceOptions();
-}
-
 async function loadClientPlantOptions() {
   const clientPlants = await readClientPlantsFromFile();
   populateClientPlantOptions(clientPlants);
 }
 
-async function readClientPlantsFromFile() {
+async function readClientPlantsFromFile(options = {}) {
+  const configuredClients = options.ignoreConfigured ? [] : getConfiguredClientPlants();
+  if (configuredClients.length) {
+    return configuredClients;
+  }
+
   try {
     const response = await fetch(CLIENT_PLANTS_FILE, { cache: "no-store" });
     if (!response.ok) {
@@ -347,381 +508,6 @@ function setClientPlantValue(value) {
   );
 }
 
-async function openCompanyCraneRegistry() {
-  await populateCompanyRegistryClientOptions();
-
-  if (!elements.companyRegistryClient.value.trim()) {
-    elements.companyRegistryClient.value = elements.plantName.value || "";
-  }
-
-  await seedCompanyRegistryFromReports(false);
-  renderCompanyCraneRegistry();
-  showView("companyCraneRegistry");
-}
-
-async function populateCompanyRegistryClientOptions() {
-  const fileClients = await readClientPlantsFromFile();
-  const registry = readCompanyCraneRegistry();
-  const clients = normalizeClientNames([
-    ...fileClients,
-    ...Object.keys(registry)
-  ]);
-
-  elements.companyRegistryClientOptions.innerHTML = clients
-    .map((client) => `<option value="${escapeHtml(client)}"></option>`)
-    .join("");
-}
-
-function renderCompanyCraneRegistry() {
-  const client = normalizeClientName(elements.companyRegistryClient.value);
-  const registry = readCompanyCraneRegistry();
-  const cranes = client ? registry[client] || [] : [];
-
-  renderCompanyRegistrySummary(client, cranes);
-  renderCompanyCraneList(client, cranes);
-}
-
-function renderCompanyRegistrySummary(client, cranes) {
-  elements.companyRegistrySummary.innerHTML = `
-    <article class="history-stat">
-      <span>Empresa</span>
-      <strong>${escapeHtml(client || "Selecciona una")}</strong>
-    </article>
-    <article class="history-stat">
-      <span>Gruas registradas</span>
-      <strong>${cranes.length}</strong>
-    </article>
-    <article class="history-stat">
-      <span>Con serial</span>
-      <strong>${cranes.filter((crane) => crane.serialNumber).length}</strong>
-    </article>
-    <article class="history-stat">
-      <span>Con modelo</span>
-      <strong>${cranes.filter((crane) => crane.model).length}</strong>
-    </article>
-  `;
-}
-
-function renderCompanyCraneList(client, cranes) {
-  elements.companyCraneList.innerHTML = "";
-
-  if (!client) {
-    elements.companyCraneList.innerHTML = '<div class="inline-empty-state">Selecciona una empresa para ver o registrar sus gruas.</div>';
-    return;
-  }
-
-  if (!cranes.length) {
-    elements.companyCraneList.innerHTML = '<div class="inline-empty-state">Esta empresa todavia no tiene gruas en el catalogo. Usa Agregar grua para crear la primera.</div>';
-    return;
-  }
-
-  cranes.forEach((crane) => {
-    const card = document.createElement("article");
-    card.className = "company-crane-card";
-    card.innerHTML = `
-      <div class="company-crane-main">
-        <div>
-          <p class="eyebrow">${escapeHtml(crane.craneId || "Sin ID")}</p>
-          <h3>${escapeHtml(crane.type || "Grua sin tipo")}</h3>
-        </div>
-        <span>${escapeHtml(crane.status || "Sin estado")}</span>
-      </div>
-      <div class="company-crane-meta">
-        <span>Area: ${escapeHtml(crane.area || "No capturada")}</span>
-        <span>Capacidad: ${escapeHtml(crane.structureCapacity || "No capturada")}</span>
-        <span>Polipasto: ${escapeHtml(crane.hoistCapacity || "No capturada")}</span>
-        <span>Voltaje: ${escapeHtml(crane.voltage || "No capturado")}</span>
-        <span>Marca: ${escapeHtml(crane.brand || "No capturada")}</span>
-        <span>Modelo: ${escapeHtml(crane.model || "No capturado")}</span>
-        <span>Serial: ${escapeHtml(crane.serialNumber || "No capturado")}</span>
-      </div>
-      ${crane.notes ? `<p class="company-crane-notes">${escapeHtml(crane.notes)}</p>` : ""}
-      <div class="company-crane-actions">
-        <button class="secondary-button" type="button" data-edit-company-crane-id="${escapeHtml(crane.id)}">Editar</button>
-        <button class="ghost-button" type="button" data-delete-company-crane-id="${escapeHtml(crane.id)}">Quitar</button>
-      </div>
-    `;
-    elements.companyCraneList.appendChild(card);
-  });
-
-  elements.companyCraneList.querySelectorAll("[data-edit-company-crane-id]").forEach((button) => {
-    button.addEventListener("click", () => openCompanyCraneForm(button.dataset.editCompanyCraneId));
-  });
-
-  elements.companyCraneList.querySelectorAll("[data-delete-company-crane-id]").forEach((button) => {
-    button.addEventListener("click", () => deleteCompanyCrane(button.dataset.deleteCompanyCraneId));
-  });
-}
-
-function openCompanyCraneForm(craneId) {
-  const client = normalizeClientName(elements.companyRegistryClient.value);
-  if (!client) {
-    window.alert("Selecciona una empresa antes de agregar una grua.");
-    return;
-  }
-
-  const registry = readCompanyCraneRegistry();
-  const crane = craneId ? (registry[client] || []).find((item) => item.id === craneId) : null;
-  elements.companyCraneForm.reset();
-  elements.editingCompanyCraneId.value = crane ? crane.id : "";
-  elements.companyCraneFormTitle.textContent = crane ? "Editar grua" : "Nueva grua";
-  elements.registryCraneId.value = crane ? crane.craneId : "";
-  elements.registryCraneArea.value = crane ? crane.area : "";
-  elements.registryCraneType.value = crane ? crane.type : "";
-  elements.registryStructureCapacity.value = crane ? crane.structureCapacity : "";
-  elements.registryHoistCapacity.value = crane ? crane.hoistCapacity : "";
-  elements.registryVoltage.value = crane ? crane.voltage : "";
-  elements.registryBrand.value = crane ? crane.brand : "";
-  elements.registryModel.value = crane ? crane.model : "";
-  elements.registrySerialNumber.value = crane ? crane.serialNumber : "";
-  elements.registryCraneStatus.value = crane ? crane.status : "";
-  elements.registryCraneNotes.value = crane ? crane.notes : "";
-  elements.companyCraneFormPanel.classList.remove("hidden");
-}
-
-function closeCompanyCraneForm() {
-  elements.companyCraneForm.reset();
-  elements.editingCompanyCraneId.value = "";
-  elements.companyCraneFormPanel.classList.add("hidden");
-}
-
-function saveCompanyCraneFromForm() {
-  const client = normalizeClientName(elements.companyRegistryClient.value);
-  if (!client) {
-    window.alert("Selecciona una empresa antes de guardar la grua.");
-    return;
-  }
-
-  const registry = readCompanyCraneRegistry();
-  const cranes = registry[client] || [];
-  const editingId = elements.editingCompanyCraneId.value;
-  const now = new Date().toISOString();
-  const crane = {
-    id: editingId || createId(),
-    craneId: elements.registryCraneId.value.trim(),
-    area: elements.registryCraneArea.value.trim(),
-    type: elements.registryCraneType.value.trim(),
-    structureCapacity: elements.registryStructureCapacity.value.trim(),
-    hoistCapacity: elements.registryHoistCapacity.value.trim(),
-    voltage: elements.registryVoltage.value.trim(),
-    brand: elements.registryBrand.value.trim(),
-    model: elements.registryModel.value.trim(),
-    serialNumber: elements.registrySerialNumber.value.trim(),
-    status: elements.registryCraneStatus.value.trim(),
-    notes: elements.registryCraneNotes.value.trim(),
-    updatedAt: now,
-    createdAt: editingId ? (cranes.find((item) => item.id === editingId) || {}).createdAt || now : now
-  };
-
-  registry[client] = editingId
-    ? cranes.map((item) => item.id === editingId ? crane : item)
-    : cranes.concat(crane);
-  writeCompanyCraneRegistry(registry);
-  closeCompanyCraneForm();
-  renderCompanyCraneRegistry();
-}
-
-function deleteCompanyCrane(craneId) {
-  const client = normalizeClientName(elements.companyRegistryClient.value);
-  const registry = readCompanyCraneRegistry();
-  registry[client] = (registry[client] || []).filter((crane) => crane.id !== craneId);
-  writeCompanyCraneRegistry(registry);
-  closeCompanyCraneForm();
-  renderCompanyCraneRegistry();
-}
-
-async function syncCompanyRegistryFromReports() {
-  const added = await seedCompanyRegistryFromReports(true);
-  await populateCompanyRegistryClientOptions();
-  renderCompanyCraneRegistry();
-  window.alert(`Catalogo actualizado. Se agregaron ${added} grua(s) nuevas desde reportes guardados.`);
-}
-
-async function seedCompanyRegistryFromReports(forceAlert) {
-  const records = (await getAllInspections()).map(normalizeInspection);
-  const registry = readCompanyCraneRegistry();
-  let added = 0;
-
-  records.forEach((record) => {
-    const client = normalizeClientName(record.plantName);
-    if (!client) {
-      return;
-    }
-
-    registry[client] = registry[client] || [];
-    (record.equipments || []).forEach((equipment) => {
-      const candidate = craneRegistryEntryFromEquipment(equipment);
-      if (!candidate.craneId && !candidate.serialNumber && !candidate.model && !candidate.type) {
-        return;
-      }
-
-      if (registry[client].some((item) => sameCatalogCrane(item, candidate))) {
-        return;
-      }
-
-      registry[client].push(candidate);
-      added += 1;
-    });
-  });
-
-  if (added || forceAlert) {
-    writeCompanyCraneRegistry(registry);
-  }
-
-  return added;
-}
-
-function craneRegistryEntryFromEquipment(equipment) {
-  const source = normalizeEquipment(equipment);
-  return {
-    id: createId(),
-    craneId: source.craneId || "",
-    area: source.equipmentLocation || "",
-    type: source.craneType || "",
-    structureCapacity: source.ratedCapacity || "",
-    hoistCapacity: source.hoistCapacity || "",
-    voltage: source.hoistVoltage || "",
-    brand: source.hoistManufacturer || "",
-    model: source.hoistModel || "",
-    serialNumber: source.hoistSerialNumber || source.serialNumber || "",
-    status: source.overallCondition || "",
-    notes: "",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-}
-
-function sameCatalogCrane(existing, candidate) {
-  const existingSerial = normalizeCatalogKey(existing.serialNumber);
-  const candidateSerial = normalizeCatalogKey(candidate.serialNumber);
-  if (existingSerial && candidateSerial) {
-    return existingSerial === candidateSerial;
-  }
-
-  const existingCraneId = normalizeCatalogKey(existing.craneId);
-  const candidateCraneId = normalizeCatalogKey(candidate.craneId);
-  if (existingCraneId && candidateCraneId) {
-    return existingCraneId === candidateCraneId;
-  }
-
-  return normalizeCatalogKey(`${existing.type}|${existing.model}|${existing.area}`) === normalizeCatalogKey(`${candidate.type}|${candidate.model}|${candidate.area}`);
-}
-
-function normalizeCatalogKey(value) {
-  return String(value || "").trim().toUpperCase();
-}
-
-function readCompanyCraneRegistry() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(COMPANY_CRANE_REGISTRY_KEY) || "{}");
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch (error) {
-    return {};
-  }
-}
-
-function writeCompanyCraneRegistry(registry) {
-  localStorage.setItem(COMPANY_CRANE_REGISTRY_KEY, JSON.stringify(registry));
-}
-
-function populateIncidenceOptions(selectedIncidence) {
-  const category = elements.findingCategory.value || Object.keys(findingCatalog)[0];
-  const incidences = findingCatalog[category] || [];
-  elements.findingIncidence.innerHTML = incidences
-    .map((incidence) => `<option value="${escapeHtml(incidence)}">${escapeHtml(incidence)}</option>`)
-    .join("");
-
-  if (selectedIncidence && incidences.includes(selectedIncidence)) {
-    elements.findingIncidence.value = selectedIncidence;
-  }
-}
-
-function openEquipmentEditor(equipmentId) {
-  const equipment = currentEquipments.find((item) => item.id === equipmentId);
-  const normalized = equipment ? normalizeEquipment(equipment) : createEmptyEquipment();
-
-  elements.equipmentEditorTitle.textContent = equipment ? "Editar equipo" : "Nuevo equipo";
-  elements.editingEquipmentId.value = equipment ? equipment.id : "";
-  loadEquipmentIntoEditor(normalized);
-  showView("equipment");
-}
-
-function loadEquipmentIntoEditor(equipment) {
-  elements.equipmentEditorForm.reset();
-  elements.craneId.value = equipment.craneId;
-  elements.equipmentName.value = equipment.equipmentName;
-  elements.craneType.value = equipment.craneType;
-  elements.ratedCapacity.value = equipment.ratedCapacity;
-  elements.serialNumber.value = equipment.serialNumber;
-  elements.checklistFolio.value = equipment.checklistFolio;
-  elements.equipmentLocation.value = equipment.equipmentLocation;
-  elements.hoistType.value = equipment.hoistType;
-  elements.hoistCapacity.value = equipment.hoistCapacity;
-  elements.hoistManufacturer.value = equipment.hoistManufacturer;
-  elements.hoistModel.value = equipment.hoistModel;
-  elements.hoistSerialNumber.value = equipment.hoistSerialNumber;
-  elements.hoistVoltage.value = equipment.hoistVoltage;
-  elements.overallCondition.value = equipment.overallCondition;
-  elements.nextInspection.value = equipment.nextInspection;
-  elements.serviceSummary.value = equipment.serviceSummary;
-  elements.recommendations.value = equipment.recommendations;
-  currentEquipmentFindings = equipment.findings.slice();
-  currentEquipmentServicePhotos = equipment.servicePhotos.slice();
-  currentChecklistImage = equipment.checklistImage ? { ...equipment.checklistImage } : null;
-  renderFindingsList();
-  renderServicePhotos();
-  renderChecklistImageStatus();
-}
-
-function closeEquipmentEditor() {
-  resetEquipmentEditorState();
-  showView("inspection");
-}
-
-function resetEquipmentEditorState() {
-  elements.equipmentEditorForm.reset();
-  elements.editingEquipmentId.value = "";
-  currentEquipmentFindings = [];
-  currentEquipmentServicePhotos = [];
-  currentChecklistImage = null;
-  const nextDate = new Date();
-  nextDate.setMonth(nextDate.getMonth() + 6);
-  elements.overallCondition.value = "Bueno";
-  elements.nextInspection.value = nextDate.toISOString().slice(0, 10);
-  renderFindingsList();
-  renderServicePhotos();
-  renderChecklistImageStatus();
-}
-function openFindingEditor(findingId) {
-  const categories = Object.keys(findingCatalog);
-  if (!categories.length) {
-    window.alert("No hay categorias de hallazgo configuradas.");
-    return;
-  }
-
-  const finding = currentEquipmentFindings.find((item) => item.id === findingId);
-  elements.findingEditorTitle.textContent = finding ? "Editar hallazgo" : "Nuevo hallazgo";
-  elements.editingFindingId.value = finding ? finding.id : "";
-  elements.findingCategory.value = finding ? finding.category : categories[0];
-  populateIncidenceOptions(finding ? finding.incidence : undefined);
-  elements.findingDescription.value = finding ? finding.description : "";
-  elements.findingRecommendation.value = finding ? finding.recommendation : "";
-  editingPhotos = finding ? finding.photos.slice() : [];
-  elements.findingPhotoGalleryInput.value = "";
-  elements.findingPhotoCameraInput.value = "";
-  renderEditingPhotos();
-  showView("finding");
-}
-
-function closeFindingEditor() {
-  elements.findingEditorForm.reset();
-  elements.editingFindingId.value = "";
-  editingPhotos = [];
-  populateCategoryOptions();
-  renderEditingPhotos();
-  showView("equipment");
-}
-
 function toggleToolsMenu(event) {
   event.stopPropagation();
   const isOpen = !elements.toolsMenuList.classList.contains("hidden");
@@ -736,9 +522,12 @@ function closeToolsMenu() {
 
 function showView(view) {
   elements.inspectionView.classList.toggle("hidden", view !== "inspection");
+  elements.companiesView.classList.toggle("hidden", view !== "companies");
   elements.equipmentEditorView.classList.toggle("hidden", view !== "equipment");
   elements.findingEditorView.classList.toggle("hidden", view !== "finding");
   elements.consolidatedHistoryView.classList.toggle("hidden", view !== "consolidatedHistory");
+  elements.maintenancePanelView.classList.toggle("hidden", view !== "maintenancePanel");
+  elements.settingsView.classList.toggle("hidden", view !== "settings");
   elements.companyCraneRegistryView.classList.toggle("hidden", view !== "companyCraneRegistry");
 }
 
@@ -752,461 +541,53 @@ function closeSidebar() {
   elements.sidebarBackdrop.classList.add("hidden");
 }
 
-async function handleFindingPhotos(event) {
-  const files = Array.from(event.target.files || []);
-  await addFindingPhotoFiles(files);
-  elements.findingPhotoGalleryInput.value = "";
-  elements.findingPhotoCameraInput.value = "";
-}
+function showAppDialog(options = {}) {
+  const actions = options.actions && options.actions.length
+    ? options.actions
+    : [{ id: "ok", label: "Aceptar", variant: "primary" }];
 
-async function handleServicePhotos(event) {
-  const files = Array.from(event.target.files || []);
-  await addServicePhotoFiles(files);
-  elements.servicePhotoGalleryInput.value = "";
-  elements.servicePhotoCameraInput.value = "";
-}
-
-async function handleChecklistImage(event) {
-  const [file] = Array.from(event.target.files || []);
-  await addChecklistImageFile([file]);
-  elements.checklistImageInput.value = "";
-}
-
-async function addFindingPhotoFiles(files) {
-  const imageFiles = filterImageFiles(files);
-  if (!imageFiles.length) {
-    return;
-  }
-
-  const encoded = await Promise.all(imageFiles.map((file) => imageFileToOptimizedDataUrl(file)));
-  editingPhotos = editingPhotos.concat(encoded);
-  renderEditingPhotos();
-}
-
-async function addServicePhotoFiles(files) {
-  const imageFiles = filterImageFiles(files);
-  if (!imageFiles.length) {
-    return;
-  }
-
-  const encoded = await Promise.all(imageFiles.map((file) => imageFileToOptimizedDataUrl(file)));
-  currentEquipmentServicePhotos = currentEquipmentServicePhotos.concat(encoded);
-  renderServicePhotos();
-}
-
-async function addChecklistImageFile(files) {
-  const [file] = filterImageFiles(files);
-  if (!file) {
-    return;
-  }
-
-  currentChecklistImage = {
-    name: file.name,
-    dataUrl: await imageFileToOptimizedDataUrl(file, REPORT_CHECKLIST_MAX_SIZE)
-  };
-  renderChecklistImageStatus();
-}
-
-function setupImageDropZone(dropZone, onFiles, options = {}) {
-  if (!dropZone) {
-    return;
-  }
-
-  ["dragenter", "dragover"].forEach((eventName) => {
-    dropZone.addEventListener(eventName, (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      dropZone.classList.add("is-drag-over");
-      if (event.dataTransfer) {
-        event.dataTransfer.dropEffect = "copy";
-      }
-    });
+  elements.appDialogEyebrow.textContent = options.eyebrow || "Mensaje";
+  elements.appDialogTitle.textContent = options.title || "Confirmar accion";
+  elements.appDialogMessage.textContent = options.message || "";
+  elements.appDialogDetails.classList.toggle("hidden", !options.details);
+  elements.appDialogDetails.textContent = options.details || "";
+  elements.appDialogActions.innerHTML = actions.map((action) => `
+    <button class="${getDialogButtonClass(action.variant)}" type="button" data-dialog-action="${escapeHtml(action.id)}">
+      ${escapeHtml(action.label)}
+    </button>
+  `).join("");
+  elements.appDialogActions.querySelectorAll("[data-dialog-action]").forEach((button) => {
+    button.addEventListener("click", () => resolveAppDialog(button.dataset.dialogAction));
   });
+  elements.appDialogPanel.classList.remove("hidden");
 
-  ["dragleave", "drop"].forEach((eventName) => {
-    dropZone.addEventListener(eventName, (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (eventName === "dragleave" && dropZone.contains(event.relatedTarget)) {
-        return;
-      }
-      dropZone.classList.remove("is-drag-over");
-    });
-  });
-
-  dropZone.addEventListener("drop", async (event) => {
-    const files = Array.from(event.dataTransfer ? event.dataTransfer.files : []);
-    await onFiles(options.single ? files.slice(0, 1) : files);
+  return new Promise((resolve) => {
+    appDialogResolver = resolve;
   });
 }
 
-function filterImageFiles(files) {
-  return Array.from(files || []).filter((file) => file && file.type && file.type.startsWith("image/"));
-}
-
-function renderEditingPhotos() {
-  elements.findingPhotoPreview.innerHTML = "";
-  editingPhotos.forEach((photo, index) => {
-    elements.findingPhotoPreview.appendChild(buildPhotoThumb(photo, () => {
-      editingPhotos = editingPhotos.filter((_, photoIndex) => photoIndex !== index);
-      renderEditingPhotos();
-    }));
-  });
-}
-
-function renderServicePhotos() {
-  elements.servicePhotoPreview.innerHTML = "";
-  currentEquipmentServicePhotos.forEach((photo, index) => {
-    elements.servicePhotoPreview.appendChild(buildPhotoThumb(photo, () => {
-      currentEquipmentServicePhotos = currentEquipmentServicePhotos.filter((_, photoIndex) => photoIndex !== index);
-      renderServicePhotos();
-    }));
-  });
-}
-
-function renderChecklistImageStatus() {
-  if (!currentChecklistImage || !currentChecklistImage.dataUrl) {
-    elements.checklistImageStatus.textContent = "Todavia no se ha adjuntado una imagen del checklist.";
+function resolveAppDialog(value) {
+  if (!appDialogResolver) {
+    elements.appDialogPanel.classList.add("hidden");
     return;
   }
-
-  elements.checklistImageStatus.textContent = `Imagen adjunta: ${currentChecklistImage.name || "checklist.jpg"}`;
+  const resolver = appDialogResolver;
+  appDialogResolver = null;
+  elements.appDialogPanel.classList.add("hidden");
+  resolver(value);
 }
 
-function clearChecklistImage() {
-  currentChecklistImage = null;
-  elements.checklistImageInput.value = "";
-  renderChecklistImageStatus();
-}
-
-function buildPhotoThumb(photo, onRemove) {
-  const wrapper = document.createElement("div");
-  wrapper.className = "photo-thumb";
-  const img = document.createElement("img");
-  img.src = photo;
-  img.alt = "Evidencia fotografica";
-  const removeButton = document.createElement("button");
-  removeButton.type = "button";
-  removeButton.className = "photo-remove";
-  removeButton.textContent = "x";
-  removeButton.addEventListener("click", onRemove);
-  wrapper.appendChild(img);
-  wrapper.appendChild(removeButton);
-  return wrapper;
-}
-
-function saveFindingFromEditor() {
-  if (!elements.findingEditorForm.reportValidity()) {
-    elements.findingEditorForm.reportValidity();
-    return;
+function getDialogButtonClass(variant) {
+  if (variant === "danger") {
+    return "danger-button";
   }
-
-  const findingId = elements.editingFindingId.value || createId();
-  const fallbackDescription = buildGenericFindingDescription(
-    elements.findingCategory.value,
-    elements.findingIncidence.value
-  );
-  const finding = {
-    id: findingId,
-    category: elements.findingCategory.value,
-    incidence: elements.findingIncidence.value,
-    description: elements.findingDescription.value.trim() || fallbackDescription,
-    recommendation: elements.findingRecommendation.value.trim(),
-    photos: editingPhotos.slice(),
-    updatedAt: new Date().toISOString()
-  };
-
-  const existingIndex = currentEquipmentFindings.findIndex((item) => item.id === findingId);
-  if (existingIndex >= 0) {
-    currentEquipmentFindings[existingIndex] = finding;
-  } else {
-    currentEquipmentFindings.push(finding);
+  if (variant === "ghost") {
+    return "ghost-button";
   }
-
-  renderFindingsList();
-  closeFindingEditor();
-}
-
-function renderFindingsList() {
-  elements.findingsList.innerHTML = "";
-
-  if (!currentEquipmentFindings.length) {
-    elements.findingsList.innerHTML = '<div class="inline-empty-state">Todavia no hay hallazgos capturados para este equipo. Usa el boton de Anadir Hallazgo para registrar uno.</div>';
-    return;
+  if (variant === "secondary") {
+    return "secondary-button";
   }
-
-  currentEquipmentFindings.forEach((finding, index) => {
-    const shell = document.createElement("div");
-    shell.className = "list-card-shell";
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "finding-list-card";
-    card.innerHTML = `
-      <p><strong>Hallazgo ${index + 1}: ${escapeHtml(finding.category)}</strong></p>
-      <div class="finding-meta">
-        <span>${escapeHtml(finding.incidence)}</span>
-        <span>${(finding.photos || []).length} foto(s)</span>
-      </div>
-      <p>${escapeHtml(truncateText(finding.description, 140))}</p>
-      ${finding.recommendation ? `<p>${escapeHtml(truncateText(`Recomendacion: ${finding.recommendation}`, 140))}</p>` : ""}
-    `;
-    card.addEventListener("click", () => openFindingEditor(finding.id));
-
-    const deleteButton = document.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.className = "danger-button";
-    deleteButton.textContent = "Eliminar";
-    deleteButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      deleteFinding(finding.id);
-    });
-
-    shell.appendChild(card);
-    shell.appendChild(deleteButton);
-    elements.findingsList.appendChild(shell);
-  });
-}
-
-function saveEquipmentFromEditor() {
-  if (!elements.equipmentEditorForm.reportValidity()) {
-    elements.equipmentEditorForm.reportValidity();
-    return;
-  }
-
-  const equipmentId = elements.editingEquipmentId.value || createId();
-  const previousEquipment = currentEquipments.find((item) => item.id === equipmentId);
-  const equipment = normalizeEquipment({
-    id: equipmentId,
-    includeInReport: previousEquipment ? normalizeEquipment(previousEquipment).includeInReport : true,
-    craneId: elements.craneId.value.trim(),
-    equipmentName: elements.equipmentName.value.trim(),
-    craneType: elements.craneType.value,
-    ratedCapacity: elements.ratedCapacity.value.trim(),
-    serialNumber: elements.serialNumber.value.trim(),
-    checklistFolio: elements.checklistFolio.value.trim(),
-    equipmentLocation: elements.equipmentLocation.value.trim(),
-    hoistType: elements.hoistType.value.trim(),
-    hoistCapacity: elements.hoistCapacity.value.trim(),
-    hoistManufacturer: elements.hoistManufacturer.value.trim(),
-    hoistModel: elements.hoistModel.value.trim(),
-    hoistSerialNumber: elements.hoistSerialNumber.value.trim(),
-    hoistVoltage: elements.hoistVoltage.value.trim(),
-    findings: currentEquipmentFindings.slice(),
-    overallCondition: elements.overallCondition.value,
-    nextInspection: elements.nextInspection.value,
-    serviceSummary: elements.serviceSummary.value.trim(),
-    recommendations: elements.recommendations.value.trim(),
-    servicePhotos: currentEquipmentServicePhotos.slice(),
-    checklistImage: currentChecklistImage ? { ...currentChecklistImage } : null,
-    updatedAt: new Date().toISOString()
-  });
-
-  const existingIndex = currentEquipments.findIndex((item) => item.id === equipmentId);
-  if (existingIndex >= 0) {
-    currentEquipments[existingIndex] = equipment;
-  } else {
-    currentEquipments.push(equipment);
-  }
-
-  renderEquipmentList();
-  closeEquipmentEditor();
-}
-
-function renderEquipmentList() {
-  elements.equipmentList.innerHTML = "";
-
-  if (!currentEquipments.length) {
-    elements.equipmentList.innerHTML = '<div class="inline-empty-state">Todavia no hay equipos en este reporte. Usa el boton de Anadir Equipo para registrar el primero.</div>';
-    return;
-  }
-
-  currentEquipments.forEach((equipment, index) => {
-    const normalized = normalizeEquipment(equipment);
-    const shell = document.createElement("div");
-    shell.className = "list-card-shell equipment-list-card-shell";
-    shell.draggable = true;
-    shell.dataset.equipmentId = normalized.id;
-    shell.title = "Arrastra para cambiar el orden";
-    shell.addEventListener("dragstart", (event) => handleEquipmentDragStart(event, normalized.id));
-    shell.addEventListener("dragover", handleEquipmentDragOver);
-    shell.addEventListener("dragleave", handleEquipmentDragLeave);
-    shell.addEventListener("drop", (event) => handleEquipmentDrop(event, normalized.id));
-    shell.addEventListener("dragend", handleEquipmentDragEnd);
-
-    const includeLabel = document.createElement("label");
-    includeLabel.className = "equipment-report-toggle";
-    includeLabel.innerHTML = `
-      <input type="checkbox" ${normalized.includeInReport ? "checked" : ""} data-include-equipment-id="${escapeHtml(normalized.id)}">
-      <span>PDF</span>
-    `;
-    includeLabel.querySelector("[data-include-equipment-id]").addEventListener("change", (event) => {
-      updateEquipmentReportInclusion(normalized.id, event.target.checked);
-    });
-
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "finding-list-card";
-    card.innerHTML = `
-      <p><strong>Equipo ${index + 1}: ${escapeHtml(normalized.equipmentName || normalized.craneType || "Equipo sin nombre")}</strong></p>
-      <div class="finding-meta">
-        <span>${escapeHtml(normalized.craneType || "Tipo no capturado")}</span>
-        <span>${normalized.findings.length} hallazgo(s)</span>
-        <span>${normalized.servicePhotos.length} evidencia(s)</span>
-      </div>
-      <p>${escapeHtml(buildEquipmentCardSummary(normalized))}</p>
-    `;
-    card.addEventListener("click", (event) => {
-      if (didDragEquipment) {
-        event.preventDefault();
-        return;
-      }
-      openEquipmentEditor(normalized.id);
-    });
-
-    const deleteButton = document.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.className = "danger-button";
-    deleteButton.textContent = "Eliminar";
-    deleteButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      deleteEquipment(normalized.id);
-    });
-
-    shell.appendChild(includeLabel);
-    shell.appendChild(card);
-    shell.appendChild(deleteButton);
-    elements.equipmentList.appendChild(shell);
-  });
-}
-
-function updateEquipmentReportInclusion(equipmentId, includeInReport) {
-  currentEquipments = currentEquipments.map((equipment) => {
-    if (equipment.id !== equipmentId) {
-      return equipment;
-    }
-
-    return {
-      ...equipment,
-      includeInReport
-    };
-  });
-}
-
-function handleEquipmentDragStart(event, equipmentId) {
-  draggedEquipmentId = equipmentId;
-  didDragEquipment = true;
-  event.currentTarget.classList.add("is-dragging");
-  event.dataTransfer.effectAllowed = "move";
-  event.dataTransfer.setData("text/plain", equipmentId);
-}
-
-function handleEquipmentDragOver(event) {
-  if (!draggedEquipmentId || event.currentTarget.dataset.equipmentId === draggedEquipmentId) {
-    return;
-  }
-
-  event.preventDefault();
-  event.dataTransfer.dropEffect = "move";
-  const position = getEquipmentDropPosition(event, event.currentTarget);
-  setEquipmentDropIndicator(event.currentTarget, position);
-}
-
-function handleEquipmentDragLeave(event) {
-  if (!event.currentTarget.contains(event.relatedTarget)) {
-    clearEquipmentDropIndicator(event.currentTarget);
-  }
-}
-
-function handleEquipmentDrop(event, targetEquipmentId) {
-  event.preventDefault();
-  const sourceEquipmentId = draggedEquipmentId || event.dataTransfer.getData("text/plain");
-  const position = getEquipmentDropPosition(event, event.currentTarget);
-
-  clearAllEquipmentDragStates();
-
-  if (!sourceEquipmentId || sourceEquipmentId === targetEquipmentId) {
-    return;
-  }
-
-  reorderEquipment(sourceEquipmentId, targetEquipmentId, position);
-}
-
-function handleEquipmentDragEnd() {
-  draggedEquipmentId = null;
-  clearAllEquipmentDragStates();
-  setTimeout(() => {
-    didDragEquipment = false;
-  }, 0);
-}
-
-function getEquipmentDropPosition(event, target) {
-  const rect = target.getBoundingClientRect();
-  return event.clientY < rect.top + rect.height / 2 ? "before" : "after";
-}
-
-function setEquipmentDropIndicator(target, position) {
-  target.classList.toggle("drop-before", position === "before");
-  target.classList.toggle("drop-after", position === "after");
-}
-
-function clearEquipmentDropIndicator(target) {
-  target.classList.remove("drop-before", "drop-after");
-}
-
-function clearAllEquipmentDragStates() {
-  elements.equipmentList.querySelectorAll(".list-card-shell").forEach((item) => {
-    item.classList.remove("is-dragging", "drop-before", "drop-after");
-  });
-}
-
-function reorderEquipment(sourceEquipmentId, targetEquipmentId, position) {
-  const sourceIndex = currentEquipments.findIndex((item) => item.id === sourceEquipmentId);
-  const targetIndex = currentEquipments.findIndex((item) => item.id === targetEquipmentId);
-
-  if (sourceIndex < 0 || targetIndex < 0) {
-    return;
-  }
-
-  const [movedEquipment] = currentEquipments.splice(sourceIndex, 1);
-  let insertIndex = currentEquipments.findIndex((item) => item.id === targetEquipmentId);
-
-  if (insertIndex < 0) {
-    currentEquipments.push(movedEquipment);
-    renderEquipmentList();
-    return;
-  }
-
-  if (position === "after") {
-    insertIndex += 1;
-  }
-
-  currentEquipments.splice(insertIndex, 0, movedEquipment);
-  renderEquipmentList();
-}
-
-function deleteFinding(findingId) {
-  currentEquipmentFindings = currentEquipmentFindings.filter((item) => item.id !== findingId);
-  renderFindingsList();
-}
-
-function deleteEquipment(equipmentId) {
-  currentEquipments = currentEquipments.filter((item) => item.id !== equipmentId);
-  renderEquipmentList();
-}
-
-function buildGenericFindingDescription(category, incidence) {
-  const safeCategory = category || "categoria no especificada";
-  const safeIncidence = incidence || "incidencia no especificada";
-  return `Se detecto un hallazgo en la categoria ${safeCategory}: ${safeIncidence}.`;
-}
-
-function buildEquipmentCardSummary(equipment) {
-  const pieces = [
-    equipment.serialNumber ? `Serie ${equipment.serialNumber}` : "",
-    equipment.checklistFolio ? `Checklist ${equipment.checklistFolio}` : "",
-    equipment.overallCondition
-  ].filter(Boolean);
-  return pieces.length ? pieces.join(" | ") : "Sin detalle adicional capturado.";
+  return "primary-button";
 }
 
 function setDefaultDates() {
@@ -1240,6 +621,7 @@ function collectInspectionData() {
     plantLocation: elements.plantLocation.value.trim(),
     siteContact: elements.siteContact.value.trim(),
     siteContactInfo: elements.siteContactInfo.value.trim(),
+    companyId: createCompanyId(elements.plantName.value),
     craneId: craneIds[0] || "",
     craneIds,
     equipments,
@@ -1263,6 +645,9 @@ async function persistInspection() {
   elements.reportNumber.value = inspection.reportNumber;
   await putInspection(inspection);
   await renderSavedReports();
+  if (elements.companiesView && !elements.companiesView.classList.contains("hidden")) {
+    await renderCompaniesDashboard();
+  }
   return inspection;
 }
 
@@ -1282,87 +667,6 @@ async function exportCurrentInspection() {
   }
 
   downloadInspectionJson(inspection);
-}
-
-async function generatePdfReport() {
-  const popup = window.open("", "_blank");
-  if (!popup) {
-    window.alert("No se pudo abrir la vista PDF. Revisa si el navegador bloqueo la ventana emergente.");
-    return;
-  }
-
-  popup.document.write('<p style="font-family: Arial, sans-serif; padding: 24px;">Generando reporte PDF...</p>');
-  popup.document.close();
-
-  const inspection = await persistInspection();
-  if (!inspection) {
-    popup.close();
-    return;
-  }
-
-  const selectedInspection = await buildPdfInspectionData(inspection);
-  if (!selectedInspection.equipments.length) {
-    popup.close();
-    window.alert("Selecciona al menos un equipo para incluirlo en el PDF.");
-    return;
-  }
-
-  try {
-    await openReportPdfWindow(selectedInspection, popup);
-  } catch (error) {
-    popup.close();
-    window.alert("No se pudo generar el reporte PDF completo.");
-  }
-}
-
-async function buildPdfInspectionData(inspection) {
-  const selectedEquipments = inspection.equipments
-    .map((equipment) => normalizeEquipment(equipment))
-    .filter((equipment) => equipment.includeInReport);
-  const optimizedEquipments = [];
-  for (const equipment of selectedEquipments) {
-    optimizedEquipments.push(await optimizeEquipmentImagesForPdf(equipment));
-  }
-  const craneIds = getInspectionCraneIds({ equipments: optimizedEquipments });
-
-  return {
-    ...inspection,
-    craneId: craneIds[0] || "",
-    craneIds,
-    equipments: optimizedEquipments
-  };
-}
-
-async function optimizeEquipmentImagesForPdf(equipment) {
-  const findings = [];
-  for (const finding of equipment.findings || []) {
-    findings.push({
-      ...finding,
-      photos: await optimizeDataUrlImagesSequential(finding.photos || [])
-    });
-  }
-  const servicePhotos = await optimizeDataUrlImagesSequential(equipment.servicePhotos || []);
-  const checklistImage = equipment.checklistImage && equipment.checklistImage.dataUrl
-    ? {
-        ...equipment.checklistImage,
-        dataUrl: await optimizeDataUrlImage(equipment.checklistImage.dataUrl, REPORT_CHECKLIST_MAX_SIZE)
-      }
-    : equipment.checklistImage;
-
-  return {
-    ...equipment,
-    findings,
-    servicePhotos,
-    checklistImage
-  };
-}
-
-async function optimizeDataUrlImagesSequential(photos) {
-  const optimized = [];
-  for (const photo of photos) {
-    optimized.push(await optimizeDataUrlImage(photo));
-  }
-  return optimized;
 }
 
 async function renderSavedReports() {
@@ -1397,7 +701,7 @@ async function renderSavedReports() {
           <span>${record.equipments.length} equipo(s)</span>
           <span>${findingsCount} hallazgo(s)</span>
         </div>
-        <p class="saved-cranes">${escapeHtml(craneIds.length ? craneIds.join(" | ") : "Sin ID de grua capturado")}</p>
+        <p class="saved-cranes">${escapeHtml(craneIds.length ? craneIds.join(" | ") : "Sin nombre/tag capturado")}</p>
         <div class="saved-actions">
           <button class="secondary-button" type="button" data-open-id="${record.id}">Abrir</button>
           <button class="secondary-button" type="button" data-duplicate-id="${record.id}">Duplicar</button>
@@ -1425,6 +729,9 @@ async function renderSavedReports() {
         resetForm();
       }
       await renderSavedReports();
+      if (elements.companiesView && !elements.companiesView.classList.contains("hidden")) {
+        await renderCompaniesDashboard();
+      }
     });
   });
 
@@ -1455,6 +762,9 @@ async function duplicateInspection(sourceInspectionId) {
   await putInspection(duplicated);
   loadInspection(duplicated);
   await renderSavedReports();
+  if (elements.companiesView && !elements.companiesView.classList.contains("hidden")) {
+    await renderCompaniesDashboard();
+  }
   closeSidebar();
 }
 
@@ -1554,7 +864,7 @@ async function openConsolidatedHistory() {
 
 async function renderConsolidatedHistory() {
   const allRows = await buildConsolidatedHistoryRows();
-  populateConsolidatedClientOptions(allRows);
+  await populateConsolidatedClientOptions(allRows);
   const rows = filterConsolidatedRowsByClient(allRows);
   renderConsolidatedHistorySummary(rows);
   renderConsolidatedHistoryTable(rows);
@@ -1585,7 +895,7 @@ async function buildConsolidatedHistoryRows() {
         model: equipment.hoistModel || "",
         serialNumber: equipment.hoistSerialNumber || equipment.serialNumber || "",
         serviceFolio: equipment.checklistFolio || "",
-        serviceDate: record.inspectionDate || "",
+        serviceDate: equipment.maintenanceDate || record.inspectionDate || "",
         nextMaintenance: equipment.nextInspection || "",
         daysToNextMaintenance: calculateDaysUntil(equipment.nextInspection),
         performedBy: record.technicianName || "",
@@ -1600,8 +910,12 @@ async function buildConsolidatedHistoryRows() {
   });
 }
 
-function populateConsolidatedClientOptions(rows) {
-  const clients = normalizeClientNames(rows.map((row) => row.client));
+async function populateConsolidatedClientOptions(rows) {
+  const fileClients = await readClientPlantsFromFile();
+  const clients = normalizeClientNames([
+    ...fileClients,
+    ...rows.map((row) => row.client)
+  ]);
   elements.consolidatedClientOptions.innerHTML = clients
     .map((clientName) => `<option value="${escapeHtml(clientName)}"></option>`)
     .join("");
@@ -1663,19 +977,129 @@ function renderConsolidatedHistoryTable(rows) {
   wireConsolidatedCommentInputs();
 }
 
-async function exportConsolidatedHistoryCsv() {
+async function exportConsolidatedHistoryExcel() {
+  await persistVisibleConsolidatedComments();
   const rows = filterConsolidatedRowsByClient(await buildConsolidatedHistoryRows());
   if (!rows.length) {
     window.alert("No hay datos guardados para exportar.");
     return;
   }
 
-  const csvRows = [
-    consolidatedHistoryColumns.map((column) => column.label),
-    ...rows.map((row) => consolidatedHistoryColumns.map((column) => row[column.key] || ""))
-  ];
-  const csv = csvRows.map((row) => row.map(escapeCsvValue).join(",")).join("\r\n");
-  downloadTextFile(csv, "concentrado-general.csv", "text/csv;charset=utf-8");
+  const exportColumns = await readConsolidatedExportColumns();
+  const workbookHtml = buildConsolidatedExcelWorkbook(exportColumns, rows);
+  downloadTextFile(workbookHtml, "concentrado-general.xls", "application/vnd.ms-excel;charset=utf-8");
+}
+
+function buildConsolidatedExcelWorkbook(columns, rows) {
+  const generatedAt = formatDate(new Date().toISOString().slice(0, 10));
+  return `\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Concentrado General</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+  <style>
+    body { font-family: Calibri, Arial, sans-serif; }
+    table { border-collapse: collapse; }
+    th, td { border: 1px solid #000000; padding: 5px 7px; font-size: 11pt; vertical-align: middle; mso-number-format:"\\@"; }
+    th { background: #b7f7c6; font-weight: 700; text-align: center; white-space: nowrap; }
+    td { background: #ffffff; }
+    .title { background: #ffffff; border: none; font-size: 14pt; font-weight: 700; text-align: left; }
+    .meta { background: #ffffff; border: none; color: #666666; font-size: 10pt; }
+    .comment { min-width: 240px; white-space: normal; }
+    .number { text-align: center; }
+  </style>
+</head>
+<body>
+  <table>
+    <tr><td class="title" colspan="${columns.length}">CONCENTRADO GENERAL</td></tr>
+    <tr><td class="meta" colspan="${columns.length}">Generado: ${escapeExcelHtml(generatedAt)} | Registros: ${rows.length}</td></tr>
+    <tr>${columns.map((column) => `<th>${escapeExcelHtml(column.label)}</th>`).join("")}</tr>
+    ${rows.map((row) => `<tr>${columns.map((column) => renderConsolidatedExcelCell(row, column)).join("")}</tr>`).join("")}
+  </table>
+</body>
+</html>`;
+}
+
+function renderConsolidatedExcelCell(row, column) {
+  const value = column.key ? row[column.key] || "" : "";
+  const className = column.key === "comments"
+    ? "comment"
+    : column.key === "daysToNextMaintenance"
+      ? "number"
+      : "";
+  return `<td${className ? ` class="${className}"` : ""}>${escapeExcelHtml(value)}</td>`;
+}
+
+function escapeExcelHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+async function readConsolidatedExportColumns() {
+  try {
+    const response = await fetch(CONSOLIDATED_EXPORT_TEMPLATE_FILE, { cache: "no-store" });
+    if (!response.ok) {
+      return consolidatedHistoryColumns;
+    }
+
+    const text = await response.text();
+    const headerLine = text.split(/\r?\n/).find((line) => line.trim());
+    if (!headerLine) {
+      return consolidatedHistoryColumns;
+    }
+
+    const labels = parseDelimitedRow(headerLine, CONSOLIDATED_EXPORT_DELIMITER);
+    const columns = labels.map((label) => {
+      const matchedColumn = consolidatedHistoryColumns.find((column) => normalizeExportHeader(column.label) === normalizeExportHeader(label));
+      return matchedColumn || { key: "", label };
+    });
+    return columns.length ? columns : consolidatedHistoryColumns;
+  } catch (error) {
+    return consolidatedHistoryColumns;
+  }
+}
+
+function parseDelimitedRow(line, delimiter) {
+  const values = [];
+  let current = "";
+  let quoted = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const nextChar = line[index + 1];
+
+    if (char === '"' && quoted && nextChar === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+
+    if (char === delimiter && !quoted) {
+      values.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current.trim());
+  return values;
+}
+
+function normalizeExportHeader(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
 }
 
 function shortenServiceType(serviceType) {
@@ -1711,6 +1135,13 @@ function wireConsolidatedCommentInputs() {
       await updateConsolidatedComment(input.dataset.inspectionId, input.dataset.equipmentId, input.value);
     });
   });
+}
+
+async function persistVisibleConsolidatedComments() {
+  const inputs = Array.from(elements.consolidatedHistoryTable.querySelectorAll(".consolidated-comment-input"));
+  for (const input of inputs) {
+    await updateConsolidatedComment(input.dataset.inspectionId, input.dataset.equipmentId, input.value);
+  }
 }
 
 async function updateConsolidatedComment(inspectionId, equipmentId, value) {
@@ -1791,6 +1222,13 @@ function normalizeClientName(value) {
   return String(value || "").trim().toUpperCase();
 }
 
+function createCompanyId(value) {
+  const normalized = normalizeClientName(value);
+  return normalized
+    ? `company-${normalized.replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase()}`
+    : "";
+}
+
 function isHighSeverityFinding(finding) {
   const severityText = [
     finding.severity,
@@ -1861,214 +1299,12 @@ async function handleInspectionImport(event) {
     });
     loadInspection(normalized);
     await renderSavedReports();
+    if (elements.companiesView && !elements.companiesView.classList.contains("hidden")) {
+      await renderCompaniesDashboard();
+    }
   } catch (error) {
     window.alert("No se pudo importar el reporte. Verifica que sea un archivo JSON exportado desde la app.");
   }
-}
-
-function normalizeInspection(record) {
-  const source = record || {};
-  const equipments = Array.isArray(source.equipments) && source.equipments.length
-    ? source.equipments.map((equipment) => normalizeEquipment(equipment))
-    : source.craneType || source.findings || source.recommendations
-      ? [normalizeEquipment(createLegacyEquipment(source))]
-      : [];
-  const craneIds = Array.isArray(source.craneIds) && source.craneIds.length
-    ? normalizeCraneIds(source.craneIds)
-    : getInspectionCraneIds({ ...source, equipments });
-
-  return {
-    ...source,
-    reportNumber: source.reportNumber || createReportNumber(source.inspectionDate, source.id),
-    serviceType: source.serviceType || "Inspeccion de grua",
-    craneId: source.craneId || craneIds[0] || "",
-    craneIds,
-    equipments
-  };
-}
-
-function createLegacyEquipment(record) {
-  return {
-    id: createId(),
-    craneId: record.craneId || record.serialNumber || "",
-    equipmentName: record.craneType ? `Equipo ${record.craneType}` : "Equipo 1",
-    craneType: record.craneType || "Puente",
-    ratedCapacity: record.ratedCapacity || "",
-    serialNumber: record.serialNumber || "",
-    checklistFolio: record.checklistFolio || "",
-    equipmentLocation: "",
-    hoistType: "",
-    hoistCapacity: "",
-    hoistManufacturer: "",
-    hoistModel: "",
-    hoistSerialNumber: "",
-    hoistVoltage: "",
-    findings: Array.isArray(record.findings) ? record.findings : [],
-    overallCondition: record.overallCondition || "Bueno",
-    nextInspection: record.nextInspection || "",
-    serviceSummary: "",
-    recommendations: record.recommendations || "",
-    servicePhotos: [],
-    checklistImage: null
-  };
-}
-
-function createEmptyEquipment() {
-  const nextDate = new Date();
-  nextDate.setMonth(nextDate.getMonth() + 6);
-  return normalizeEquipment({
-    id: "",
-    craneId: "",
-    equipmentName: "",
-    craneType: "Puente",
-    ratedCapacity: "",
-    serialNumber: "",
-    checklistFolio: "",
-    equipmentLocation: "",
-    hoistType: "",
-    hoistCapacity: "",
-    hoistManufacturer: "",
-    hoistModel: "",
-    hoistSerialNumber: "",
-    hoistVoltage: "",
-    findings: [],
-    overallCondition: "Bueno",
-    nextInspection: nextDate.toISOString().slice(0, 10),
-    serviceSummary: "",
-    recommendations: "",
-    servicePhotos: [],
-    checklistImage: null
-  });
-}
-
-function normalizeEquipment(equipment) {
-  const source = equipment || {};
-  const fallbackCraneId = source.craneId || source.equipmentId || source.serialNumber || source.checklistFolio || "";
-  const includeInReport = typeof source.includeInReport === "boolean" ? source.includeInReport : true;
-
-  return {
-    ...source,
-    id: source.id || createId(),
-    includeInReport,
-    craneId: fallbackCraneId,
-    equipmentName: source.equipmentName || "",
-    craneType: source.craneType || "Puente",
-    ratedCapacity: source.ratedCapacity || "",
-    serialNumber: source.serialNumber || "",
-    checklistFolio: source.checklistFolio || "",
-    equipmentLocation: source.equipmentLocation || "",
-    hoistType: source.hoistType || "",
-    hoistCapacity: source.hoistCapacity || "",
-    hoistManufacturer: source.hoistManufacturer || source.hoistBrandModel || "",
-    hoistModel: source.hoistModel || "",
-    hoistSerialNumber: source.hoistSerialNumber || "",
-    hoistVoltage: source.hoistVoltage || "",
-    findings: Array.isArray(source.findings)
-      ? source.findings.map((finding) => ({
-          ...finding,
-          recommendation: finding.recommendation || ""
-        }))
-      : [],
-    overallCondition: source.overallCondition || "Bueno",
-    nextInspection: source.nextInspection || "",
-    serviceSummary: source.serviceSummary || "",
-    recommendations: source.recommendations || "",
-    servicePhotos: Array.isArray(source.servicePhotos) ? source.servicePhotos : [],
-    checklistImage: source.checklistImage && source.checklistImage.dataUrl
-      ? {
-          name: source.checklistImage.name || "checklist.jpg",
-          dataUrl: source.checklistImage.dataUrl
-        }
-      : null
-  };
-}
-
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-async function imageFileToOptimizedDataUrl(file, maxSize = REPORT_IMAGE_MAX_SIZE) {
-  const dataUrl = await fileToDataUrl(file);
-  return optimizeDataUrlImage(dataUrl, maxSize);
-}
-
-function optimizeDataUrlImage(dataUrl, maxSize = REPORT_IMAGE_MAX_SIZE) {
-  if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
-    return Promise.resolve(dataUrl);
-  }
-
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.onload = () => {
-      try {
-        const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
-        const width = Math.max(1, Math.round(image.width * scale));
-        const height = Math.max(1, Math.round(image.height * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext("2d");
-        context.fillStyle = "#ffffff";
-        context.fillRect(0, 0, width, height);
-        context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", REPORT_IMAGE_QUALITY));
-      } catch (error) {
-        resolve(dataUrl);
-      }
-    };
-    image.onerror = () => resolve(dataUrl);
-    image.src = dataUrl;
-  });
-}
-
-function openDatabase() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
-      }
-    };
-
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function withStore(mode, callback) {
-  const db = await openDatabase();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, mode);
-    const store = transaction.objectStore(STORE_NAME);
-    const request = callback(store);
-
-    transaction.oncomplete = () => resolve(request ? request.result : undefined);
-    transaction.onerror = () => reject(transaction.error);
-  });
-}
-
-async function putInspection(record) {
-  return withStore("readwrite", (store) => store.put(record));
-}
-
-async function getInspection(id) {
-  return withStore("readonly", (store) => store.get(id));
-}
-
-async function getAllInspections() {
-  return withStore("readonly", (store) => store.getAll());
-}
-
-async function deleteInspection(id) {
-  return withStore("readwrite", (store) => store.delete(id));
 }
 
 function registerServiceWorker() {
@@ -2111,25 +1347,40 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function escapeCsvValue(value) {
+function escapeCsvValue(value, delimiter = ",") {
   const text = String(value || "");
-  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  return text.includes(delimiter) || /["\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) {
+    return `${Math.round(value)} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function downloadTextFile(content, fileName, type) {
   try {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadBlobParts([content], fileName, type);
   } catch (error) {
     window.alert("No se pudo exportar el archivo. Revisa los permisos de descarga del navegador.");
   }
+}
+
+function downloadBlobParts(parts, fileName, type) {
+  const blob = new Blob(parts, { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function downloadInspectionJson(inspection) {

@@ -139,6 +139,12 @@ const elements = {
   settingsPdfFooter: document.getElementById("settingsPdfFooter"),
   settingsPdfAccentColor: document.getElementById("settingsPdfAccentColor"),
   settingsPdfHeaderColor: document.getElementById("settingsPdfHeaderColor"),
+  cloudSyncStatus: document.getElementById("cloudSyncStatus"),
+  cloudEmail: document.getElementById("cloudEmail"),
+  cloudPassword: document.getElementById("cloudPassword"),
+  cloudSignInButton: document.getElementById("cloudSignInButton"),
+  cloudSignOutButton: document.getElementById("cloudSignOutButton"),
+  syncCompaniesCranesButton: document.getElementById("syncCompaniesCranesButton"),
   closeMaintenancePanelButton: document.getElementById("closeMaintenancePanelButton"),
   refreshMaintenancePanelButton: document.getElementById("refreshMaintenancePanelButton"),
   maintenancePanelSummary: document.getElementById("maintenancePanelSummary"),
@@ -155,8 +161,11 @@ const elements = {
   refreshCompanyCraneRegistryButton: document.getElementById("refreshCompanyCraneRegistryButton"),
   syncCompanyRegistryButton: document.getElementById("syncCompanyRegistryButton"),
   newCompanyCraneButton: document.getElementById("newCompanyCraneButton"),
+  companyRegistrySearch: document.getElementById("companyRegistrySearch"),
+  selectCompanyRegistrySearchButton: document.getElementById("selectCompanyRegistrySearchButton"),
   companyRegistryClient: document.getElementById("companyRegistryClient"),
   companyRegistryClientOptions: document.getElementById("companyRegistryClientOptions"),
+  companyRegistryCards: document.getElementById("companyRegistryCards"),
   companyMaintenanceFrequency: document.getElementById("companyMaintenanceFrequency"),
   companyRegistrySummary: document.getElementById("companyRegistrySummary"),
   companyCraneList: document.getElementById("companyCraneList"),
@@ -275,6 +284,7 @@ async function initializeApp() {
   resetEquipmentEditorState();
   renderEquipmentList();
   await renderSavedReports();
+  await initializeCloudSync();
   showView("inspection");
   updateConnectivityStatus();
   registerServiceWorker();
@@ -342,6 +352,9 @@ function setupAppActions() {
   elements.saveSettingsButton.addEventListener("click", saveSettingsFromForm);
   elements.resetSettingsButton.addEventListener("click", resetSettingsToDefaults);
   elements.addSettingsPolipastoButton.addEventListener("click", addPolipastoToSettingsList);
+  elements.cloudSignInButton.addEventListener("click", cloudSignInFromForm);
+  elements.cloudSignOutButton.addEventListener("click", cloudSignOutFromForm);
+  elements.syncCompaniesCranesButton.addEventListener("click", syncCompaniesAndCranesToCloud);
   elements.closeMaintenancePanelButton.addEventListener("click", () => showView("inspection"));
   elements.refreshMaintenancePanelButton.addEventListener("click", renderMaintenancePanel);
   elements.closeCompanyCraneRegistryButton.addEventListener("click", () => showView("inspection"));
@@ -378,7 +391,9 @@ function setupAppActions() {
   elements.clearRegistryCraneImageButton.addEventListener("click", clearRegistryCraneImage);
   setupImageDropZone(elements.registryCraneImagePreview, addRegistryCraneImageFile, { single: true });
   elements.registryLastMaintenance.addEventListener("change", updateRegistryNextMaintenanceFromLast);
-  elements.companyRegistryClient.addEventListener("input", () => {
+  elements.companyRegistrySearch.addEventListener("input", renderCompanyRegistryClientCards);
+  elements.selectCompanyRegistrySearchButton.addEventListener("click", () => selectCompanyRegistryClient(elements.companyRegistrySearch.value));
+  elements.companyRegistryClient.addEventListener("change", () => {
     closeCompanyCraneForm();
     loadCompanyMaintenanceFrequency();
     renderCompanyCraneRegistry();
@@ -399,6 +414,8 @@ function setupAppActions() {
 
   window.addEventListener("online", updateConnectivityStatus);
   window.addEventListener("offline", updateConnectivityStatus);
+  window.addEventListener("online", renderCloudStatus);
+  window.addEventListener("offline", renderCloudStatus);
   document.addEventListener("click", (event) => {
     if (
       !elements.toolsMenuButton.contains(event.target)

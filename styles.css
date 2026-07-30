@@ -221,6 +221,42 @@ textarea {
   font-weight: 800;
 }
 
+.cloud-settings-panel h3 {
+  margin: 0 0 10px;
+}
+
+.cloud-sync-status {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.cloud-sync-status.is-connected {
+  border-left-color: #1f9d55;
+  background: #eefaf3;
+}
+
+.cloud-sync-status.is-offline {
+  border-left-color: #b7791f;
+  background: #fff8e8;
+}
+
+.cloud-toolbar {
+  justify-content: flex-start;
+  margin-top: 4px;
+}
+
+.cloud-helper {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+}
+
 .page-hero {
   display: flex;
   justify-content: space-between;
@@ -831,6 +867,75 @@ textarea[readonly] {
 
 .consolidated-filters {
   margin-bottom: 16px;
+}
+
+.company-selector-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.2fr) minmax(220px, 0.55fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.company-selector-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.company-selector-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.company-selector-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.company-selector-card {
+  display: grid;
+  gap: 5px;
+  min-height: 112px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--brand-soft);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.company-selector-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(240, 124, 34, 0.5);
+  box-shadow: 0 10px 22px rgba(8, 47, 73, 0.1);
+}
+
+.company-selector-card.is-selected {
+  border-color: var(--accent);
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.company-selector-card strong,
+.company-selector-card span,
+.company-selector-card small {
+  display: block;
+}
+
+.company-selector-card strong {
+  font-size: 0.95rem;
+}
+
+.company-selector-card span,
+.company-selector-card small {
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 .company-crane-list {
@@ -1722,6 +1827,10 @@ textarea[readonly] {
 }
 
 @media (max-width: 1080px) {
+  .company-selector-layout {
+    grid-template-columns: 1fr;
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
   }
