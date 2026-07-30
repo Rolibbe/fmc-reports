@@ -2,6 +2,7 @@
 // Sincronizacion controlada con Supabase para datos maestros.
 
 const CLOUD_SESSION_KEY = "crane-cloud-session-v1";
+const CLOUD_OFFLINE_MODE_KEY = "crane-cloud-offline-mode-v1";
 
 function getSupabaseConfig() {
   const config = window.SUPABASE_CONFIG || {};
@@ -39,6 +40,7 @@ function hasValidCloudConfig() {
 
 async function initializeCloudSync() {
   renderCloudStatus();
+  renderAuthGate();
 }
 
 function renderCloudStatus(message) {
@@ -48,26 +50,79 @@ function renderCloudStatus(message) {
 
   const session = getCloudSession();
   const connected = Boolean(session?.access_token);
+  const offlineMode = isOfflineModeEnabled();
   elements.cloudSyncStatus.classList.toggle("is-connected", connected);
   elements.cloudSyncStatus.classList.toggle("is-offline", !navigator.onLine);
 
-  if (message) {
-    elements.cloudSyncStatus.textContent = message;
-  } else if (!hasValidCloudConfig()) {
-    elements.cloudSyncStatus.textContent = "Falta configurar Supabase.";
-  } else if (!navigator.onLine) {
-    elements.cloudSyncStatus.textContent = connected
-      ? `Sin conexion. Sesion guardada: ${getCloudUserEmail()}`
-      : "Sin conexion. Puedes seguir usando la app localmente.";
-  } else if (connected) {
-    elements.cloudSyncStatus.textContent = `Conectado como ${getCloudUserEmail()}.`;
-  } else {
-    elements.cloudSyncStatus.textContent = "Sin sesion en la nube. Inicia sesion para sincronizar.";
+  const statusText = getCloudStatusText(message, connected, offlineMode);
+  elements.cloudSyncStatus.textContent = statusText;
+  if (elements.navCloudStatus) {
+    elements.navCloudStatus.textContent = connected
+      ? `☁ ${getCloudUserEmail()}`
+      : offlineMode
+        ? "☁ Modo offline"
+        : "☁ Nube sin sesion";
+    elements.navCloudStatus.classList.toggle("is-connected", connected);
+  }
+
+  if (elements.loginStatus) {
+    elements.loginStatus.textContent = connected
+      ? `Sesion activa: ${getCloudUserEmail()}`
+      : offlineMode
+        ? "Entraste en modo offline. Inicia sesion despues para sincronizar."
+        : getLoginStatusText();
   }
 
   elements.cloudSignInButton.disabled = connected || !hasValidCloudConfig();
   elements.cloudSignOutButton.disabled = !connected;
   elements.syncCompaniesCranesButton.disabled = !connected || !navigator.onLine;
+  if (elements.navSyncCloudButton) {
+    elements.navSyncCloudButton.disabled = !connected || !navigator.onLine;
+    elements.navSyncCloudButton.classList.toggle("is-disabled", !connected || !navigator.onLine);
+  }
+}
+
+function getCloudStatusText(message, connected, offlineMode) {
+  if (message) {
+    return message;
+  }
+  if (!hasValidCloudConfig()) {
+    return "Falta configurar Supabase.";
+  }
+  if (!navigator.onLine) {
+    return connected
+      ? `Sin conexion. Sesion guardada: ${getCloudUserEmail()}`
+      : "Sin conexion. Puedes seguir usando la app localmente.";
+  }
+  if (connected) {
+    return `Conectado como ${getCloudUserEmail()}.`;
+  }
+  if (offlineMode) {
+    return "Modo offline activo. Inicia sesion para sincronizar.";
+  }
+  return "Sin sesion en la nube. Inicia sesion para sincronizar.";
+}
+
+function getLoginStatusText() {
+  if (!hasValidCloudConfig()) {
+    return "Falta configurar Supabase.";
+  }
+  if (!navigator.onLine) {
+    return "Sin internet. Puedes entrar en modo offline para trabajar localmente.";
+  }
+  return "Conecta con tu cuenta de Supabase para iniciar.";
+}
+
+function renderAuthGate() {
+  const connected = Boolean(getCloudSession()?.access_token);
+  const canEnter = connected || isOfflineModeEnabled();
+  document.body.classList.toggle("auth-locked", !canEnter);
+  elements.loginGate.classList.toggle("hidden", canEnter);
+  elements.appShell.setAttribute("aria-hidden", String(!canEnter));
+}
+
+function isOfflineModeEnabled() {
+  return sessionStorage.getItem(CLOUD_OFFLINE_MODE_KEY) === "true";
 }
 
 async function cloudSignInFromForm() {
@@ -87,7 +142,9 @@ async function cloudSignInFromForm() {
     renderCloudStatus("Conectando con Supabase...");
     await cloudSignIn(email, password);
     elements.cloudPassword.value = "";
+    sessionStorage.removeItem(CLOUD_OFFLINE_MODE_KEY);
     renderCloudStatus();
+    renderAuthGate();
     await showAppDialog({
       title: "Nube conectada",
       message: "La app ya puede sincronizar empresas, gruas, hallazgos activos y reportes con Supabase.",
@@ -133,7 +190,39 @@ async function cloudSignIn(email, password) {
 
 async function cloudSignOutFromForm() {
   clearCloudSession();
+  sessionStorage.removeItem(CLOUD_OFFLINE_MODE_KEY);
   renderCloudStatus();
+  renderAuthGate();
+}
+
+async function cloudSignInFromLogin() {
+  const email = String(elements.loginEmail?.value || "").trim();
+  const password = String(elements.loginPassword?.value || "");
+
+  if (!email || !password) {
+    elements.loginStatus.textContent = "Escribe correo y contrasena para ingresar.";
+    return;
+  }
+
+  try {
+    elements.loginButton.disabled = true;
+    elements.loginStatus.textContent = "Conectando con Supabase...";
+    await cloudSignIn(email, password);
+    elements.loginPassword.value = "";
+    sessionStorage.removeItem(CLOUD_OFFLINE_MODE_KEY);
+    renderCloudStatus();
+    renderAuthGate();
+  } catch (error) {
+    elements.loginStatus.textContent = getReadableCloudError(error) || "No se pudo iniciar sesion.";
+  } finally {
+    elements.loginButton.disabled = false;
+  }
+}
+
+function enterOfflineMode() {
+  sessionStorage.setItem(CLOUD_OFFLINE_MODE_KEY, "true");
+  renderCloudStatus();
+  renderAuthGate();
 }
 
 async function ensureCloudSession() {
@@ -214,7 +303,7 @@ async function syncCompaniesAndCranesToCloud() {
     const localFindingRows = await buildLocalActiveFindingRows();
     const localReportRows = await buildLocalReportRows();
 
-    renderCloudStatus(`Subiendo ${localRows.companies.length} empresa(s), ${localRows.cranes.length} grua(s) y ${localReportRows.length} reporte(s)...`);
+    renderCloudStatus(`Subiendo ${localRows.companies.length} empresa(s), ${localRows.cranes.length} grua(s) y ${localReportRows.length} reporte(s) optimizado(s)...`);
     await upsertCloudRows("companies", localRows.companies);
     await upsertCloudRows("cranes", localRows.cranes);
     await upsertCloudRows("active_crane_findings", localFindingRows);
@@ -312,11 +401,14 @@ async function buildLocalReportRows() {
 }
 
 function prepareInspectionForCloud(inspection) {
-  const payload = normalizeInspection(inspection);
+  const payload = typeof createPortableBackupInspection === "function"
+    ? createPortableBackupInspection(normalizeInspection(inspection), { includePhotos: false })
+    : stripHeavyInspectionPhotos(normalizeInspection(inspection));
   return {
     ...payload,
     updatedAt: payload.updatedAt || new Date().toISOString(),
-    cloudSyncVersion: 1
+    cloudSyncVersion: 1,
+    omitsPhotoData: true
   };
 }
 
@@ -347,7 +439,7 @@ function prepareCraneForCloud(crane) {
   }
   payload.updatedAt = payload.updatedAt || new Date().toISOString();
   if (payload.image && typeof normalizePhotoEntry === "function") {
-    payload.image = normalizePhotoEntry(payload.image);
+    payload.image = createLightweightCloudPhoto(normalizePhotoEntry(payload.image), "grua.jpg");
   }
   return payload;
 }
@@ -357,13 +449,18 @@ async function upsertCloudRows(table, rows) {
     return [];
   }
 
-  return cloudFetch(`/rest/v1/${table}?on_conflict=id`, {
-    method: "POST",
-    headers: {
-      Prefer: "resolution=merge-duplicates,return=representation"
-    },
-    body: JSON.stringify(rows)
-  });
+  const results = [];
+  for (const chunk of chunkRows(rows, getCloudBatchSize(table))) {
+    const responseRows = await cloudFetch(`/rest/v1/${table}?on_conflict=id`, {
+      method: "POST",
+      headers: {
+        Prefer: "resolution=merge-duplicates,return=representation"
+      },
+      body: JSON.stringify(chunk)
+    });
+    results.push(...(Array.isArray(responseRows) ? responseRows : []));
+  }
+  return results;
 }
 
 async function fetchCloudRows(table) {
@@ -454,6 +551,68 @@ function mergeCloudActiveFindingRows(rows) {
   writeActiveCraneFindings(findings);
 }
 
+function stripHeavyInspectionPhotos(inspection) {
+  return {
+    ...inspection,
+    equipments: (inspection.equipments || []).map((equipment) => ({
+      ...equipment,
+      servicePhotoCount: (equipment.servicePhotos || []).length,
+      servicePhotos: [],
+      checklistImage: createLightweightCloudChecklist(equipment.checklistImage),
+      findings: (equipment.findings || []).map((finding) => ({
+        ...finding,
+        photoCount: (finding.photos || []).length,
+        photos: []
+      }))
+    }))
+  };
+}
+
+function createLightweightCloudChecklist(checklistImage) {
+  const image = typeof normalizeChecklistImage === "function"
+    ? normalizeChecklistImage(checklistImage)
+    : checklistImage;
+  if (!image) {
+    return null;
+  }
+  return {
+    name: image.name || "checklist.jpg",
+    omittedFromCloudSync: true,
+    storedSize: image.storedSize || 0
+  };
+}
+
+function createLightweightCloudPhoto(photo, fallbackName = "foto.jpg") {
+  if (!photo) {
+    return null;
+  }
+  return {
+    name: photo.name || fallbackName,
+    thumbUrl: photo.thumbUrl || "",
+    storedSize: photo.storedSize || 0,
+    createdAt: photo.createdAt || "",
+    omittedFromCloudSync: true
+  };
+}
+
+function chunkRows(rows, size) {
+  const chunks = [];
+  for (let index = 0; index < rows.length; index += size) {
+    chunks.push(rows.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function getCloudBatchSize(table) {
+  if (table === "reports") {
+    return 5;
+  }
+  if (table === "cranes") {
+    return 20;
+  }
+  return 50;
+}
+
 async function mergeCloudCompaniesIntoSettings(companies) {
   const cloudClients = normalizeClientNames((companies || []).map((company) => company.name || company.payload?.name));
   if (!cloudClients.length) {
@@ -516,6 +675,9 @@ function createCloudSlug(value) {
 
 function getReadableCloudError(error) {
   const raw = String(error?.message || error || "");
+  if (/invalid string length/i.test(raw)) {
+    return "Hay demasiada informacion/fotos pesadas para subir en un solo paquete. Ya se optimizo la sincronizacion; recarga la app y vuelve a intentar.";
+  }
   try {
     const parsed = JSON.parse(raw);
     return parsed.msg || parsed.message || raw;

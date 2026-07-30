@@ -76,6 +76,13 @@ const REPORT_IMAGE_QUALITY = 0.62;
 const REPORT_THUMBNAIL_QUALITY = 0.54;
 
 const elements = {
+  appShell: document.getElementById("appShell"),
+  loginGate: document.getElementById("loginGate"),
+  loginEmail: document.getElementById("loginEmail"),
+  loginPassword: document.getElementById("loginPassword"),
+  loginButton: document.getElementById("loginButton"),
+  loginOfflineButton: document.getElementById("loginOfflineButton"),
+  loginStatus: document.getElementById("loginStatus"),
   sidebar: document.getElementById("sidebar"),
   sidebarBackdrop: document.getElementById("sidebarBackdrop"),
   openSidebarButton: document.getElementById("openSidebarButton"),
@@ -111,6 +118,7 @@ const elements = {
   exportFullBackupButton: document.getElementById("exportFullBackupButton"),
   exportFullBackupWithPhotosButton: document.getElementById("exportFullBackupWithPhotosButton"),
   purgeStoredPhotosButton: document.getElementById("purgeStoredPhotosButton"),
+  navSyncCloudButton: document.getElementById("navSyncCloudButton"),
   generatePdfButton: document.getElementById("generatePdfButton"),
   newInspectionButton: document.getElementById("newInspectionButton"),
   savedReports: document.getElementById("savedReports"),
@@ -210,6 +218,7 @@ const elements = {
   appDialogDetails: document.getElementById("appDialogDetails"),
   appDialogActions: document.getElementById("appDialogActions"),
   connectionStatus: document.getElementById("connectionStatus"),
+  navCloudStatus: document.getElementById("navCloudStatus"),
   installButton: document.getElementById("installButton"),
   equipmentEditorTitle: document.getElementById("equipmentEditorTitle"),
   equipmentEditorForm: document.getElementById("equipmentEditorForm"),
@@ -291,6 +300,14 @@ async function initializeApp() {
 }
 
 function setupAppActions() {
+  elements.loginButton.addEventListener("click", cloudSignInFromLogin);
+  elements.loginOfflineButton.addEventListener("click", enterOfflineMode);
+  elements.loginPassword.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      cloudSignInFromLogin();
+    }
+  });
   elements.openSidebarButton.addEventListener("click", openSidebar);
   elements.closeSidebarButton.addEventListener("click", closeSidebar);
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
@@ -338,6 +355,7 @@ function setupAppActions() {
   elements.exportFullBackupButton.addEventListener("click", () => exportFullBackup({ includePhotos: false }));
   elements.exportFullBackupWithPhotosButton.addEventListener("click", () => exportFullBackup({ includePhotos: true }));
   elements.purgeStoredPhotosButton.addEventListener("click", purgeStoredHeavyPhotos);
+  elements.navSyncCloudButton.addEventListener("click", syncCompaniesAndCranesToCloud);
   elements.generatePdfButton.addEventListener("click", generatePdfReport);
   elements.newInspectionButton.addEventListener("click", () => {
     resetForm();

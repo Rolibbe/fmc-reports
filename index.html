@@ -6,10 +6,41 @@
   <meta name="theme-color" content="#0f4c5c">
   <title>Inspecciones de Gruas</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css?v=85">
+  <link rel="stylesheet" href="styles.css?v=87">
 </head>
-<body>
-  <div class="app-shell">
+<body class="auth-locked">
+  <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
+    <div class="login-card">
+      <div class="login-brand">
+        <span class="login-logo">FMC</span>
+        <div>
+          <p class="eyebrow">Sistema de reportes</p>
+          <h1>Inspecciones de gruas</h1>
+        </div>
+      </div>
+      <div class="login-hero-icons" aria-hidden="true">
+        <span>🏗️</span>
+        <span>🔧</span>
+        <span>☁️</span>
+      </div>
+      <p class="login-copy">Ingresa para sincronizar empresas, gruas y reportes entre dispositivos.</p>
+      <div class="login-form">
+        <label>
+          Correo
+          <input id="loginEmail" type="email" autocomplete="email" placeholder="usuario@empresa.com">
+        </label>
+        <label>
+          Contrasena
+          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Contrasena">
+        </label>
+        <button id="loginButton" class="primary-button login-submit" type="button">Ingresar</button>
+        <button id="loginOfflineButton" class="ghost-button login-offline" type="button">Entrar en modo offline</button>
+      </div>
+      <p id="loginStatus" class="login-status">Conecta con tu cuenta de Supabase para iniciar.</p>
+    </div>
+  </section>
+
+  <div id="appShell" class="app-shell">
     <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
     <aside id="sidebar" class="sidebar sidebar-collapsed">
       <div class="sidebar-topbar">
@@ -63,6 +94,7 @@
 
       <div class="nav-group nav-data-group">
         <p class="nav-label">Datos</p>
+        <button id="navSyncCloudButton" class="nav-link nav-sync-button" type="button">☁ Sincronizar todo</button>
         <button id="toolsMenuButton" class="nav-link nav-link-with-menu" type="button" aria-label="Abrir opciones de datos" aria-expanded="false" aria-controls="toolsMenuList">
           Importar / Exportar
           <span class="nav-caret">v</span>
@@ -85,6 +117,7 @@
       </div>
 
       <div class="nav-footer">
+        <span id="navCloudStatus" class="nav-status nav-cloud-status">Nube sin sesion</span>
         <span id="connectionStatus" class="nav-status">Verificando conectividad...</span>
         <button id="installButton" class="nav-install" hidden>Instalar app</button>
       </div>
@@ -521,7 +554,7 @@
               <button id="cloudSignOutButton" class="ghost-button" type="button">Cerrar sesion</button>
               <button id="syncCompaniesCranesButton" class="secondary-button" type="button">Sincronizar todo</button>
             </div>
-            <small class="cloud-helper">Este modulo mantiene la app offline y combina el catalogo maestro cuando haya internet.</small>
+            <small class="cloud-helper">Este modulo mantiene la app offline y sincroniza reportes sin fotos pesadas para evitar errores de memoria.</small>
           </section>
 
           <section class="subpanel">
@@ -805,19 +838,19 @@
     </main>
   </div>
 
-  <script src="report-template-config.js?v=85"></script>
-  <script src="finding-catalog-config.js?v=85"></script>
-  <script src="findings.js?v=85"></script>
-  <script src="company-cranes.js?v=85"></script>
-  <script src="equipment.js?v=85"></script>
-  <script src="pdf-actions.js?v=85"></script>
-  <script src="backup.js?v=85"></script>
-  <script src="storage.js?v=85"></script>
-  <script src="settings.js?v=85"></script>
-  <script src="maintenance-panel.js?v=85"></script>
-  <script src="report-generator.js?v=85"></script>
-  <script src="supabase-config.js?v=85"></script>
-  <script src="cloud-sync.js?v=85"></script>
-  <script src="app.js?v=85"></script>
+  <script src="report-template-config.js?v=87"></script>
+  <script src="finding-catalog-config.js?v=87"></script>
+  <script src="findings.js?v=87"></script>
+  <script src="company-cranes.js?v=87"></script>
+  <script src="equipment.js?v=87"></script>
+  <script src="pdf-actions.js?v=87"></script>
+  <script src="backup.js?v=87"></script>
+  <script src="storage.js?v=87"></script>
+  <script src="settings.js?v=87"></script>
+  <script src="maintenance-panel.js?v=87"></script>
+  <script src="report-generator.js?v=87"></script>
+  <script src="supabase-config.js?v=87"></script>
+  <script src="cloud-sync.js?v=87"></script>
+  <script src="app.js?v=87"></script>
 </body>
 </html>
