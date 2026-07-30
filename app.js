@@ -83,6 +83,21 @@ const elements = {
   loginButton: document.getElementById("loginButton"),
   loginOfflineButton: document.getElementById("loginOfflineButton"),
   loginStatus: document.getElementById("loginStatus"),
+  mobileCloudStatus: document.getElementById("mobileCloudStatus"),
+  mobileSyncButton: document.getElementById("mobileSyncButton"),
+  mobileMorePanel: document.getElementById("mobileMorePanel"),
+  mobileCloseMoreButton: document.getElementById("mobileCloseMoreButton"),
+  mobileNewButton: document.getElementById("mobileNewButton"),
+  mobileHistoryButton: document.getElementById("mobileHistoryButton"),
+  mobileCompaniesButton: document.getElementById("mobileCompaniesButton"),
+  mobilePdfButton: document.getElementById("mobilePdfButton"),
+  mobileMoreButton: document.getElementById("mobileMoreButton"),
+  mobileSaveButton: document.getElementById("mobileSaveButton"),
+  mobileMaintenanceButton: document.getElementById("mobileMaintenanceButton"),
+  mobileConsolidatedButton: document.getElementById("mobileConsolidatedButton"),
+  mobileSettingsButton: document.getElementById("mobileSettingsButton"),
+  mobileBackupButton: document.getElementById("mobileBackupButton"),
+  mobileOfflineButton: document.getElementById("mobileOfflineButton"),
   sidebar: document.getElementById("sidebar"),
   sidebarBackdrop: document.getElementById("sidebarBackdrop"),
   openSidebarButton: document.getElementById("openSidebarButton"),
@@ -308,6 +323,7 @@ function setupAppActions() {
       cloudSignInFromLogin();
     }
   });
+  setupMobileNavigation();
   elements.openSidebarButton.addEventListener("click", openSidebar);
   elements.closeSidebarButton.addEventListener("click", closeSidebar);
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
@@ -543,7 +559,68 @@ function closeToolsMenu() {
   elements.toolsMenuButton.setAttribute("aria-expanded", "false");
 }
 
+function setupMobileNavigation() {
+  elements.mobileNewButton.addEventListener("click", () => {
+    resetForm();
+    showView("inspection");
+  });
+  elements.mobileHistoryButton.addEventListener("click", () => {
+    closeMobileMorePanel();
+    openSidebar();
+  });
+  elements.mobileCompaniesButton.addEventListener("click", () => {
+    closeMobileMorePanel();
+    openCompanyCraneRegistry();
+  });
+  elements.mobilePdfButton.addEventListener("click", () => {
+    closeMobileMorePanel();
+    generatePdfReport();
+  });
+  elements.mobileMoreButton.addEventListener("click", toggleMobileMorePanel);
+  elements.mobileCloseMoreButton.addEventListener("click", closeMobileMorePanel);
+  elements.mobileSyncButton.addEventListener("click", syncCompaniesAndCranesToCloud);
+  elements.mobileSaveButton.addEventListener("click", async () => {
+    closeMobileMorePanel();
+    await persistInspection();
+  });
+  elements.mobileMaintenanceButton.addEventListener("click", () => {
+    closeMobileMorePanel();
+    openMaintenancePanel();
+  });
+  elements.mobileConsolidatedButton.addEventListener("click", () => {
+    closeMobileMorePanel();
+    openConsolidatedHistory();
+  });
+  elements.mobileSettingsButton.addEventListener("click", () => {
+    closeMobileMorePanel();
+    openSettingsPanel();
+  });
+  elements.mobileBackupButton.addEventListener("click", (event) => {
+    closeMobileMorePanel();
+    elements.importFullBackupInput.click();
+  });
+  elements.mobileOfflineButton.addEventListener("click", () => {
+    closeMobileMorePanel();
+    enterOfflineMode();
+  });
+  elements.mobileMorePanel.addEventListener("click", (event) => {
+    if (event.target === elements.mobileMorePanel) {
+      closeMobileMorePanel();
+    }
+  });
+}
+
+function toggleMobileMorePanel() {
+  const isOpen = !elements.mobileMorePanel.classList.contains("hidden");
+  elements.mobileMorePanel.classList.toggle("hidden", isOpen);
+}
+
+function closeMobileMorePanel() {
+  elements.mobileMorePanel.classList.add("hidden");
+}
+
 function showView(view) {
+  closeMobileMorePanel();
   elements.inspectionView.classList.toggle("hidden", view !== "inspection");
   elements.equipmentEditorView.classList.toggle("hidden", view !== "equipment");
   elements.findingEditorView.classList.toggle("hidden", view !== "finding");

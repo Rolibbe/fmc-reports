@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f4c5c">
   <title>Inspecciones de Gruas</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css?v=87">
+  <link rel="stylesheet" href="styles.css?v=88">
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -122,6 +122,37 @@
         <button id="installButton" class="nav-install" hidden>Instalar app</button>
       </div>
     </nav>
+
+    <header class="mobile-topbar" aria-label="Encabezado movil">
+      <div class="mobile-brand">
+        <span>FMC</span>
+        <div>
+          <strong>Reportes</strong>
+          <small id="mobileCloudStatus">Nube sin sesion</small>
+        </div>
+      </div>
+      <button id="mobileSyncButton" class="mobile-icon-button" type="button" aria-label="Sincronizar">☁</button>
+    </header>
+
+    <section id="mobileMorePanel" class="mobile-more-panel hidden" aria-label="Mas opciones">
+      <div class="mobile-more-card">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Menu</p>
+            <h3>Opciones rapidas</h3>
+          </div>
+          <button id="mobileCloseMoreButton" class="ghost-button" type="button">Cerrar</button>
+        </div>
+        <div class="mobile-more-grid">
+          <button id="mobileSaveButton" type="button">Guardar</button>
+          <button id="mobileMaintenanceButton" type="button">Mantenimiento</button>
+          <button id="mobileConsolidatedButton" type="button">Concentrado</button>
+          <button id="mobileSettingsButton" type="button">Configuracion</button>
+          <button id="mobileBackupButton" type="button">Importar respaldo</button>
+          <button id="mobileOfflineButton" type="button">Modo offline</button>
+        </div>
+      </div>
+    </section>
 
     <main class="main-content">
       <section class="panel app-view" id="inspectionView">
@@ -838,19 +869,27 @@
     </main>
   </div>
 
-  <script src="report-template-config.js?v=87"></script>
-  <script src="finding-catalog-config.js?v=87"></script>
-  <script src="findings.js?v=87"></script>
-  <script src="company-cranes.js?v=87"></script>
-  <script src="equipment.js?v=87"></script>
-  <script src="pdf-actions.js?v=87"></script>
-  <script src="backup.js?v=87"></script>
-  <script src="storage.js?v=87"></script>
-  <script src="settings.js?v=87"></script>
-  <script src="maintenance-panel.js?v=87"></script>
-  <script src="report-generator.js?v=87"></script>
-  <script src="supabase-config.js?v=87"></script>
-  <script src="cloud-sync.js?v=87"></script>
-  <script src="app.js?v=87"></script>
+  <nav class="mobile-bottom-nav" aria-label="Navegacion movil">
+    <button id="mobileNewButton" type="button"><span>＋</span>Nuevo</button>
+    <button id="mobileHistoryButton" type="button"><span>▤</span>Historial</button>
+    <button id="mobileCompaniesButton" type="button"><span>▦</span>Empresas</button>
+    <button id="mobilePdfButton" type="button"><span>▣</span>PDF</button>
+    <button id="mobileMoreButton" type="button"><span>☰</span>Mas</button>
+  </nav>
+
+  <script src="report-template-config.js?v=88"></script>
+  <script src="finding-catalog-config.js?v=88"></script>
+  <script src="findings.js?v=88"></script>
+  <script src="company-cranes.js?v=88"></script>
+  <script src="equipment.js?v=88"></script>
+  <script src="pdf-actions.js?v=88"></script>
+  <script src="backup.js?v=88"></script>
+  <script src="storage.js?v=88"></script>
+  <script src="settings.js?v=88"></script>
+  <script src="maintenance-panel.js?v=88"></script>
+  <script src="report-generator.js?v=88"></script>
+  <script src="supabase-config.js?v=88"></script>
+  <script src="cloud-sync.js?v=88"></script>
+  <script src="app.js?v=88"></script>
 </body>
 </html>

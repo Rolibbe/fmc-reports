@@ -64,6 +64,13 @@ function renderCloudStatus(message) {
         : "☁ Nube sin sesion";
     elements.navCloudStatus.classList.toggle("is-connected", connected);
   }
+  if (elements.mobileCloudStatus) {
+    elements.mobileCloudStatus.textContent = connected
+      ? getCloudUserEmail()
+      : offlineMode
+        ? "Modo offline"
+        : "Sin sesion";
+  }
 
   if (elements.loginStatus) {
     elements.loginStatus.textContent = connected
@@ -79,6 +86,10 @@ function renderCloudStatus(message) {
   if (elements.navSyncCloudButton) {
     elements.navSyncCloudButton.disabled = !connected || !navigator.onLine;
     elements.navSyncCloudButton.classList.toggle("is-disabled", !connected || !navigator.onLine);
+  }
+  if (elements.mobileSyncButton) {
+    elements.mobileSyncButton.disabled = !connected || !navigator.onLine;
+    elements.mobileSyncButton.classList.toggle("is-disabled", !connected || !navigator.onLine);
   }
 }
 
