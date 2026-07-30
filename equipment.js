@@ -46,6 +46,7 @@ function loadEquipmentIntoEditor(equipment) {
   elements.serialNumber.value = equipment.serialNumber;
   elements.checklistFolio.value = equipment.checklistFolio;
   elements.equipmentLocation.value = equipment.equipmentLocation;
+  elements.hoistName.value = equipment.hoistName;
   elements.hoistType.value = equipment.hoistType;
   elements.hoistCapacity.value = equipment.hoistCapacity;
   elements.hoistManufacturer.value = equipment.hoistManufacturer;
@@ -57,7 +58,7 @@ function loadEquipmentIntoEditor(equipment) {
   elements.nextInspection.value = equipment.nextInspection;
   updateNextInspectionFromMaintenanceDate();
   applyServiceTasksFromSummary(equipment.serviceSummary);
-  elements.recommendations.value = equipment.recommendations || FIXED_RECOMMENDATION_TEXT;
+  elements.recommendations.value = equipment.recommendations || getFixedRecommendationText();
   currentEquipmentFindings = equipment.findings.slice();
   currentEquipmentServicePhotos = equipment.servicePhotos.slice();
   currentChecklistImage = equipment.checklistImage ? { ...equipment.checklistImage } : null;
@@ -113,7 +114,7 @@ function isManagedServiceTaskLine(line) {
 
 function applyDefaultRecommendation() {
   if (!elements.recommendations.value.trim()) {
-    elements.recommendations.value = FIXED_RECOMMENDATION_TEXT;
+    elements.recommendations.value = getFixedRecommendationText();
   }
 }
 
@@ -125,7 +126,7 @@ function resetEquipmentEditorState() {
   currentEquipmentServicePhotos = [];
   currentChecklistImage = null;
   const nextDate = new Date();
-  nextDate.setMonth(nextDate.getMonth() + 6);
+  nextDate.setMonth(nextDate.getMonth() + getDefaultMaintenanceFrequencyMonths());
   elements.overallCondition.value = "Bueno";
   elements.maintenanceDate.value = elements.inspectionDate.value || new Date().toISOString().slice(0, 10);
   updateNextInspectionFromMaintenanceDate();
@@ -197,7 +198,7 @@ async function addFindingPhotoFiles(files) {
     return;
   }
 
-  const encoded = await Promise.all(imageFiles.map((file) => imageFileToOptimizedPhoto(file)));
+  const encoded = await Promise.all(imageFiles.map((file) => imageFileToOptimizedPhoto(file, getPhotoConfig().maxSize)));
   editingPhotos = editingPhotos.concat(encoded);
   renderEditingPhotos();
 }
@@ -208,7 +209,7 @@ async function addServicePhotoFiles(files) {
     return;
   }
 
-  const encoded = await Promise.all(imageFiles.map((file) => imageFileToOptimizedPhoto(file)));
+  const encoded = await Promise.all(imageFiles.map((file) => imageFileToOptimizedPhoto(file, getPhotoConfig().maxSize)));
   currentEquipmentServicePhotos = currentEquipmentServicePhotos.concat(encoded);
   renderServicePhotos();
 }
@@ -221,7 +222,7 @@ async function addChecklistImageFile(files) {
 
   currentChecklistImage = {
     name: file.name,
-    ...(await imageFileToOptimizedPhoto(file, REPORT_CHECKLIST_MAX_SIZE))
+    ...(await imageFileToOptimizedPhoto(file, getPhotoConfig().checklistMaxSize))
   };
   renderChecklistImageStatus();
 }
@@ -410,6 +411,7 @@ function saveEquipmentFromEditor() {
     serialNumber: elements.serialNumber.value.trim(),
     checklistFolio: elements.checklistFolio.value.trim(),
     equipmentLocation: elements.equipmentLocation.value.trim(),
+    hoistName: elements.hoistName.value.trim(),
     hoistType: elements.hoistType.value.trim(),
     hoistCapacity: elements.hoistCapacity.value.trim(),
     hoistManufacturer: elements.hoistManufacturer.value.trim(),
@@ -421,7 +423,7 @@ function saveEquipmentFromEditor() {
     maintenanceDate: elements.maintenanceDate.value,
     nextInspection: elements.nextInspection.value,
     serviceSummary: elements.serviceSummary.value.trim(),
-    recommendations: elements.recommendations.value.trim() || FIXED_RECOMMENDATION_TEXT,
+    recommendations: elements.recommendations.value.trim() || getFixedRecommendationText(),
     servicePhotos: currentEquipmentServicePhotos.map(normalizePhotoEntry),
     checklistImage: currentChecklistImage ? normalizeChecklistImage(currentChecklistImage) : null,
     updatedAt: new Date().toISOString()
@@ -667,6 +669,7 @@ function createLegacyEquipment(record) {
     serialNumber: record.serialNumber || "",
     checklistFolio: record.checklistFolio || "",
     equipmentLocation: "",
+    hoistName: "",
     hoistType: "",
     hoistCapacity: "",
     hoistManufacturer: "",
@@ -678,7 +681,7 @@ function createLegacyEquipment(record) {
     maintenanceDate: record.maintenanceDate || record.inspectionDate || "",
     nextInspection: record.nextInspection || "",
     serviceSummary: "",
-    recommendations: record.recommendations || FIXED_RECOMMENDATION_TEXT,
+    recommendations: record.recommendations || getFixedRecommendationText(),
     servicePhotos: [],
     checklistImage: null
   };
@@ -686,7 +689,7 @@ function createLegacyEquipment(record) {
 
 function createEmptyEquipment() {
   const nextDate = new Date();
-  nextDate.setMonth(nextDate.getMonth() + 6);
+  nextDate.setMonth(nextDate.getMonth() + getDefaultMaintenanceFrequencyMonths());
   return normalizeEquipment({
     id: "",
     craneId: "",
@@ -696,6 +699,7 @@ function createEmptyEquipment() {
     serialNumber: "",
     checklistFolio: "",
     equipmentLocation: "",
+    hoistName: "",
     hoistType: "",
     hoistCapacity: "",
     hoistManufacturer: "",
@@ -707,7 +711,7 @@ function createEmptyEquipment() {
     maintenanceDate: elements.inspectionDate ? elements.inspectionDate.value : new Date().toISOString().slice(0, 10),
     nextInspection: nextDate.toISOString().slice(0, 10),
     serviceSummary: "",
-    recommendations: FIXED_RECOMMENDATION_TEXT,
+    recommendations: getFixedRecommendationText(),
     servicePhotos: [],
     checklistImage: null
   });
@@ -730,6 +734,7 @@ function normalizeEquipment(equipment) {
     serialNumber: source.serialNumber || "",
     checklistFolio: source.checklistFolio || "",
     equipmentLocation: source.equipmentLocation || "",
+    hoistName: source.hoistName || source.hoist || "",
     hoistType: source.hoistType || "",
     hoistCapacity: source.hoistCapacity || "",
     hoistManufacturer: source.hoistManufacturer || source.hoistBrandModel || "",
@@ -747,7 +752,7 @@ function normalizeEquipment(equipment) {
     maintenanceDate: source.maintenanceDate || source.serviceDate || "",
     nextInspection: source.nextInspection || "",
     serviceSummary: source.serviceSummary || "",
-    recommendations: source.recommendations || FIXED_RECOMMENDATION_TEXT,
+    recommendations: source.recommendations || getFixedRecommendationText(),
     servicePhotos: Array.isArray(source.servicePhotos) ? source.servicePhotos.map(normalizePhotoEntry) : [],
     checklistImage: normalizeChecklistImage(source.checklistImage)
   };
@@ -768,8 +773,9 @@ async function imageFileToOptimizedDataUrl(file, maxSize = REPORT_IMAGE_MAX_SIZE
 }
 
 async function imageFileToOptimizedPhoto(file, maxSize = REPORT_IMAGE_MAX_SIZE) {
+  const config = getPhotoConfig();
   const dataUrl = await fileToDataUrl(file);
-  const optimizedDataUrl = await optimizeDataUrlImage(dataUrl, maxSize, REPORT_IMAGE_QUALITY);
+  const optimizedDataUrl = await optimizeDataUrlImage(dataUrl, maxSize, config.quality);
   const thumbUrl = await optimizeDataUrlImage(dataUrl, REPORT_THUMBNAIL_MAX_SIZE, REPORT_THUMBNAIL_QUALITY);
   return {
     name: file.name || "foto.jpg",

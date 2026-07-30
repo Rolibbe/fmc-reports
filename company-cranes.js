@@ -6,6 +6,7 @@ let activeCompanyCraneMaster = {
   craneId: "",
   tab: "data"
 };
+let editingCompanyCraneImage = null;
 
 async function openCompanyCraneRegistry() {
   await populateCompanyRegistryClientOptions();
@@ -71,7 +72,7 @@ function renderCompanyRegistrySummary(client, cranes) {
 
 async function buildCompanyCraneMaintenanceLookup(client, cranes) {
   const records = (await getAllInspections()).map(normalizeInspection);
-  const frequencyMonths = Number(getCompanyMaintenanceFrequency(client)) || DEFAULT_MAINTENANCE_FREQUENCY_MONTHS;
+  const frequencyMonths = Number(getCompanyMaintenanceFrequency(client)) || getDefaultMaintenanceFrequencyMonths();
   const lookup = new Map();
 
   cranes.forEach((crane) => {
@@ -248,6 +249,7 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
       openCompanyCraneFindingsModal(crane.id, "data");
     });
     card.innerHTML = `
+      ${renderCompanyCraneCardImage(crane)}
       <div class="company-crane-main">
         <div>
           <p class="eyebrow">${escapeHtml(crane.craneId || "Sin ID")}</p>
@@ -257,14 +259,9 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
       </div>
       <div class="company-crane-meta">
         <span>Area: ${escapeHtml(crane.area || "No capturada")}</span>
-        <span>Capacidad: ${escapeHtml(crane.structureCapacity || "No capturada")}</span>
-        <span>Polipasto: ${escapeHtml(crane.hoistCapacity || "No capturada")}</span>
-        <span>Voltaje: ${escapeHtml(crane.voltage || "No capturado")}</span>
-        <span>Marca: ${escapeHtml(crane.brand || "No capturada")}</span>
-        <span>Modelo: ${escapeHtml(crane.model || "No capturado")}</span>
+        <span>Polipasto: ${escapeHtml(getCranePolipastoName(crane) || crane.hoistCapacity || "No capturado")}</span>
         <span>Serial: ${escapeHtml(crane.serialNumber || "No capturado")}</span>
       </div>
-      ${crane.notes ? `<p class="company-crane-notes">${escapeHtml(crane.notes)}</p>` : ""}
       ${renderCompanyCraneMaintenanceStatus(maintenance)}
       <p class="company-crane-open-hint">Clic para abrir ficha maestra</p>
       <div class="company-crane-actions">
@@ -282,6 +279,45 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
   elements.companyCraneList.querySelectorAll("[data-delete-company-crane-id]").forEach((button) => {
     button.addEventListener("click", () => deleteCompanyCrane(button.dataset.deleteCompanyCraneId));
   });
+}
+
+function renderCompanyCraneCardImage(crane) {
+  const image = normalizePhotoEntry(crane.image || crane.photo || null) || {};
+  const imageUrl = image.thumbUrl || image.dataUrl || getPolipastoImageUrl(getCranePolipastoName(crane));
+  if (imageUrl) {
+    return `
+      <div class="company-crane-image">
+        <img src="${escapeHtml(imageUrl)}" alt="Imagen de ${escapeHtml(crane.craneId || crane.type || "grua")}" ${getPolipastoImageFallbackAttributes(imageUrl, getCranePolipastoName(crane))}>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="company-crane-image company-crane-image-empty">
+      <span>Imagen</span>
+    </div>
+  `;
+}
+
+function getCranePolipastoName(crane) {
+  return String(crane.hoistName || crane.hoistModel || crane.brand || crane.model || "").trim();
+}
+
+function getPolipastoImageUrl(polipastoName, extension = "png") {
+  const cleanName = String(polipastoName || "").trim();
+  if (!cleanName) {
+    return "";
+  }
+  return `Polipastos/${encodeURIComponent(cleanName)}.${extension}`;
+}
+
+function getPolipastoImageFallbackAttributes(imageUrl, polipastoName) {
+  if (!imageUrl || imageUrl.startsWith("data:") || !polipastoName) {
+    return "";
+  }
+  const jpgUrl = getPolipastoImageUrl(polipastoName, "jpg");
+  const jpegUrl = getPolipastoImageUrl(polipastoName, "jpeg");
+  return `onerror="if(!this.dataset.fallback){this.dataset.fallback='jpg';this.src='${escapeHtml(jpgUrl)}';}else if(this.dataset.fallback==='jpg'){this.dataset.fallback='jpeg';this.src='${escapeHtml(jpegUrl)}';}else{this.closest('.company-crane-image').classList.add('company-crane-image-empty');this.remove();}"`;
 }
 
 function openCompanyCraneFindingsModal(craneId, tab = "data") {
@@ -375,6 +411,7 @@ function renderCompanyCraneDataTab(client, crane) {
         <p class="eyebrow">Datos tecnicos</p>
         <dl class="crane-master-details">
           ${renderCraneMasterDetail("Capacidad estructura", crane.structureCapacity || "No capturada")}
+          ${renderCraneMasterDetail("Nombre polipasto", getCranePolipastoName(crane) || "No capturado")}
           ${renderCraneMasterDetail("Capacidad polipasto", crane.hoistCapacity || "No capturada")}
           ${renderCraneMasterDetail("Voltaje", crane.voltage || "No capturado")}
           ${renderCraneMasterDetail("Marca", crane.brand || "No capturada")}
@@ -640,6 +677,7 @@ function openCompanyCraneForm(craneId) {
   elements.registryCraneArea.value = crane ? crane.area : "";
   elements.registryCraneType.value = crane ? crane.type : "";
   elements.registryStructureCapacity.value = crane ? crane.structureCapacity : "";
+  elements.registryHoistName.value = crane ? crane.hoistName || "" : "";
   elements.registryHoistCapacity.value = crane ? crane.hoistCapacity : "";
   elements.registryVoltage.value = crane ? crane.voltage : "";
   elements.registryBrand.value = crane ? crane.brand : "";
@@ -648,6 +686,8 @@ function openCompanyCraneForm(craneId) {
   elements.registryLastMaintenance.value = crane ? crane.lastMaintenanceDate || "" : "";
   elements.registryNextMaintenance.value = crane ? crane.nextMaintenanceDate || "" : "";
   elements.registryCraneStatus.value = crane ? crane.status : "";
+  editingCompanyCraneImage = crane && crane.image ? normalizePhotoEntry(crane.image) : null;
+  renderRegistryCraneImagePreview();
   elements.registryCraneNotes.value = crane ? crane.notes : "";
   elements.companyCraneFormPanel.classList.remove("hidden");
   elements.registryCraneId.focus();
@@ -656,7 +696,55 @@ function openCompanyCraneForm(craneId) {
 function closeCompanyCraneForm() {
   elements.companyCraneForm.reset();
   elements.editingCompanyCraneId.value = "";
+  elements.registryCraneImageInput.value = "";
+  editingCompanyCraneImage = null;
+  renderRegistryCraneImagePreview();
   elements.companyCraneFormPanel.classList.add("hidden");
+}
+
+async function handleRegistryCraneImage(event) {
+  const [file] = Array.from(event.target.files || []);
+  await addRegistryCraneImageFile([file]);
+  elements.registryCraneImageInput.value = "";
+}
+
+async function addRegistryCraneImageFile(files) {
+  const [file] = filterImageFiles(files);
+  if (!file) {
+    return;
+  }
+
+  editingCompanyCraneImage = {
+    name: file.name,
+    ...(await imageFileToOptimizedPhoto(file, 760))
+  };
+  renderRegistryCraneImagePreview();
+}
+
+function clearRegistryCraneImage() {
+  editingCompanyCraneImage = null;
+  elements.registryCraneImageInput.value = "";
+  renderRegistryCraneImagePreview();
+}
+
+function renderRegistryCraneImagePreview() {
+  if (!elements.registryCraneImagePreview) {
+    return;
+  }
+
+  const image = normalizePhotoEntry(editingCompanyCraneImage) || {};
+  const imageUrl = image.thumbUrl || image.dataUrl || "";
+  if (!imageUrl) {
+    elements.registryCraneImagePreview.classList.remove("has-image");
+    elements.registryCraneImagePreview.innerHTML = "Sin imagen de grua.";
+    return;
+  }
+
+  elements.registryCraneImagePreview.classList.add("has-image");
+  elements.registryCraneImagePreview.innerHTML = `
+    <img src="${escapeHtml(imageUrl)}" alt="Vista previa de la grua">
+    <span>${escapeHtml(image.name || "Imagen de grua")}</span>
+  `;
 }
 
 function updateRegistryNextMaintenanceFromLast() {
@@ -666,7 +754,7 @@ function updateRegistryNextMaintenanceFromLast() {
 
   elements.registryNextMaintenance.value = addMonthsToDateInput(
     elements.registryLastMaintenance.value,
-    Number(getCompanyMaintenanceFrequency(elements.companyRegistryClient.value)) || DEFAULT_MAINTENANCE_FREQUENCY_MONTHS
+    Number(getCompanyMaintenanceFrequency(elements.companyRegistryClient.value)) || getDefaultMaintenanceFrequencyMonths()
   );
 }
 
@@ -687,6 +775,7 @@ function saveCompanyCraneFromForm() {
     area: elements.registryCraneArea.value.trim(),
     type: elements.registryCraneType.value.trim(),
     structureCapacity: elements.registryStructureCapacity.value.trim(),
+    hoistName: elements.registryHoistName.value.trim(),
     hoistCapacity: elements.registryHoistCapacity.value.trim(),
     voltage: elements.registryVoltage.value.trim(),
     brand: elements.registryBrand.value.trim(),
@@ -695,6 +784,7 @@ function saveCompanyCraneFromForm() {
     lastMaintenanceDate: elements.registryLastMaintenance.value,
     nextMaintenanceDate: elements.registryNextMaintenance.value,
     status: elements.registryCraneStatus.value.trim(),
+    image: editingCompanyCraneImage ? normalizePhotoEntry(editingCompanyCraneImage) : null,
     notes: elements.registryCraneNotes.value.trim(),
     updatedAt: now,
     createdAt: editingId ? (cranes.find((item) => item.id === editingId) || {}).createdAt || now : now
@@ -879,6 +969,7 @@ function craneRegistryEntryFromEquipment(equipment) {
     area: source.equipmentLocation || "",
     type: source.craneType || "",
     structureCapacity: source.ratedCapacity || "",
+    hoistName: source.hoistName || source.hoistManufacturer || source.hoistModel || "",
     hoistCapacity: source.hoistCapacity || "",
     voltage: source.hoistVoltage || "",
     brand: source.hoistManufacturer || "",
@@ -887,6 +978,7 @@ function craneRegistryEntryFromEquipment(equipment) {
     lastMaintenanceDate: source.maintenanceDate || "",
     nextMaintenanceDate: source.nextInspection || "",
     status: source.overallCondition || "",
+    image: null,
     notes: "",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -949,7 +1041,7 @@ function getCompanyMaintenanceFrequency(client) {
 
 function getCurrentMaintenanceFrequencyMonths() {
   const companyFrequency = Number(getCompanyMaintenanceFrequency(elements.plantName.value));
-  return companyFrequency || DEFAULT_MAINTENANCE_FREQUENCY_MONTHS;
+  return companyFrequency || getDefaultMaintenanceFrequencyMonths();
 }
 
 function readCompanyMaintenanceFrequencies() {
@@ -1002,7 +1094,7 @@ function formatCatalogCraneOption(crane) {
   ].filter(Boolean).join(" | ");
 }
 
-function handleCompanyCraneSelection() {
+async function handleCompanyCraneSelection() {
   const selectedCraneId = elements.companyCraneSelector.value;
   if (!selectedCraneId || selectedCraneId === "__new__") {
     clearEquipmentIdentityFields();
@@ -1014,7 +1106,61 @@ function handleCompanyCraneSelection() {
   const crane = (registry[client] || []).find((item) => item.id === selectedCraneId);
   if (crane) {
     applyCatalogCraneToEquipmentEditor(crane);
+    await promptLoadActiveCraneFindingsIntoReport(client, crane);
   }
+}
+
+async function promptLoadActiveCraneFindingsIntoReport(client, crane) {
+  const badFindings = getBadActiveCraneFindings(client, crane.id);
+  if (!badFindings.length) {
+    return;
+  }
+
+  const missingFindings = badFindings.filter((incidence) => !currentEquipmentFindings.some((finding) => finding.incidence === incidence));
+  if (!missingFindings.length) {
+    return;
+  }
+
+  const result = await showAppDialog({
+    eyebrow: "Hallazgos activos",
+    title: "Cargar hallazgos de esta grua",
+    message: `Esta grua tiene ${missingFindings.length} hallazgo(s) marcado(s) como Mal en el catalogo maestro.`,
+    details: missingFindings.slice(0, 8).join("\n"),
+    actions: [
+      { id: "cancel", label: "Cancelar", variant: "ghost" },
+      { id: "load", label: "Cargar al reporte", variant: "primary" }
+    ]
+  });
+
+  if (result !== "load") {
+    return;
+  }
+
+  currentEquipmentFindings = currentEquipmentFindings.concat(missingFindings.map(createFindingFromActiveCatalogIncidence));
+  renderFindingsList();
+}
+
+function getBadActiveCraneFindings(client, craneId) {
+  const selected = readActiveCraneFindings()[buildActiveCraneFindingKey(client, craneId)] || {};
+  return Object.entries(selected)
+    .filter(([, status]) => status === true || status === "bad")
+    .map(([incidence]) => incidence);
+}
+
+function createFindingFromActiveCatalogIncidence(incidence) {
+  const catalogItem = findingCatalogIndex.find((item) => item.incidence === incidence)
+    || findingCatalogIndex.find((item) => removeFindingCatalogNumber(item.incidence) === removeFindingCatalogNumber(incidence));
+  if (catalogItem) {
+    return createFindingFromCatalogItem(catalogItem);
+  }
+  return {
+    id: createId(),
+    category: "General",
+    incidence,
+    description: buildGenericFindingDescription("General", incidence),
+    recommendation: "",
+    photos: []
+  };
 }
 
 function clearEquipmentIdentityFields() {
@@ -1024,6 +1170,7 @@ function clearEquipmentIdentityFields() {
   elements.ratedCapacity.value = "";
   elements.serialNumber.value = "";
   elements.equipmentLocation.value = "";
+  elements.hoistName.value = "";
   elements.hoistCapacity.value = "";
   elements.hoistManufacturer.value = "";
   elements.hoistModel.value = "";
@@ -1038,6 +1185,7 @@ function applyCatalogCraneToEquipmentEditor(crane) {
   elements.ratedCapacity.value = crane.structureCapacity || "";
   elements.serialNumber.value = crane.serialNumber || "";
   elements.equipmentLocation.value = crane.area || "";
+  elements.hoistName.value = crane.hoistName || "";
   elements.hoistCapacity.value = crane.hoistCapacity || "";
   elements.hoistManufacturer.value = crane.brand || "";
   elements.hoistModel.value = crane.model || "";

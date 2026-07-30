@@ -12,6 +12,7 @@ async function exportFullBackup(options = {}) {
       .map((inspection) => createPortableBackupInspection(inspection, { includePhotos }));
     const exportedAt = new Date().toISOString();
     const companyCraneRegistry = readCompanyCraneRegistry();
+    const portableCompanyCraneRegistry = createPortableCompanyCraneRegistry(companyCraneRegistry, { includePhotos });
     const activeCraneFindings = readActiveCraneFindings();
     const chunks = [
       '{\n',
@@ -36,9 +37,10 @@ async function exportFullBackup(options = {}) {
 
     chunks.push(
       '\n    ],\n',
-      `    "companyCraneRegistry": ${JSON.stringify(companyCraneRegistry)},\n`,
+      `    "companyCraneRegistry": ${JSON.stringify(portableCompanyCraneRegistry)},\n`,
       `    "companyMaintenanceFrequencies": ${JSON.stringify(readCompanyMaintenanceFrequencies())},\n`,
-      `    "activeCraneFindings": ${JSON.stringify(activeCraneFindings)}\n`,
+      `    "activeCraneFindings": ${JSON.stringify(activeCraneFindings)},\n`,
+      `    "appSettings": ${JSON.stringify(getAppSettings())}\n`,
       '  }\n',
       '}\n'
     );
@@ -49,6 +51,30 @@ async function exportFullBackup(options = {}) {
   } catch (error) {
     window.alert(`No se pudo crear el respaldo completo. Detalle: ${error && error.message ? error.message : "error desconocido"}`);
   }
+}
+
+function createPortableCompanyCraneRegistry(registry, options = {}) {
+  const includePhotos = Boolean(options.includePhotos);
+  return Object.fromEntries(Object.entries(registry || {}).map(([client, cranes]) => [
+    client,
+    (Array.isArray(cranes) ? cranes : []).map((crane) => {
+      const image = normalizePhotoEntry(crane.image);
+      return {
+        ...crane,
+        image: includePhotos && image
+          ? {
+            name: image.name || "grua.jpg",
+            dataUrl: image.dataUrl || "",
+            thumbUrl: image.thumbUrl || "",
+            storedSize: image.storedSize || estimateDataUrlBytes(image.dataUrl),
+            createdAt: image.createdAt || ""
+          }
+          : image
+            ? { name: image.name || "grua.jpg", omittedFromBackup: true }
+            : null
+      };
+    })
+  ]));
 }
 
 function createPortableBackupInspection(inspection, options = {}) {
@@ -116,7 +142,12 @@ async function handleFullBackupImport(event) {
     const text = await file.text();
     const validation = validateFullBackupPayload(parseJsonFileContent(text));
     if (!validation.isValid) {
-      window.alert(`No se pudo importar el respaldo. ${validation.errors.join(" ")}`);
+      await showAppDialog({
+        title: "Respaldo invalido",
+        message: "No se pudo importar el respaldo.",
+        details: validation.errors.join("\n"),
+        actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+      });
       return;
     }
 
@@ -129,18 +160,27 @@ async function handleFullBackupImport(event) {
 async function purgeStoredHeavyPhotos() {
   const records = (await getAllInspections()).map(normalizeInspection);
   if (!records.length) {
-    window.alert("No hay reportes guardados para limpiar.");
+    await showAppDialog({ title: "Sin reportes", message: "No hay reportes guardados para limpiar." });
     return;
   }
 
   const summary = summarizeStoredPhotoWeight(records);
   if (!summary.photos) {
-    window.alert("No se encontraron fotos pesadas guardadas.");
+    await showAppDialog({ title: "Sin fotos pesadas", message: "No se encontraron fotos pesadas guardadas." });
     return;
   }
 
   const message = `Se encontraron ${summary.photos} foto(s) con aproximadamente ${formatBytes(summary.bytes)} guardados.\n\nEsto quitara las fotos grandes de los reportes guardados y conservara miniaturas cuando existan. Los reportes seguiran existiendo, pero esas fotos ya no apareceran completas en PDF ni en respaldos con fotos.\n\nDeseas continuar?`;
-  if (!window.confirm(message)) {
+  const purgeChoice = await showAppDialog({
+    title: "Borrar fotos pesadas guardadas",
+    message: "Esto quitara las fotos grandes de los reportes guardados y conservara miniaturas cuando existan.",
+    details: `Fotos encontradas: ${summary.photos}\nEspacio aproximado: ${formatBytes(summary.bytes)}`,
+    actions: [
+      { id: "cancel", label: "Cancelar", variant: "ghost" },
+      { id: "purge", label: "Borrar fotos", variant: "danger" }
+    ]
+  });
+  if (purgeChoice !== "purge") {
     return;
   }
 
@@ -161,7 +201,12 @@ async function purgeStoredHeavyPhotos() {
   if (elements.consolidatedHistoryView && !elements.consolidatedHistoryView.classList.contains("hidden")) {
     await renderConsolidatedHistory();
   }
-  window.alert(`Limpieza terminada.\nReportes actualizados: ${changedReports}.\nFotos pesadas eliminadas: ${removedPhotos}.\nEspacio aproximado liberado: ${formatBytes(removedBytes)}.`);
+  await showAppDialog({
+    title: "Limpieza terminada",
+    message: "Se borraron las fotos pesadas guardadas.",
+    details: `Reportes actualizados: ${changedReports}\nFotos eliminadas: ${removedPhotos}\nEspacio aproximado liberado: ${formatBytes(removedBytes)}`,
+    actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+  });
 }
 
 function summarizeStoredPhotoWeight(records) {
@@ -334,7 +379,10 @@ function normalizeFullBackup(backup) {
       : {},
     activeCraneFindings: data.activeCraneFindings && typeof data.activeCraneFindings === "object"
       ? data.activeCraneFindings
-      : {}
+      : {},
+    appSettings: data.appSettings && typeof data.appSettings === "object"
+      ? normalizeAppSettings(data.appSettings)
+      : null
   };
 }
 
@@ -406,8 +454,18 @@ async function confirmFullBackupImport() {
 
   const scope = getSelectedBackupImportOption("backupImportScope", "all");
   const mode = getSelectedBackupImportOption("backupImportMode", "merge");
-  if (mode === "replace" && !window.confirm(getBackupReplaceWarning(scope))) {
-    return;
+  if (mode === "replace") {
+    const replaceChoice = await showAppDialog({
+      title: "Reemplazar datos",
+      message: getBackupReplaceWarning(scope),
+      actions: [
+        { id: "cancel", label: "Cancelar", variant: "ghost" },
+        { id: "replace", label: "Reemplazar", variant: "danger" }
+      ]
+    });
+    if (replaceChoice !== "replace") {
+      return;
+    }
   }
 
   try {
@@ -420,7 +478,11 @@ async function confirmFullBackupImport() {
     await populateCompanyRegistryClientOptions();
     await renderSavedReports();
     renderEquipmentList();
-    window.alert(buildBackupImportSuccessMessage(result, scope, mode));
+    await showAppDialog({
+      title: "Respaldo importado",
+      message: buildBackupImportSuccessMessage(result, scope, mode),
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
   } catch (error) {
     window.alert(`No se pudo importar el respaldo completo. Detalle: ${error && error.message ? error.message : "archivo invalido"}`);
   } finally {
@@ -471,6 +533,9 @@ async function replaceDataWithFullBackup(backup) {
   await writeCompanyCraneRegistry(normalizeCompanyCraneRegistryKeys(backup.companyCraneRegistry));
   await writeCompanyMaintenanceFrequencies(normalizePlainObjectKeys(backup.companyMaintenanceFrequencies));
   await writeActiveCraneFindings(backup.activeCraneFindings);
+  if (backup.appSettings) {
+    await writeAppSettings(backup.appSettings);
+  }
   return {
     inspections: backup.inspections.length,
     companies: Object.keys(backup.companyCraneRegistry).length,
@@ -495,6 +560,12 @@ async function mergeFullBackup(backup) {
     ...readActiveCraneFindings(),
     ...remappedActiveFindings
   });
+  if (backup.appSettings) {
+    await writeAppSettings({
+      ...getAppSettings(),
+      ...backup.appSettings
+    });
+  }
 
   const registry = readCompanyCraneRegistry();
   return {
@@ -534,6 +605,9 @@ async function replaceBackupRegistry(backup) {
   await writeCompanyCraneRegistry(normalizeCompanyCraneRegistryKeys(backup.companyCraneRegistry));
   await writeCompanyMaintenanceFrequencies(normalizePlainObjectKeys(backup.companyMaintenanceFrequencies));
   await writeActiveCraneFindings(backup.activeCraneFindings);
+  if (backup.appSettings) {
+    await writeAppSettings(backup.appSettings);
+  }
   const summary = buildFullBackupSummary(backup);
   return {
     inspections: 0,
@@ -555,6 +629,12 @@ async function mergeBackupRegistry(backup) {
     ...readActiveCraneFindings(),
     ...remappedActiveFindings
   });
+  if (backup.appSettings) {
+    await writeAppSettings({
+      ...getAppSettings(),
+      ...backup.appSettings
+    });
+  }
   const registry = readCompanyCraneRegistry();
   return {
     inspections: 0,

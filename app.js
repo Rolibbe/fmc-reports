@@ -4,6 +4,7 @@ const DB_VERSION = 2;
 const STORE_NAME = "inspections";
 const MASTER_DATA_STORE_NAME = "masterData";
 const CLIENT_PLANTS_FILE = "clientes-plantas.txt";
+const POLIPASTOS_FILE = "Polipastos/Lista Polipastos.txt";
 const CONSOLIDATED_EXPORT_TEMPLATE_FILE = "concentrado-general.csv";
 const CONSOLIDATED_EXPORT_DELIMITER = ";";
 const COMPANY_CRANE_REGISTRY_KEY = "company-crane-registry-v1";
@@ -47,6 +48,11 @@ const fallbackClientPlants = [
   "H3 DE TIJUANA"
 ];
 
+const fallbackPolipastos = [
+  "CM Lodestar",
+  "R&M"
+];
+
 const findingCatalog = sanitizeFindingCatalog(window.FINDING_CATALOG_CONFIG) || fallbackFindingCatalog;
 const findingCatalogIndex = buildFindingCatalogIndex(findingCatalog);
 
@@ -59,6 +65,7 @@ let editingPhotos = [];
 let draggedEquipmentId = null;
 let didDragEquipment = false;
 let draggedCompanyCraneId = null;
+let appDialogResolver = null;
 
 const REPORT_IMAGE_MAX_SIZE = 1150;
 const REPORT_CHECKLIST_MAX_SIZE = 1500;
@@ -80,9 +87,11 @@ const elements = {
   findingEditorView: document.getElementById("findingEditorView"),
   consolidatedHistoryView: document.getElementById("consolidatedHistoryView"),
   maintenancePanelView: document.getElementById("maintenancePanelView"),
+  settingsView: document.getElementById("settingsView"),
   companyCraneRegistryView: document.getElementById("companyCraneRegistryView"),
   form: document.getElementById("inspectionForm"),
   inspectionId: document.getElementById("inspectionId"),
+  polipastoOptions: document.getElementById("polipastoOptions"),
   reportNumber: document.getElementById("reportNumber"),
   serviceType: document.getElementById("serviceType"),
   inspectionDate: document.getElementById("inspectionDate"),
@@ -110,6 +119,26 @@ const elements = {
   openCompanyCraneRegistryButton: document.getElementById("openCompanyCraneRegistryButton"),
   openMaintenancePanelButton: document.getElementById("openMaintenancePanelButton"),
   openConsolidatedHistoryButton: document.getElementById("openConsolidatedHistoryButton"),
+  openSettingsButton: document.getElementById("openSettingsButton"),
+  closeSettingsButton: document.getElementById("closeSettingsButton"),
+  saveSettingsButton: document.getElementById("saveSettingsButton"),
+  resetSettingsButton: document.getElementById("resetSettingsButton"),
+  settingsClientPlants: document.getElementById("settingsClientPlants"),
+  settingsDefaultFrequency: document.getElementById("settingsDefaultFrequency"),
+  settingsRecommendationText: document.getElementById("settingsRecommendationText"),
+  settingsNewPolipasto: document.getElementById("settingsNewPolipasto"),
+  addSettingsPolipastoButton: document.getElementById("addSettingsPolipastoButton"),
+  settingsPolipastos: document.getElementById("settingsPolipastos"),
+  settingsPhotoMaxSize: document.getElementById("settingsPhotoMaxSize"),
+  settingsChecklistMaxSize: document.getElementById("settingsChecklistMaxSize"),
+  settingsPhotoQuality: document.getElementById("settingsPhotoQuality"),
+  settingsPdfCompanyName: document.getElementById("settingsPdfCompanyName"),
+  settingsPdfSubtitle: document.getElementById("settingsPdfSubtitle"),
+  settingsPdfTitle: document.getElementById("settingsPdfTitle"),
+  settingsPdfRevision: document.getElementById("settingsPdfRevision"),
+  settingsPdfFooter: document.getElementById("settingsPdfFooter"),
+  settingsPdfAccentColor: document.getElementById("settingsPdfAccentColor"),
+  settingsPdfHeaderColor: document.getElementById("settingsPdfHeaderColor"),
   closeMaintenancePanelButton: document.getElementById("closeMaintenancePanelButton"),
   refreshMaintenancePanelButton: document.getElementById("refreshMaintenancePanelButton"),
   maintenancePanelSummary: document.getElementById("maintenancePanelSummary"),
@@ -139,6 +168,7 @@ const elements = {
   registryCraneArea: document.getElementById("registryCraneArea"),
   registryCraneType: document.getElementById("registryCraneType"),
   registryStructureCapacity: document.getElementById("registryStructureCapacity"),
+  registryHoistName: document.getElementById("registryHoistName"),
   registryHoistCapacity: document.getElementById("registryHoistCapacity"),
   registryVoltage: document.getElementById("registryVoltage"),
   registryBrand: document.getElementById("registryBrand"),
@@ -147,6 +177,10 @@ const elements = {
   registryLastMaintenance: document.getElementById("registryLastMaintenance"),
   registryNextMaintenance: document.getElementById("registryNextMaintenance"),
   registryCraneStatus: document.getElementById("registryCraneStatus"),
+  registryCraneImageButton: document.getElementById("registryCraneImageButton"),
+  clearRegistryCraneImageButton: document.getElementById("clearRegistryCraneImageButton"),
+  registryCraneImageInput: document.getElementById("registryCraneImageInput"),
+  registryCraneImagePreview: document.getElementById("registryCraneImagePreview"),
   registryCraneNotes: document.getElementById("registryCraneNotes"),
   cancelCompanyCraneButton: document.getElementById("cancelCompanyCraneButton"),
   saveCompanyCraneButton: document.getElementById("saveCompanyCraneButton"),
@@ -160,6 +194,12 @@ const elements = {
   backupPreviewWarnings: document.getElementById("backupPreviewWarnings"),
   cancelBackupImportButton: document.getElementById("cancelBackupImportButton"),
   confirmBackupImportButton: document.getElementById("confirmBackupImportButton"),
+  appDialogPanel: document.getElementById("appDialogPanel"),
+  appDialogEyebrow: document.getElementById("appDialogEyebrow"),
+  appDialogTitle: document.getElementById("appDialogTitle"),
+  appDialogMessage: document.getElementById("appDialogMessage"),
+  appDialogDetails: document.getElementById("appDialogDetails"),
+  appDialogActions: document.getElementById("appDialogActions"),
   connectionStatus: document.getElementById("connectionStatus"),
   installButton: document.getElementById("installButton"),
   equipmentEditorTitle: document.getElementById("equipmentEditorTitle"),
@@ -174,6 +214,7 @@ const elements = {
   serialNumber: document.getElementById("serialNumber"),
   checklistFolio: document.getElementById("checklistFolio"),
   equipmentLocation: document.getElementById("equipmentLocation"),
+  hoistName: document.getElementById("hoistName"),
   hoistType: document.getElementById("hoistType"),
   hoistCapacity: document.getElementById("hoistCapacity"),
   hoistManufacturer: document.getElementById("hoistManufacturer"),
@@ -223,15 +264,18 @@ document.addEventListener("DOMContentLoaded", initializeApp);
 
 async function initializeApp() {
   await initializeMasterDataStore();
+  await initializeAppSettings();
   populateCategoryOptions();
   populateQuickFindingOptions();
   setupAppActions();
   await loadClientPlantOptions();
+  await loadPolipastoOptions();
   setDefaultDates();
   assignNewReportNumber(true);
   resetEquipmentEditorState();
   renderEquipmentList();
   await renderSavedReports();
+  showView("inspection");
   updateConnectivityStatus();
   registerServiceWorker();
 }
@@ -285,11 +329,19 @@ function setupAppActions() {
   elements.exportFullBackupWithPhotosButton.addEventListener("click", () => exportFullBackup({ includePhotos: true }));
   elements.purgeStoredPhotosButton.addEventListener("click", purgeStoredHeavyPhotos);
   elements.generatePdfButton.addEventListener("click", generatePdfReport);
-  elements.newInspectionButton.addEventListener("click", resetForm);
+  elements.newInspectionButton.addEventListener("click", () => {
+    resetForm();
+    showView("inspection");
+  });
   elements.refreshReportsButton.addEventListener("click", renderSavedReports);
   elements.openCompanyCraneRegistryButton.addEventListener("click", openCompanyCraneRegistry);
   elements.openMaintenancePanelButton.addEventListener("click", openMaintenancePanel);
   elements.openConsolidatedHistoryButton.addEventListener("click", openConsolidatedHistory);
+  elements.openSettingsButton.addEventListener("click", openSettingsPanel);
+  elements.closeSettingsButton.addEventListener("click", () => showView("inspection"));
+  elements.saveSettingsButton.addEventListener("click", saveSettingsFromForm);
+  elements.resetSettingsButton.addEventListener("click", resetSettingsToDefaults);
+  elements.addSettingsPolipastoButton.addEventListener("click", addPolipastoToSettingsList);
   elements.closeMaintenancePanelButton.addEventListener("click", () => showView("inspection"));
   elements.refreshMaintenancePanelButton.addEventListener("click", renderMaintenancePanel);
   elements.closeCompanyCraneRegistryButton.addEventListener("click", () => showView("inspection"));
@@ -311,11 +363,20 @@ function setupAppActions() {
       closeBackupPreview();
     }
   });
+  elements.appDialogPanel.addEventListener("click", (event) => {
+    if (event.target === elements.appDialogPanel) {
+      resolveAppDialog("cancel");
+    }
+  });
   elements.companyCraneFormPanel.addEventListener("click", (event) => {
     if (event.target === elements.companyCraneFormPanel) {
       closeCompanyCraneForm();
     }
   });
+  elements.registryCraneImageButton.addEventListener("click", () => elements.registryCraneImageInput.click());
+  elements.registryCraneImageInput.addEventListener("change", handleRegistryCraneImage);
+  elements.clearRegistryCraneImageButton.addEventListener("click", clearRegistryCraneImage);
+  setupImageDropZone(elements.registryCraneImagePreview, addRegistryCraneImageFile, { single: true });
   elements.registryLastMaintenance.addEventListener("change", updateRegistryNextMaintenanceFromLast);
   elements.companyRegistryClient.addEventListener("input", () => {
     closeCompanyCraneForm();
@@ -339,7 +400,10 @@ function setupAppActions() {
   window.addEventListener("online", updateConnectivityStatus);
   window.addEventListener("offline", updateConnectivityStatus);
   document.addEventListener("click", (event) => {
-    if (!elements.toolsMenuButton.contains(event.target) && !elements.toolsMenuList.contains(event.target)) {
+    if (
+      !elements.toolsMenuButton.contains(event.target)
+      && !elements.toolsMenuList.contains(event.target)
+    ) {
       closeToolsMenu();
     }
   });
@@ -350,6 +414,10 @@ function setupAppActions() {
     }
     if (event.key === "Escape" && !elements.backupPreviewPanel.classList.contains("hidden")) {
       closeBackupPreview();
+      return;
+    }
+    if (event.key === "Escape" && !elements.appDialogPanel.classList.contains("hidden")) {
+      resolveAppDialog("cancel");
       return;
     }
     if (event.key === "Escape" && !elements.companyCraneFormPanel.classList.contains("hidden")) {
@@ -377,7 +445,12 @@ async function loadClientPlantOptions() {
   populateClientPlantOptions(clientPlants);
 }
 
-async function readClientPlantsFromFile() {
+async function readClientPlantsFromFile(options = {}) {
+  const configuredClients = options.ignoreConfigured ? [] : getConfiguredClientPlants();
+  if (configuredClients.length) {
+    return configuredClients;
+  }
+
   try {
     const response = await fetch(CLIENT_PLANTS_FILE, { cache: "no-store" });
     if (!response.ok) {
@@ -441,6 +514,7 @@ function showView(view) {
   elements.findingEditorView.classList.toggle("hidden", view !== "finding");
   elements.consolidatedHistoryView.classList.toggle("hidden", view !== "consolidatedHistory");
   elements.maintenancePanelView.classList.toggle("hidden", view !== "maintenancePanel");
+  elements.settingsView.classList.toggle("hidden", view !== "settings");
   elements.companyCraneRegistryView.classList.toggle("hidden", view !== "companyCraneRegistry");
 }
 
@@ -452,6 +526,55 @@ function openSidebar() {
 function closeSidebar() {
   elements.sidebar.classList.add("sidebar-collapsed");
   elements.sidebarBackdrop.classList.add("hidden");
+}
+
+function showAppDialog(options = {}) {
+  const actions = options.actions && options.actions.length
+    ? options.actions
+    : [{ id: "ok", label: "Aceptar", variant: "primary" }];
+
+  elements.appDialogEyebrow.textContent = options.eyebrow || "Mensaje";
+  elements.appDialogTitle.textContent = options.title || "Confirmar accion";
+  elements.appDialogMessage.textContent = options.message || "";
+  elements.appDialogDetails.classList.toggle("hidden", !options.details);
+  elements.appDialogDetails.textContent = options.details || "";
+  elements.appDialogActions.innerHTML = actions.map((action) => `
+    <button class="${getDialogButtonClass(action.variant)}" type="button" data-dialog-action="${escapeHtml(action.id)}">
+      ${escapeHtml(action.label)}
+    </button>
+  `).join("");
+  elements.appDialogActions.querySelectorAll("[data-dialog-action]").forEach((button) => {
+    button.addEventListener("click", () => resolveAppDialog(button.dataset.dialogAction));
+  });
+  elements.appDialogPanel.classList.remove("hidden");
+
+  return new Promise((resolve) => {
+    appDialogResolver = resolve;
+  });
+}
+
+function resolveAppDialog(value) {
+  if (!appDialogResolver) {
+    elements.appDialogPanel.classList.add("hidden");
+    return;
+  }
+  const resolver = appDialogResolver;
+  appDialogResolver = null;
+  elements.appDialogPanel.classList.add("hidden");
+  resolver(value);
+}
+
+function getDialogButtonClass(variant) {
+  if (variant === "danger") {
+    return "danger-button";
+  }
+  if (variant === "ghost") {
+    return "ghost-button";
+  }
+  if (variant === "secondary") {
+    return "secondary-button";
+  }
+  return "primary-button";
 }
 
 function setDefaultDates() {

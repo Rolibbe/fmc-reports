@@ -21,7 +21,7 @@ async function buildMaintenancePanelRows() {
 
   Object.entries(registry).forEach(([client, cranes]) => {
     const normalizedClient = normalizeClientName(client);
-    const frequencyMonths = Number(getCompanyMaintenanceFrequency(normalizedClient)) || DEFAULT_MAINTENANCE_FREQUENCY_MONTHS;
+    const frequencyMonths = Number(getCompanyMaintenanceFrequency(normalizedClient)) || getDefaultMaintenanceFrequencyMonths();
     (Array.isArray(cranes) ? cranes : []).forEach((crane) => {
       const maintenance = resolveCraneMaintenanceFromSources(normalizedClient, crane, frequencyMonths, inspections);
       const findingSummary = summarizeActiveCraneFindings(normalizedClient, crane.id, activeFindings);

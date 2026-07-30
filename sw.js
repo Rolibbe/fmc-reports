@@ -1,4 +1,4 @@
-const CACHE_NAME = "crane-inspection-cache-v73";
+const CACHE_NAME = "crane-inspection-cache-v82";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -9,12 +9,16 @@ const APP_ASSETS = [
   "./pdf-actions.js",
   "./backup.js",
   "./storage.js",
+  "./settings.js",
   "./maintenance-panel.js",
   "./app.js",
   "./report-generator.js",
   "./report-template-config.js",
   "./finding-catalog-config.js",
   "./clientes-plantas.txt",
+  "./Polipastos/Lista Polipastos.txt",
+  "./Polipastos/CM Lodestar.png",
+  "./Polipastos/R&M.png",
   "./concentrado-general.csv",
   "./manifest.json"
 ];
