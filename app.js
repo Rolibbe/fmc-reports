@@ -296,22 +296,31 @@ const elements = {
 document.addEventListener("DOMContentLoaded", initializeApp);
 
 async function initializeApp() {
-  await initializeMasterDataStore();
-  await initializeAppSettings();
-  populateCategoryOptions();
-  populateQuickFindingOptions();
-  setupAppActions();
-  await loadClientPlantOptions();
-  await loadPolipastoOptions();
-  setDefaultDates();
-  assignNewReportNumber(true);
-  resetEquipmentEditorState();
-  renderEquipmentList();
-  await renderSavedReports();
-  await initializeCloudSync();
-  showView("inspection");
   updateConnectivityStatus();
-  registerServiceWorker();
+  try {
+    await initializeMasterDataStore();
+    await initializeAppSettings();
+    populateCategoryOptions();
+    populateQuickFindingOptions();
+    setupAppActions();
+    await loadClientPlantOptions();
+    await loadPolipastoOptions();
+    setDefaultDates();
+    assignNewReportNumber(true);
+    resetEquipmentEditorState();
+    renderEquipmentList();
+    await renderSavedReports();
+    await initializeCloudSync();
+    showView("inspection");
+    updateConnectivityStatus();
+    registerServiceWorker();
+  } catch (error) {
+    updateConnectivityStatus("La app cargo con un detalle. Puedes intentar recargar o entrar en modo offline.");
+    if (elements.loginStatus) {
+      elements.loginStatus.textContent = "La app no termino de cargar. Recarga la pagina o entra en modo offline.";
+    }
+    console.error("Error al iniciar la app", error);
+  }
 }
 
 function setupAppActions() {
@@ -701,10 +710,13 @@ function assignNewReportNumber(force) {
   elements.reportNumber.value = createReportNumber();
 }
 
-function updateConnectivityStatus() {
-  elements.connectionStatus.textContent = navigator.onLine
+function updateConnectivityStatus(message) {
+  if (!elements.connectionStatus) {
+    return;
+  }
+  elements.connectionStatus.textContent = message || (navigator.onLine
     ? "Con conexion. Los datos siguen guardandose localmente."
-    : "Sin conexion. Puedes seguir trabajando offline.";
+    : "Sin conexion. Puedes seguir trabajando offline.");
 }
 function collectInspectionData() {
   const equipments = currentEquipments.map((equipment) => normalizeEquipment(equipment));

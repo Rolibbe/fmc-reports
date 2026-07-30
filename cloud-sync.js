@@ -44,18 +44,20 @@ async function initializeCloudSync() {
 }
 
 function renderCloudStatus(message) {
-  if (!elements.cloudSyncStatus) {
+  if (!elements) {
     return;
   }
 
   const session = getCloudSession();
   const connected = Boolean(session?.access_token);
   const offlineMode = isOfflineModeEnabled();
-  elements.cloudSyncStatus.classList.toggle("is-connected", connected);
-  elements.cloudSyncStatus.classList.toggle("is-offline", !navigator.onLine);
 
   const statusText = getCloudStatusText(message, connected, offlineMode);
-  elements.cloudSyncStatus.textContent = statusText;
+  if (elements.cloudSyncStatus) {
+    elements.cloudSyncStatus.classList.toggle("is-connected", connected);
+    elements.cloudSyncStatus.classList.toggle("is-offline", !navigator.onLine);
+    elements.cloudSyncStatus.textContent = statusText;
+  }
   if (elements.navCloudStatus) {
     elements.navCloudStatus.textContent = connected
       ? `☁ ${getCloudUserEmail()}`
@@ -80,9 +82,15 @@ function renderCloudStatus(message) {
         : getLoginStatusText();
   }
 
-  elements.cloudSignInButton.disabled = connected || !hasValidCloudConfig();
-  elements.cloudSignOutButton.disabled = !connected;
-  elements.syncCompaniesCranesButton.disabled = !connected || !navigator.onLine;
+  if (elements.cloudSignInButton) {
+    elements.cloudSignInButton.disabled = connected || !hasValidCloudConfig();
+  }
+  if (elements.cloudSignOutButton) {
+    elements.cloudSignOutButton.disabled = !connected;
+  }
+  if (elements.syncCompaniesCranesButton) {
+    elements.syncCompaniesCranesButton.disabled = !connected || !navigator.onLine;
+  }
   if (elements.navSyncCloudButton) {
     elements.navSyncCloudButton.disabled = !connected || !navigator.onLine;
     elements.navSyncCloudButton.classList.toggle("is-disabled", !connected || !navigator.onLine);
