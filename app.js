@@ -17,7 +17,7 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.4";
+const APP_VERSION = "1.3.5";
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -108,6 +108,7 @@ const elements = {
   mobilePdfButton: document.getElementById("mobilePdfButton"),
   mobileMoreButton: document.getElementById("mobileMoreButton"),
   mobileSaveButton: document.getElementById("mobileSaveButton"),
+  mobileDashboardButton: document.getElementById("mobileDashboardButton"),
   mobileMaintenanceButton: document.getElementById("mobileMaintenanceButton"),
   mobileConsolidatedButton: document.getElementById("mobileConsolidatedButton"),
   mobileSettingsButton: document.getElementById("mobileSettingsButton"),
@@ -119,6 +120,7 @@ const elements = {
   closeSidebarButton: document.getElementById("closeSidebarButton"),
   toolsMenuButton: document.getElementById("toolsMenuButton"),
   toolsMenuList: document.getElementById("toolsMenuList"),
+  dashboardView: document.getElementById("dashboardView"),
   inspectionView: document.getElementById("inspectionView"),
   equipmentEditorView: document.getElementById("equipmentEditorView"),
   findingEditorView: document.getElementById("findingEditorView"),
@@ -154,6 +156,16 @@ const elements = {
   savedReports: document.getElementById("savedReports"),
   savedReportsSummary: document.getElementById("savedReportsSummary"),
   refreshReportsButton: document.getElementById("refreshReportsButton"),
+  openDashboardButton: document.getElementById("openDashboardButton"),
+  refreshDashboardButton: document.getElementById("refreshDashboardButton"),
+  closeDashboardButton: document.getElementById("closeDashboardButton"),
+  dashboardClientFilter: document.getElementById("dashboardClientFilter"),
+  dashboardDateFrom: document.getElementById("dashboardDateFrom"),
+  dashboardDateTo: document.getElementById("dashboardDateTo"),
+  clearDashboardFiltersButton: document.getElementById("clearDashboardFiltersButton"),
+  dashboardKpis: document.getElementById("dashboardKpis"),
+  dashboardInsights: document.getElementById("dashboardInsights"),
+  dashboardCharts: document.getElementById("dashboardCharts"),
   openCompanyCraneRegistryButton: document.getElementById("openCompanyCraneRegistryButton"),
   openMaintenancePanelButton: document.getElementById("openMaintenancePanelButton"),
   openConsolidatedHistoryButton: document.getElementById("openConsolidatedHistoryButton"),
@@ -415,6 +427,18 @@ function setupAppActions() {
     showView("inspection");
   });
   elements.refreshReportsButton.addEventListener("click", renderSavedReports);
+  elements.openDashboardButton.addEventListener("click", openGeneralDashboard);
+  elements.refreshDashboardButton.addEventListener("click", renderGeneralDashboard);
+  elements.closeDashboardButton.addEventListener("click", () => showView("inspection"));
+  elements.dashboardClientFilter.addEventListener("change", renderGeneralDashboard);
+  elements.dashboardDateFrom.addEventListener("change", renderGeneralDashboard);
+  elements.dashboardDateTo.addEventListener("change", renderGeneralDashboard);
+  elements.clearDashboardFiltersButton.addEventListener("click", () => {
+    elements.dashboardClientFilter.value = "";
+    elements.dashboardDateFrom.value = "";
+    elements.dashboardDateTo.value = "";
+    renderGeneralDashboard();
+  });
   elements.openCompanyCraneRegistryButton.addEventListener("click", openCompanyCraneRegistry);
   elements.openMaintenancePanelButton.addEventListener("click", openMaintenancePanel);
   elements.openConsolidatedHistoryButton.addEventListener("click", openConsolidatedHistory);
@@ -622,6 +646,10 @@ function setupMobileNavigation() {
     closeMobileMorePanel();
     await persistInspection();
   });
+  elements.mobileDashboardButton.addEventListener("click", () => {
+    closeMobileMorePanel();
+    openGeneralDashboard();
+  });
   elements.mobileMaintenanceButton.addEventListener("click", () => {
     closeMobileMorePanel();
     openMaintenancePanel();
@@ -660,6 +688,7 @@ function closeMobileMorePanel() {
 
 function showView(view) {
   closeMobileMorePanel();
+  elements.dashboardView.classList.toggle("hidden", view !== "dashboard");
   elements.inspectionView.classList.toggle("hidden", view !== "inspection");
   elements.equipmentEditorView.classList.toggle("hidden", view !== "equipment");
   elements.findingEditorView.classList.toggle("hidden", view !== "finding");

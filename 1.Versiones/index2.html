@@ -6,43 +6,10 @@
   <meta name="theme-color" content="#0f4c5c">
   <title>Inspecciones de Gruas</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css?v=98">
+  <link rel="stylesheet" href="styles.css?v=83">
 </head>
-<body class="auth-locked">
-  <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
-    <div class="login-card">
-      <div class="login-brand">
-        <span class="login-logo">FMC</span>
-        <div>
-          <p class="eyebrow">Sistema de reportes</p>
-          <h1>Inspecciones de gruas</h1>
-        </div>
-      </div>
-      <div class="login-hero-icons" aria-hidden="true">
-        <span>🏗️</span>
-        <span>🔧</span>
-        <span>☁️</span>
-      </div>
-      <p class="login-copy">Ingresa para sincronizar empresas, gruas y reportes entre dispositivos.</p>
-      <div class="login-form">
-        <label>
-          Correo
-          <input id="loginEmail" type="email" autocomplete="email" placeholder="usuario@empresa.com">
-        </label>
-        <label>
-          Contrasena
-          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Contrasena">
-        </label>
-        <button id="loginButton" class="primary-button login-submit" type="button">Ingresar</button>
-        <button id="loginOfflineButton" class="ghost-button login-offline" type="button">Entrar en modo offline</button>
-      </div>
-      <p id="loginStatus" class="login-status">Conecta con tu cuenta de Supabase para iniciar.</p>
-    </div>
-  </section>
-
-  <span id="appVersionBadge" class="app-version-badge">Version 1.3.5</span>
-
-  <div id="appShell" class="app-shell">
+<body>
+  <div class="app-shell">
     <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
     <aside id="sidebar" class="sidebar sidebar-collapsed">
       <div class="sidebar-topbar">
@@ -87,8 +54,8 @@
 
       <div class="nav-group">
         <p class="nav-label">Modulos</p>
-        <button id="openDashboardButton" class="nav-link" type="button">Dashboard general</button>
-        <button id="openSidebarButton" class="nav-link" type="button">Historial de reportes</button>
+        <button id="openCompaniesDashboardButton" class="nav-link nav-action-strong" type="button">Empresas / reportes</button>
+        <button id="openSidebarButton" class="nav-link" type="button">Archivo de reportes</button>
         <button id="openCompanyCraneRegistryButton" class="nav-link" type="button">Empresas y gruas</button>
         <button id="openMaintenancePanelButton" class="nav-link" type="button">Mantenimiento</button>
         <button id="openConsolidatedHistoryButton" class="nav-link" type="button">Concentrado general</button>
@@ -97,7 +64,6 @@
 
       <div class="nav-group nav-data-group">
         <p class="nav-label">Datos</p>
-        <button id="navSyncCloudButton" class="nav-link nav-sync-button" type="button">☁ Sincronizar todo</button>
         <button id="toolsMenuButton" class="nav-link nav-link-with-menu" type="button" aria-label="Abrir opciones de datos" aria-expanded="false" aria-controls="toolsMenuList">
           Importar / Exportar
           <span class="nav-caret">v</span>
@@ -120,81 +86,12 @@
       </div>
 
       <div class="nav-footer">
-        <span id="navCloudStatus" class="nav-status nav-cloud-status">Nube sin sesion</span>
         <span id="connectionStatus" class="nav-status">Verificando conectividad...</span>
         <button id="installButton" class="nav-install" hidden>Instalar app</button>
       </div>
     </nav>
 
-    <header class="mobile-topbar" aria-label="Encabezado movil">
-      <div class="mobile-brand">
-        <span>FMC</span>
-        <div>
-          <strong>Reportes</strong>
-          <small id="mobileCloudStatus">Nube sin sesion</small>
-        </div>
-      </div>
-      <button id="mobileSyncButton" class="mobile-icon-button" type="button" aria-label="Sincronizar">☁</button>
-    </header>
-
-    <section id="mobileMorePanel" class="mobile-more-panel hidden" aria-label="Mas opciones">
-      <div class="mobile-more-card">
-        <div class="section-header">
-          <div>
-            <p class="eyebrow">Menu</p>
-            <h3>Opciones rapidas</h3>
-          </div>
-          <button id="mobileCloseMoreButton" class="ghost-button" type="button">Cerrar</button>
-        </div>
-        <div class="mobile-more-grid">
-          <button id="mobileSaveButton" type="button">Guardar</button>
-          <button id="mobileDashboardButton" type="button">Dashboard</button>
-          <button id="mobileMaintenanceButton" type="button">Mantenimiento</button>
-          <button id="mobileConsolidatedButton" type="button">Concentrado</button>
-          <button id="mobileSettingsButton" type="button">Configuracion</button>
-          <button id="mobileBackupButton" type="button">Importar respaldo</button>
-          <button id="mobileOfflineButton" type="button">Modo offline</button>
-        </div>
-      </div>
-    </section>
-
     <main class="main-content">
-      <section class="panel app-view hidden" id="dashboardView">
-        <div class="dashboard-hero">
-          <div>
-            <p class="eyebrow">Vista ejecutiva</p>
-            <h2>Dashboard general</h2>
-            <p class="page-subtitle">Indicadores, tendencias y riesgos calculados desde reportes, empresas, gruas, polipastos y checklist.</p>
-          </div>
-          <div class="toolbar">
-            <button id="refreshDashboardButton" class="secondary-button" type="button">Actualizar</button>
-            <button id="closeDashboardButton" class="ghost-button" type="button">Volver</button>
-          </div>
-        </div>
-
-        <div class="dashboard-filters">
-          <label>
-            Cliente
-            <select id="dashboardClientFilter">
-              <option value="">Todos los clientes</option>
-            </select>
-          </label>
-          <label>
-            Desde
-            <input id="dashboardDateFrom" type="date">
-          </label>
-          <label>
-            Hasta
-            <input id="dashboardDateTo" type="date">
-          </label>
-          <button id="clearDashboardFiltersButton" class="ghost-button" type="button">Limpiar filtros</button>
-        </div>
-
-        <div id="dashboardKpis" class="dashboard-kpis"></div>
-        <div id="dashboardInsights" class="dashboard-insights"></div>
-        <div id="dashboardCharts" class="dashboard-grid"></div>
-      </section>
-
       <section class="panel app-view" id="inspectionView">
         <div class="page-hero">
           <div>
@@ -213,7 +110,6 @@
           <input id="importInspectionInput" class="file-input-hidden" type="file" accept="application/json">
           <input id="importFullBackupInput" class="file-input-hidden" type="file" accept="application/json">
           <datalist id="polipastoOptions"></datalist>
-          <datalist id="craneTypeOptions"></datalist>
 
           <div class="grid two-column">
             <label>
@@ -271,6 +167,41 @@
         </form>
       </section>
 
+      <section class="panel app-view hidden" id="companiesView">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Empresas</p>
+            <h2>Reportes organizados por cliente</h2>
+          </div>
+          <div class="toolbar">
+            <button id="refreshCompaniesButton" class="secondary-button" type="button">Actualizar</button>
+            <button id="closeCompaniesButton" class="ghost-button" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div id="companiesSummary" class="history-summary"></div>
+
+        <div class="companies-layout">
+          <section class="subpanel companies-list-panel">
+            <div class="section-header">
+              <div>
+                <p class="eyebrow">Clientes</p>
+                <h3>Selecciona una empresa</h3>
+              </div>
+            </div>
+            <label>
+              Buscar empresa
+              <input id="companyDashboardSearch" type="text" placeholder="Escribe cliente o planta">
+            </label>
+            <div id="companiesList" class="companies-list"></div>
+          </section>
+
+          <section class="subpanel company-detail-panel" id="companyDetailPanel">
+            <div class="inline-empty-state">Selecciona una empresa para ver sus gruas, reportes, mantenimiento y hallazgos.</div>
+          </section>
+        </div>
+      </section>
+
       <section class="panel app-view hidden" id="equipmentEditorView">
         <div class="section-header">
           <div>
@@ -321,6 +252,13 @@
                 Tipo de grua
                 <select id="craneType" name="craneType">
                   <option value="Puente">Puente</option>
+                  <option value="Grua viajera">Grua viajera</option>
+                  <option value="Monorriel">Monorriel</option>
+                  <option value="Portico">Portico</option>
+                  <option value="Grua bandera">Grua bandera</option>
+                  <option value="Pluma">Pluma</option>
+                  <option value="Polipasto">Polipasto</option>
+                  <option value="Otro">Otro</option>
                 </select>
               </label>
               <label>
@@ -600,28 +538,6 @@
             </label>
           </section>
 
-          <section class="subpanel cloud-settings-panel">
-            <p class="eyebrow">Nube / Supabase</p>
-            <h3>Sincronizacion entre dispositivos</h3>
-            <p id="cloudSyncStatus" class="cloud-sync-status">Sin sesion en la nube.</p>
-            <div class="grid two-column">
-              <label>
-                Correo
-                <input id="cloudEmail" type="email" placeholder="usuario@empresa.com">
-              </label>
-              <label>
-                Contrasena
-                <input id="cloudPassword" type="password" placeholder="Contrasena de Supabase">
-              </label>
-            </div>
-            <div class="toolbar cloud-toolbar">
-              <button id="cloudSignInButton" class="primary-button" type="button">Iniciar sesion</button>
-              <button id="cloudSignOutButton" class="ghost-button" type="button">Cerrar sesion</button>
-              <button id="syncCompaniesCranesButton" class="secondary-button" type="button">Sincronizar todo</button>
-            </div>
-            <small class="cloud-helper">Este modulo mantiene la app offline y sincroniza reportes sin fotos pesadas para evitar errores de memoria.</small>
-          </section>
-
           <section class="subpanel">
             <p class="eyebrow">Mantenimiento y textos</p>
             <div class="grid two-column">
@@ -661,21 +577,6 @@
             <label>
               Lista de polipastos
               <textarea id="settingsPolipastos" rows="7" placeholder="Un polipasto por linea"></textarea>
-            </label>
-          </section>
-
-          <section class="subpanel">
-            <p class="eyebrow">Tipos de grua</p>
-            <label>
-              Agregar tipo
-              <div class="inline-input-action">
-                <input id="settingsNewCraneType" type="text" placeholder="Ej. Grua viajera, monorriel, portico">
-                <button id="addSettingsCraneTypeButton" class="secondary-button" type="button">Agregar</button>
-              </div>
-            </label>
-            <label>
-              Lista de tipos de grua
-              <textarea id="settingsCraneTypes" rows="7" placeholder="Un tipo de grua por linea"></textarea>
             </label>
           </section>
 
@@ -729,19 +630,12 @@
         </div>
 
         <div class="subpanel">
-          <div class="company-selector-layout">
-            <div class="company-selector-panel">
-              <label>
-                Buscar empresa
-                <input id="companyRegistrySearch" type="text" placeholder="Escribe para filtrar empresas">
-              </label>
-              <input id="companyRegistryClient" type="hidden">
+          <div class="grid three-column">
+            <label>
+              Empresa
+              <input id="companyRegistryClient" list="companyRegistryClientOptions" type="text" placeholder="Selecciona o escribe una empresa">
               <datalist id="companyRegistryClientOptions"></datalist>
-              <div class="company-selector-actions">
-                <button id="selectCompanyRegistrySearchButton" class="secondary-button" type="button">Usar empresa escrita</button>
-              </div>
-              <div id="companyRegistryCards" class="company-selector-cards"></div>
-            </div>
+            </label>
             <label>
               Frecuencia de mantenimiento
               <select id="companyMaintenanceFrequency">
@@ -762,7 +656,6 @@
             </label>
             <div class="history-actions">
               <button id="syncCompanyRegistryButton" class="ghost-button" type="button">Tomar datos de reportes guardados</button>
-              <button id="deleteCompanyRegistryButton" class="ghost-button" type="button">Eliminar empresa</button>
             </div>
           </div>
         </div>
@@ -796,7 +689,7 @@
                 </label>
                 <label>
                   Tipo
-                  <input id="registryCraneType" list="craneTypeOptions" type="text" placeholder="Viajera, puente, bandera">
+                  <input id="registryCraneType" type="text" placeholder="Viajera, puente, bandera">
                 </label>
                 <label>
                   Capacidad estructura
@@ -919,29 +812,18 @@
     </main>
   </div>
 
-  <nav class="mobile-bottom-nav" aria-label="Navegacion movil">
-    <button id="mobileNewButton" type="button"><span>＋</span>Nuevo</button>
-    <button id="mobileHistoryButton" type="button"><span>▤</span>Historial</button>
-    <button id="mobileCompaniesButton" type="button"><span>▦</span>Empresas</button>
-    <button id="mobilePdfButton" type="button"><span>▣</span>PDF</button>
-    <button id="mobileMoreButton" type="button"><span>☰</span>Mas</button>
-  </nav>
-
-  <script src="report-template-config.js?v=98"></script>
-  <script src="finding-catalog-config.js?v=98"></script>
-  <script src="checklist-config.js?v=98"></script>
-  <script src="findings.js?v=98"></script>
-  <script src="company-cranes.js?v=98"></script>
-  <script src="equipment.js?v=98"></script>
-  <script src="pdf-actions.js?v=98"></script>
-  <script src="backup.js?v=98"></script>
-  <script src="storage.js?v=98"></script>
-  <script src="settings.js?v=98"></script>
-  <script src="maintenance-panel.js?v=98"></script>
-  <script src="dashboard.js?v=98"></script>
-  <script src="report-generator.js?v=98"></script>
-  <script src="supabase-config.js?v=98"></script>
-  <script src="cloud-sync.js?v=98"></script>
-  <script src="app.js?v=98"></script>
+  <script src="report-template-config.js?v=83"></script>
+  <script src="finding-catalog-config.js?v=83"></script>
+  <script src="findings.js?v=83"></script>
+  <script src="company-cranes.js?v=83"></script>
+  <script src="equipment.js?v=83"></script>
+  <script src="pdf-actions.js?v=83"></script>
+  <script src="backup.js?v=83"></script>
+  <script src="storage.js?v=83"></script>
+  <script src="settings.js?v=83"></script>
+  <script src="maintenance-panel.js?v=83"></script>
+  <script src="companies.js?v=83"></script>
+  <script src="report-generator.js?v=83"></script>
+  <script src="app.js?v=83"></script>
 </body>
 </html>
