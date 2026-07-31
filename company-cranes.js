@@ -860,8 +860,14 @@ function saveCompanyCraneFromForm() {
 function deleteCompanyCrane(craneId) {
   const client = normalizeClientName(elements.companyRegistryClient.value);
   const registry = readCompanyCraneRegistry();
-  registry[client] = (registry[client] || []).filter((crane) => crane.id !== craneId);
+  const cranes = registry[client] || [];
+  const deletedCrane = cranes.find((crane) => crane.id === craneId);
+  markCompanyCraneDeleted(client, deletedCrane || { id: craneId });
+  registry[client] = cranes.filter((crane) => crane.id !== craneId);
   writeCompanyCraneRegistry(registry);
+  const activeFindings = readActiveCraneFindings();
+  delete activeFindings[buildActiveCraneFindingKey(client, craneId)];
+  writeActiveCraneFindings(activeFindings);
   closeCompanyCraneForm();
   renderCompanyCraneRegistry();
 }
@@ -1008,6 +1014,10 @@ async function seedCompanyRegistryFromReports(forceAlert) {
         return;
       }
 
+      if (isDeletedCompanyCraneCandidate(client, candidate)) {
+        return;
+      }
+
       registry[client].push(candidate);
       added += 1;
     });
@@ -1117,6 +1127,42 @@ function readCompanyCraneRegistry() {
 
 function writeCompanyCraneRegistry(registry) {
   setCachedMasterData("companyCraneRegistry", COMPANY_CRANE_REGISTRY_KEY, registry);
+}
+
+function readDeletedCompanyCranes() {
+  return getCachedMasterData("deletedCompanyCranes");
+}
+
+function writeDeletedCompanyCranes(deletedCranes) {
+  setCachedMasterData("deletedCompanyCranes", DELETED_COMPANY_CRANES_KEY, deletedCranes || {});
+}
+
+function markCompanyCraneDeleted(client, crane) {
+  if (!crane || !crane.id) {
+    return;
+  }
+
+  const deletedCranes = readDeletedCompanyCranes();
+  deletedCranes[crane.id] = {
+    id: crane.id,
+    client: normalizeClientName(client),
+    crane: { ...crane },
+    deletedAt: new Date().toISOString()
+  };
+  writeDeletedCompanyCranes(deletedCranes);
+}
+
+function isDeletedCompanyCraneId(craneId) {
+  return Boolean(craneId && readDeletedCompanyCranes()[craneId]);
+}
+
+function isDeletedCompanyCraneCandidate(client, candidate) {
+  const normalizedClient = normalizeClientName(client);
+  return Object.values(readDeletedCompanyCranes()).some((entry) => (
+    normalizeClientName(entry.client) === normalizedClient
+    && entry.crane
+    && sameCatalogCrane(entry.crane, candidate)
+  ));
 }
 
 function populateCompanyCraneSelector(selectedCatalogCraneId = "") {

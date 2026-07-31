@@ -322,9 +322,10 @@ async function syncCompaniesAndCranesToCloud() {
     const localFindingRows = await buildLocalActiveFindingRows();
     const localReportRows = await buildLocalReportRows();
 
-    renderCloudStatus(`Subiendo ${localRows.companies.length} empresa(s), ${localRows.cranes.length} grua(s) y ${localReportRows.length} reporte(s) optimizado(s)...`);
+    renderCloudStatus(`Subiendo ${localRows.companies.length} empresa(s), ${localRows.cranes.length} grua(s), ${localRows.deletedCranes.length} baja(s) y ${localReportRows.length} reporte(s) optimizado(s)...`);
     await upsertCloudRows("companies", localRows.companies);
     await upsertCloudRows("cranes", localRows.cranes);
+    await upsertCloudRows("cranes", localRows.deletedCranes);
     await upsertCloudRows("active_crane_findings", localFindingRows);
     await upsertCloudRows("reports", localReportRows);
 
@@ -362,6 +363,8 @@ async function syncCompaniesAndCranesToCloud() {
 async function buildLocalCompanyCraneRows() {
   const registry = readCompanyCraneRegistry();
   const frequencies = readCompanyMaintenanceFrequencies();
+  const deletedCranes = readDeletedCompanyCranes();
+  const deletedCraneClients = Object.values(deletedCranes || {}).map((entry) => normalizeClientName(entry.client || entry.crane?.client));
   const activeFindingClients = Object.keys(readActiveCraneFindings() || {}).map((key) => splitActiveFindingKey(key)[0]);
   const fileClients = await readClientPlantsFromFile();
   const reportClients = (await getAllInspections())
@@ -371,6 +374,7 @@ async function buildLocalCompanyCraneRows() {
     ...fileClients,
     ...Object.keys(registry),
     ...Object.keys(frequencies),
+    ...deletedCraneClients,
     ...activeFindingClients,
     ...reportClients
   ]);
@@ -398,8 +402,25 @@ async function buildLocalCompanyCraneRows() {
       deleted_at: null
     };
   }));
+  const deletedCraneRows = Object.values(deletedCranes || {}).map((entry) => {
+    const client = normalizeClientName(entry.client || entry.crane?.client || "");
+    const payload = prepareCraneForCloud({
+      ...(entry.crane || {}),
+      id: entry.id,
+      deletedAt: entry.deletedAt || now
+    });
+    return {
+      id: entry.id,
+      company_id: client ? createCloudCompanyId(client) : null,
+      name: payload.craneId || payload.hoistName || payload.type || "Grua eliminada",
+      payload,
+      sort_order: 0,
+      updated_at: entry.deletedAt || now,
+      deleted_at: entry.deletedAt || now
+    };
+  });
 
-  return { companies, cranes };
+  return { companies, cranes, deletedCranes: deletedCraneRows };
 }
 
 async function buildLocalReportRows() {
@@ -520,6 +541,11 @@ function mergeCloudCompanyCraneRows(companies, cranes) {
         id: row.id,
         updatedAt: row.updated_at || row.payload?.updatedAt || new Date().toISOString()
       };
+
+      if (typeof isDeletedCompanyCraneId === "function" && isDeletedCompanyCraneId(cloudCrane.id)) {
+        return;
+      }
+
       const cranesForClient = Array.isArray(registry[client]) ? registry[client] : [];
       const existingIndex = cranesForClient.findIndex((item) => item.id === cloudCrane.id);
 
