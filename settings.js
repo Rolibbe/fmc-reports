@@ -12,6 +12,7 @@ const DEFAULT_APP_SETTINGS = {
   photoMaxSize: 1150,
   checklistMaxSize: 1500,
   photoQuality: 0.62,
+  updatedAt: "",
   pdfTemplate: {
     companyName: "",
     companySubtitle: "",
@@ -40,7 +41,10 @@ function getAppSettings() {
 }
 
 async function writeAppSettings(settings) {
-  appSettingsCache = normalizeAppSettings(settings);
+  appSettingsCache = normalizeAppSettings({
+    ...settings,
+    updatedAt: settings?.updatedAt || new Date().toISOString()
+  });
   applyPdfTemplateSettings();
   await putMasterDataValue(APP_SETTINGS_KEY, appSettingsCache);
 }
@@ -58,6 +62,7 @@ function normalizeAppSettings(settings) {
     photoMaxSize: clampNumber(source.photoMaxSize, 700, 1800, DEFAULT_APP_SETTINGS.photoMaxSize),
     checklistMaxSize: clampNumber(source.checklistMaxSize, 900, 2200, DEFAULT_APP_SETTINGS.checklistMaxSize),
     photoQuality: clampNumber(source.photoQuality, 0.35, 0.9, DEFAULT_APP_SETTINGS.photoQuality),
+    updatedAt: source.updatedAt || "",
     pdfTemplate: {
       companyName: source.pdfTemplate?.companyName || defaultTemplate.companyName || "",
       companySubtitle: source.pdfTemplate?.companySubtitle || defaultTemplate.companySubtitle || "",
@@ -138,8 +143,19 @@ async function populateSettingsForm() {
 }
 
 async function saveSettingsFromForm() {
+  const previousClients = normalizeClientNames(await readClientPlantsFromFile());
+  const nextClients = normalizeClientNames(parseClientPlants(elements.settingsClientPlants.value));
+  const removedClients = previousClients.filter((client) => !nextClients.includes(client));
+  for (const client of removedClients) {
+    markCompanyDeleted(client, { source: "settings-client-list" });
+    if (typeof deleteCompanyLocalData === "function") {
+      await deleteCompanyLocalData(client);
+    }
+  }
+  nextClients.forEach(unmarkCompanyDeleted);
+
   const settings = {
-    clientPlants: parseClientPlants(elements.settingsClientPlants.value),
+    clientPlants: nextClients,
     polipastos: parsePolipastoList(elements.settingsPolipastos.value),
     defaultMaintenanceFrequency: elements.settingsDefaultFrequency.value,
     fixedRecommendationText: elements.settingsRecommendationText.value.trim() || DEFAULT_APP_SETTINGS.fixedRecommendationText,

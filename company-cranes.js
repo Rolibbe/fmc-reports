@@ -51,7 +51,7 @@ async function getCompanyRegistryClientNames() {
     ...fileClients,
     ...Object.keys(registry),
     ...records.map((record) => record.plantName)
-  ]);
+  ]).filter((client) => !isDeletedCompanyName(client));
 }
 
 async function renderCompanyRegistryClientCards() {
@@ -712,6 +712,11 @@ function buildActiveCraneFindingKey(client, craneId) {
   return [normalizeClientName(client), craneId || ""].join("|");
 }
 
+function splitActiveCraneFindingKey(key) {
+  const [client, craneId] = String(key || "").split("|");
+  return [normalizeClientName(client), craneId || ""];
+}
+
 function readActiveCraneFindings() {
   return getCachedMasterData("activeCraneFindings");
 }
@@ -870,6 +875,69 @@ function deleteCompanyCrane(craneId) {
   writeActiveCraneFindings(activeFindings);
   closeCompanyCraneForm();
   renderCompanyCraneRegistry();
+}
+
+async function deleteCurrentCompanyRegistry() {
+  const client = normalizeClientName(elements.companyRegistryClient.value);
+  if (!client) {
+    window.alert("Selecciona una empresa antes de eliminarla.");
+    return;
+  }
+
+  const result = await showAppDialog({
+    title: "Eliminar empresa",
+    message: `Se eliminara ${client}, sus gruas registradas y sus reportes locales. Al sincronizar, tambien se ocultara en la nube.`,
+    actions: [
+      { id: "cancel", label: "Cancelar", variant: "ghost" },
+      { id: "delete", label: "Eliminar", variant: "danger" }
+    ]
+  });
+  if (result !== "delete") {
+    return;
+  }
+
+  markCompanyDeleted(client, { source: "company-registry" });
+  await deleteCompanyLocalData(client);
+
+  elements.companyRegistryClient.value = "";
+  elements.companyRegistrySearch.value = "";
+  await populateCompanyRegistryClientOptions();
+  await loadClientPlantOptions();
+  await renderSavedReports();
+  await renderCompanyCraneRegistry();
+}
+
+async function deleteCompanyLocalData(client) {
+  const normalizedClient = normalizeClientName(client);
+  if (!normalizedClient) {
+    return;
+  }
+
+  const registry = readCompanyCraneRegistry();
+  (registry[normalizedClient] || []).forEach((crane) => markCompanyCraneDeleted(normalizedClient, crane));
+  delete registry[normalizedClient];
+  writeCompanyCraneRegistry(registry);
+
+  const frequencies = readCompanyMaintenanceFrequencies();
+  delete frequencies[normalizedClient];
+  writeCompanyMaintenanceFrequencies(frequencies);
+
+  const activeFindings = readActiveCraneFindings();
+  Object.keys(activeFindings).forEach((key) => {
+    if (splitActiveCraneFindingKey(key)[0] === normalizedClient) {
+      delete activeFindings[key];
+    }
+  });
+  writeActiveCraneFindings(activeFindings);
+
+  const records = await getAllInspections();
+  for (const record of records) {
+    const normalized = normalizeInspection(record);
+    if (normalizeClientName(normalized.plantName) === normalizedClient) {
+      markInspectionDeleted(normalized);
+      await deleteInspection(normalized.id);
+    }
+  }
 }
 
 function handleCompanyCraneDragStart(event, craneId) {

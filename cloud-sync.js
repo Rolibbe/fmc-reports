@@ -308,45 +308,56 @@ async function cloudFetch(path, options = {}) {
 async function syncCompaniesAndCranesToCloud() {
   try {
     renderCloudStatus("Descargando datos de otros dispositivos...");
-    const initialCloudCompanies = await fetchCloudRows("companies");
-    const initialCloudCranes = await fetchCloudRows("cranes");
-    const initialCloudFindings = await fetchCloudRows("active_crane_findings");
-    const initialCloudReports = await fetchCloudRows("reports");
-    mergeCloudCompanyCraneRows(initialCloudCompanies, initialCloudCranes);
+    const initialCloudCompanies = await fetchCloudRows("companies", { includeDeleted: true });
+    const initialCloudCranes = await fetchCloudRows("cranes", { includeDeleted: true });
+    const initialCloudFindings = await fetchCloudRows("active_crane_findings", { includeDeleted: true });
+    const initialCloudReports = await fetchCloudRows("reports", { includeDeleted: true });
+    const initialCloudSettings = await fetchCloudRows("app_settings", { includeDeleted: true });
+    await mergeCloudCompanyCraneRows(initialCloudCompanies, initialCloudCranes);
     await mergeCloudCompaniesIntoSettings(initialCloudCompanies);
     mergeCloudActiveFindingRows(initialCloudFindings);
     await mergeCloudReportRows(initialCloudReports);
+    await mergeCloudSettingsRows(initialCloudSettings);
 
     renderCloudStatus("Preparando datos locales...");
     const localRows = await buildLocalCompanyCraneRows();
     const localFindingRows = await buildLocalActiveFindingRows();
     const localReportRows = await buildLocalReportRows();
+    const localSettingsRows = buildLocalSettingsRows();
 
-    renderCloudStatus(`Subiendo ${localRows.companies.length} empresa(s), ${localRows.cranes.length} grua(s), ${localRows.deletedCranes.length} baja(s) y ${localReportRows.length} reporte(s) optimizado(s)...`);
+    renderCloudStatus(`Subiendo ${localRows.companies.length} empresa(s), ${localRows.cranes.length} grua(s), ${localRows.deletedCranes.length + localRows.deletedCompanies.length} baja(s) y ${localReportRows.reports.length} reporte(s) optimizado(s)...`);
     await upsertCloudRows("companies", localRows.companies);
+    await upsertCloudRows("companies", localRows.deletedCompanies);
     await upsertCloudRows("cranes", localRows.cranes);
     await upsertCloudRows("cranes", localRows.deletedCranes);
     await upsertCloudRows("active_crane_findings", localFindingRows);
-    await upsertCloudRows("reports", localReportRows);
+    await upsertCloudRows("reports", localReportRows.reports);
+    await upsertCloudRows("reports", localReportRows.deletedReports);
+    await upsertCloudRows("app_settings", localSettingsRows);
 
     renderCloudStatus("Confirmando sincronizacion...");
-    const cloudCompanies = await fetchCloudRows("companies");
-    const cloudCranes = await fetchCloudRows("cranes");
-    const cloudFindings = await fetchCloudRows("active_crane_findings");
-    const cloudReports = await fetchCloudRows("reports");
-    mergeCloudCompanyCraneRows(cloudCompanies, cloudCranes);
+    const cloudCompanies = await fetchCloudRows("companies", { includeDeleted: true });
+    const cloudCranes = await fetchCloudRows("cranes", { includeDeleted: true });
+    const cloudFindings = await fetchCloudRows("active_crane_findings", { includeDeleted: true });
+    const cloudReports = await fetchCloudRows("reports", { includeDeleted: true });
+    const cloudSettings = await fetchCloudRows("app_settings", { includeDeleted: true });
+    await mergeCloudCompanyCraneRows(cloudCompanies, cloudCranes);
     await mergeCloudCompaniesIntoSettings(cloudCompanies);
     mergeCloudActiveFindingRows(cloudFindings);
     await mergeCloudReportRows(cloudReports);
+    await mergeCloudSettingsRows(cloudSettings);
 
     await populateCompanyRegistryClientOptions();
     await renderCompanyCraneRegistry();
     await loadClientPlantOptions();
     await renderSavedReports();
-    renderCloudStatus(`Sincronizado: ${cloudCompanies.length} empresa(s), ${cloudCranes.length} grua(s), ${cloudReports.length} reporte(s).`);
+    const visibleCompanies = cloudCompanies.filter((row) => !row.deleted_at).length;
+    const visibleCranes = cloudCranes.filter((row) => !row.deleted_at).length;
+    const visibleReports = cloudReports.filter((row) => !row.deleted_at).length;
+    renderCloudStatus(`Sincronizado: ${visibleCompanies} empresa(s), ${visibleCranes} grua(s), ${visibleReports} reporte(s).`);
     await showAppDialog({
       title: "Sincronizacion completa",
-      message: `Se combinaron ${cloudCompanies.length} empresa(s), ${cloudCranes.length} grua(s), ${cloudFindings.length} grupo(s) de hallazgos y ${cloudReports.length} reporte(s) con este dispositivo.`,
+      message: `Se combinaron ${visibleCompanies} empresa(s), ${visibleCranes} grua(s), ${cloudFindings.filter((row) => !row.deleted_at).length} grupo(s) de hallazgos y ${visibleReports} reporte(s) con este dispositivo.`,
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
   } catch (error) {
@@ -364,6 +375,7 @@ async function buildLocalCompanyCraneRows() {
   const registry = readCompanyCraneRegistry();
   const frequencies = readCompanyMaintenanceFrequencies();
   const deletedCranes = readDeletedCompanyCranes();
+  const deletedCompanies = readDeletedCompanies();
   const deletedCraneClients = Object.values(deletedCranes || {}).map((entry) => normalizeClientName(entry.client || entry.crane?.client));
   const activeFindingClients = Object.keys(readActiveCraneFindings() || {}).map((key) => splitActiveFindingKey(key)[0]);
   const fileClients = await readClientPlantsFromFile();
@@ -377,7 +389,7 @@ async function buildLocalCompanyCraneRows() {
     ...deletedCraneClients,
     ...activeFindingClients,
     ...reportClients
-  ]);
+  ]).filter((client) => !isDeletedCompanyName(client));
   const now = new Date().toISOString();
   const companies = companyNames.map((client) => ({
     id: createCloudCompanyId(client),
@@ -419,13 +431,27 @@ async function buildLocalCompanyCraneRows() {
       deleted_at: entry.deletedAt || now
     };
   });
+  const deletedCompanyRows = Object.values(deletedCompanies || {}).map((entry) => ({
+    id: entry.id || createCloudCompanyId(entry.client),
+    name: normalizeClientName(entry.client),
+    payload: {
+      name: normalizeClientName(entry.client),
+      details: entry.details || {},
+      deletedAt: entry.deletedAt,
+      syncVersion: 1
+    },
+    updated_at: entry.deletedAt || now,
+    deleted_at: entry.deletedAt || now
+  }));
 
-  return { companies, cranes, deletedCranes: deletedCraneRows };
+  return { companies, cranes, deletedCranes: deletedCraneRows, deletedCompanies: deletedCompanyRows };
 }
 
 async function buildLocalReportRows() {
   const inspections = (await getAllInspections()).map(normalizeInspection);
-  return inspections.map((inspection) => {
+  const reports = inspections
+    .filter((inspection) => !isDeletedInspectionId(inspection.id) && !isDeletedCompanyName(inspection.plantName))
+    .map((inspection) => {
     const payload = prepareInspectionForCloud(inspection);
     const client = normalizeClientName(payload.plantName);
     return {
@@ -438,6 +464,37 @@ async function buildLocalReportRows() {
       deleted_at: null
     };
   });
+  const deletedReports = Object.values(readDeletedInspections() || {}).map((entry) => {
+    const payload = prepareInspectionForCloud(entry.inspection || { id: entry.id, plantName: entry.company || "" });
+    return {
+      id: entry.id,
+      company_id: null,
+      report_number: payload.reportNumber || "",
+      inspection_date: payload.inspectionDate || null,
+      payload: {
+        ...payload,
+        deletedAt: entry.deletedAt
+      },
+      updated_at: entry.deletedAt || new Date().toISOString(),
+      deleted_at: entry.deletedAt || new Date().toISOString()
+    };
+  });
+  return { reports, deletedReports };
+}
+
+function buildLocalSettingsRows() {
+  const settings = getAppSettings();
+  const now = new Date().toISOString();
+  return [{
+    id: "default",
+    payload: {
+      ...settings,
+      clientPlants: normalizeClientNames(settings.clientPlants || []).filter((client) => !isDeletedCompanyName(client)),
+      updatedAt: settings.updatedAt || now,
+      syncVersion: 1
+    },
+    updated_at: settings.updatedAt || now
+  }];
 }
 
 function prepareInspectionForCloud(inspection) {
@@ -454,7 +511,10 @@ function prepareInspectionForCloud(inspection) {
 
 async function buildLocalActiveFindingRows() {
   const findings = readActiveCraneFindings();
-  return Object.entries(findings || {}).map(([key, payload]) => {
+  return Object.entries(findings || {}).filter(([key]) => {
+    const [client, craneId] = splitActiveFindingKey(key);
+    return !isDeletedCompanyName(client) && !isDeletedCompanyCraneId(craneId);
+  }).map(([key, payload]) => {
     const [client, craneId] = splitActiveFindingKey(key);
     return {
       id: createCloudActiveFindingId(key),
@@ -503,19 +563,33 @@ async function upsertCloudRows(table, rows) {
   return results;
 }
 
-async function fetchCloudRows(table) {
-  return cloudFetch(`/rest/v1/${table}?select=*&deleted_at=is.null`);
+async function fetchCloudRows(table, options = {}) {
+  const deletedFilter = options.includeDeleted ? "" : "&deleted_at=is.null";
+  return cloudFetch(`/rest/v1/${table}?select=*${deletedFilter}`);
 }
 
-function mergeCloudCompanyCraneRows(companies, cranes) {
+async function mergeCloudCompanyCraneRows(companies, cranes) {
   const registry = { ...readCompanyCraneRegistry() };
   const frequencies = { ...readCompanyMaintenanceFrequencies() };
   const companyById = new Map();
 
-  (companies || []).forEach((company) => {
+  for (const company of companies || []) {
     const client = normalizeClientName(company.name || company.payload?.name);
     if (!client) {
-      return;
+      continue;
+    }
+    if (company.deleted_at) {
+      markCompanyDeleted(client, {
+        source: "cloud",
+        deletedAt: company.deleted_at
+      });
+      await deleteCompanyLocalData(client);
+      delete registry[client];
+      delete frequencies[client];
+      continue;
+    }
+    if (isDeletedCompanyName(client)) {
+      continue;
     }
     companyById.set(company.id, { ...company, client });
     if (!Array.isArray(registry[client])) {
@@ -524,7 +598,7 @@ function mergeCloudCompanyCraneRows(companies, cranes) {
     if (company.payload?.maintenanceFrequency) {
       frequencies[client] = String(company.payload.maintenanceFrequency);
     }
-  });
+  }
 
   (cranes || [])
     .slice()
@@ -541,6 +615,15 @@ function mergeCloudCompanyCraneRows(companies, cranes) {
         id: row.id,
         updatedAt: row.updated_at || row.payload?.updatedAt || new Date().toISOString()
       };
+
+      if (row.deleted_at) {
+        markCompanyCraneDeleted(client, {
+          ...cloudCrane,
+          deletedAt: row.deleted_at
+        });
+        registry[client] = (registry[client] || []).filter((item) => item.id !== cloudCrane.id);
+        return;
+      }
 
       if (typeof isDeletedCompanyCraneId === "function" && isDeletedCompanyCraneId(cloudCrane.id)) {
         return;
@@ -571,6 +654,18 @@ async function mergeCloudReportRows(reports) {
     if (!row?.payload?.id) {
       continue;
     }
+    if (row.deleted_at) {
+      markInspectionDeleted({
+        ...row.payload,
+        id: row.id,
+        updatedAt: row.updated_at || row.payload.updatedAt
+      });
+      await deleteInspection(row.id);
+      continue;
+    }
+    if (isDeletedInspectionId(row.id) || isDeletedCompanyName(row.payload?.plantName)) {
+      continue;
+    }
     const cloudInspection = prepareInspectionForCloud({
       ...row.payload,
       id: row.id,
@@ -583,12 +678,39 @@ async function mergeCloudReportRows(reports) {
   }
 }
 
+async function mergeCloudSettingsRows(rows) {
+  const cloudSettings = (rows || [])
+    .filter((row) => row.id === "default" && row.payload && !row.deleted_at)
+    .sort((a, b) => getComparableTime(b.updated_at || b.payload.updatedAt) - getComparableTime(a.updated_at || a.payload.updatedAt))[0];
+  if (!cloudSettings) {
+    return;
+  }
+
+  const localSettings = getAppSettings();
+  const cloudTime = getComparableTime(cloudSettings.updated_at || cloudSettings.payload.updatedAt);
+  const localTime = getComparableTime(localSettings.updatedAt);
+  if (cloudTime > localTime) {
+    await writeAppSettings({
+      ...cloudSettings.payload,
+      clientPlants: normalizeClientNames(cloudSettings.payload.clientPlants || []).filter((client) => !isDeletedCompanyName(client)),
+      updatedAt: cloudSettings.updated_at || cloudSettings.payload.updatedAt
+    });
+    await loadClientPlantOptions();
+    await loadPolipastoOptions();
+  }
+}
+
 function mergeCloudActiveFindingRows(rows) {
   const findings = { ...readActiveCraneFindings() };
   (rows || []).forEach((row) => {
     const payload = row.payload || {};
     const key = payload.key || buildCloudActiveFindingKey(payload.client, payload.craneId || row.crane_id);
     if (!key) {
+      return;
+    }
+    const [client, craneId] = splitActiveFindingKey(key);
+    if (row.deleted_at || isDeletedCompanyName(client) || isDeletedCompanyCraneId(craneId)) {
+      delete findings[key];
       return;
     }
     findings[key] = payload.findings || {};
@@ -659,7 +781,10 @@ function getCloudBatchSize(table) {
 }
 
 async function mergeCloudCompaniesIntoSettings(companies) {
-  const cloudClients = normalizeClientNames((companies || []).map((company) => company.name || company.payload?.name));
+  const cloudClients = normalizeClientNames((companies || [])
+    .filter((company) => !company.deleted_at)
+    .map((company) => company.name || company.payload?.name))
+    .filter((client) => !isDeletedCompanyName(client));
   if (!cloudClients.length) {
     return;
   }
@@ -668,7 +793,8 @@ async function mergeCloudCompaniesIntoSettings(companies) {
   const baseClients = settings.clientPlants.length
     ? settings.clientPlants
     : await readClientPlantsFromFile({ ignoreConfigured: true });
-  const clientPlants = normalizeClientNames([...baseClients, ...cloudClients]);
+  const clientPlants = normalizeClientNames([...baseClients, ...cloudClients])
+    .filter((client) => !isDeletedCompanyName(client));
   await writeAppSettings({
     ...settings,
     clientPlants

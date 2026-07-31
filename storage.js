@@ -5,7 +5,9 @@ const masterDataCache = {
   companyCraneRegistry: {},
   companyMaintenanceFrequencies: {},
   activeCraneFindings: {},
-  deletedCompanyCranes: {}
+  deletedCompanyCranes: {},
+  deletedInspections: {},
+  deletedCompanies: {}
 };
 
 async function initializeMasterDataStore() {
@@ -13,7 +15,9 @@ async function initializeMasterDataStore() {
     { cacheKey: "companyCraneRegistry", storageKey: COMPANY_CRANE_REGISTRY_KEY, fallback: {} },
     { cacheKey: "companyMaintenanceFrequencies", storageKey: COMPANY_MAINTENANCE_FREQUENCY_KEY, fallback: {} },
     { cacheKey: "activeCraneFindings", storageKey: ACTIVE_CRANE_FINDINGS_KEY, fallback: {} },
-    { cacheKey: "deletedCompanyCranes", storageKey: DELETED_COMPANY_CRANES_KEY, fallback: {} }
+    { cacheKey: "deletedCompanyCranes", storageKey: DELETED_COMPANY_CRANES_KEY, fallback: {} },
+    { cacheKey: "deletedInspections", storageKey: DELETED_INSPECTIONS_KEY, fallback: {} },
+    { cacheKey: "deletedCompanies", storageKey: DELETED_COMPANIES_KEY, fallback: {} }
   ];
 
   for (const source of sources) {

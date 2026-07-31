@@ -11,6 +11,8 @@ const COMPANY_CRANE_REGISTRY_KEY = "company-crane-registry-v1";
 const COMPANY_MAINTENANCE_FREQUENCY_KEY = "company-maintenance-frequency-v1";
 const ACTIVE_CRANE_FINDINGS_KEY = "active-crane-findings-v1";
 const DELETED_COMPANY_CRANES_KEY = "deleted-company-cranes-v1";
+const DELETED_INSPECTIONS_KEY = "deleted-inspections-v1";
+const DELETED_COMPANIES_KEY = "deleted-companies-v1";
 const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
@@ -184,6 +186,7 @@ const elements = {
   closeCompanyCraneRegistryButton: document.getElementById("closeCompanyCraneRegistryButton"),
   refreshCompanyCraneRegistryButton: document.getElementById("refreshCompanyCraneRegistryButton"),
   syncCompanyRegistryButton: document.getElementById("syncCompanyRegistryButton"),
+  deleteCompanyRegistryButton: document.getElementById("deleteCompanyRegistryButton"),
   newCompanyCraneButton: document.getElementById("newCompanyCraneButton"),
   companyRegistrySearch: document.getElementById("companyRegistrySearch"),
   selectCompanyRegistrySearchButton: document.getElementById("selectCompanyRegistrySearchButton"),
@@ -404,6 +407,7 @@ function setupAppActions() {
   elements.closeCompanyCraneRegistryButton.addEventListener("click", () => showView("inspection"));
   elements.refreshCompanyCraneRegistryButton.addEventListener("click", renderCompanyCraneRegistry);
   elements.syncCompanyRegistryButton.addEventListener("click", syncCompanyRegistryFromReports);
+  elements.deleteCompanyRegistryButton.addEventListener("click", deleteCurrentCompanyRegistry);
   elements.newCompanyCraneButton.addEventListener("click", () => openCompanyCraneForm());
   elements.cancelCompanyCraneButton.addEventListener("click", closeCompanyCraneForm);
   elements.saveCompanyCraneButton.addEventListener("click", saveCompanyCraneFromForm);
@@ -534,7 +538,7 @@ function parseClientPlants(text) {
 }
 
 function populateClientPlantOptions(clientPlants, selectedValue = elements.plantName.value) {
-  const options = Array.from(new Set(clientPlants.filter(Boolean)));
+  const options = Array.from(new Set(clientPlants.filter(Boolean))).filter((client) => !isDeletedCompanyName(client));
   const selected = String(selectedValue || "").trim();
 
   if (selected && !options.includes(selected)) {
@@ -719,6 +723,72 @@ function updateConnectivityStatus(message) {
     ? "Con conexion. Los datos siguen guardandose localmente."
     : "Sin conexion. Puedes seguir trabajando offline.");
 }
+
+function readDeletedInspections() {
+  return getCachedMasterData("deletedInspections");
+}
+
+function writeDeletedInspections(deletedInspections) {
+  setCachedMasterData("deletedInspections", DELETED_INSPECTIONS_KEY, deletedInspections || {});
+}
+
+function markInspectionDeleted(inspection) {
+  if (!inspection || !inspection.id) {
+    return;
+  }
+  const normalized = normalizeInspection(inspection);
+  const deletedInspections = readDeletedInspections();
+  deletedInspections[normalized.id] = {
+    id: normalized.id,
+    inspection: normalized,
+    company: normalizeClientName(normalized.plantName),
+    deletedAt: new Date().toISOString()
+  };
+  writeDeletedInspections(deletedInspections);
+}
+
+function isDeletedInspectionId(inspectionId) {
+  return Boolean(inspectionId && readDeletedInspections()[inspectionId]);
+}
+
+function readDeletedCompanies() {
+  return getCachedMasterData("deletedCompanies");
+}
+
+function writeDeletedCompanies(deletedCompanies) {
+  setCachedMasterData("deletedCompanies", DELETED_COMPANIES_KEY, deletedCompanies || {});
+}
+
+function markCompanyDeleted(client, details = {}) {
+  const normalizedClient = normalizeClientName(client);
+  if (!normalizedClient) {
+    return;
+  }
+  const deletedCompanies = readDeletedCompanies();
+  deletedCompanies[createCloudCompanyId(normalizedClient)] = {
+    id: createCloudCompanyId(normalizedClient),
+    client: normalizedClient,
+    details,
+    deletedAt: new Date().toISOString()
+  };
+  writeDeletedCompanies(deletedCompanies);
+}
+
+function unmarkCompanyDeleted(client) {
+  const normalizedClient = normalizeClientName(client);
+  if (!normalizedClient) {
+    return;
+  }
+  const deletedCompanies = readDeletedCompanies();
+  delete deletedCompanies[createCloudCompanyId(normalizedClient)];
+  writeDeletedCompanies(deletedCompanies);
+}
+
+function isDeletedCompanyName(client) {
+  const normalizedClient = normalizeClientName(client);
+  return Boolean(normalizedClient && readDeletedCompanies()[createCloudCompanyId(normalizedClient)]);
+}
+
 function collectInspectionData() {
   const equipments = currentEquipments.map((equipment) => normalizeEquipment(equipment));
   const craneIds = getInspectionCraneIds({ equipments });
@@ -832,6 +902,8 @@ async function renderSavedReports() {
 
   elements.savedReports.querySelectorAll("[data-delete-id]").forEach((button) => {
     button.addEventListener("click", async () => {
+      const record = await getInspection(button.dataset.deleteId);
+      markInspectionDeleted(record || { id: button.dataset.deleteId });
       await deleteInspection(button.dataset.deleteId);
       if (elements.inspectionId.value === button.dataset.deleteId) {
         resetForm();
