@@ -683,6 +683,7 @@ function mergeCompanyCraneRegistries(currentRegistry, backupRegistry) {
       if (existingIndex >= 0) {
         const targetId = currentCranes[existingIndex].id || incomingCrane.id;
         craneIdMap[buildActiveCraneFindingKey(client, incomingCrane.id)] = buildActiveCraneFindingKey(client, targetId);
+        craneIdMap[buildCraneChecklistKey(client, incomingCrane.id)] = buildCraneChecklistKey(client, targetId);
         currentCranes[existingIndex] = {
           ...currentCranes[existingIndex],
           ...incomingCrane,
@@ -691,6 +692,7 @@ function mergeCompanyCraneRegistries(currentRegistry, backupRegistry) {
       } else {
         currentCranes.push(incomingCrane);
         craneIdMap[buildActiveCraneFindingKey(client, incomingCrane.id)] = buildActiveCraneFindingKey(client, incomingCrane.id);
+        craneIdMap[buildCraneChecklistKey(client, incomingCrane.id)] = buildCraneChecklistKey(client, incomingCrane.id);
       }
     });
     merged[client] = currentCranes;
