@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f4c5c">
   <title>Inspecciones de Gruas</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css?v=98">
+  <link rel="stylesheet" href="styles.css?v=101">
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -40,7 +40,7 @@
     </div>
   </section>
 
-  <span id="appVersionBadge" class="app-version-badge">Version 1.3.5</span>
+  <span id="appVersionBadge" class="app-version-badge">Version 1.3.8</span>
 
   <div id="appShell" class="app-shell">
     <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
@@ -88,7 +88,10 @@
       <div class="nav-group">
         <p class="nav-label">Modulos</p>
         <button id="openDashboardButton" class="nav-link" type="button">Dashboard general</button>
-        <button id="openSidebarButton" class="nav-link" type="button">Historial de reportes</button>
+        <div class="nav-history-anchor">
+          <button id="openSidebarButton" class="nav-link" type="button">Historial de reportes</button>
+          <div id="historyCascadePanel" class="history-cascade hidden" aria-label="Historial por empresa"></div>
+        </div>
         <button id="openCompanyCraneRegistryButton" class="nav-link" type="button">Empresas y gruas</button>
         <button id="openMaintenancePanelButton" class="nav-link" type="button">Mantenimiento</button>
         <button id="openConsolidatedHistoryButton" class="nav-link" type="button">Concentrado general</button>
@@ -927,21 +930,21 @@
     <button id="mobileMoreButton" type="button"><span>☰</span>Mas</button>
   </nav>
 
-  <script src="report-template-config.js?v=98"></script>
-  <script src="finding-catalog-config.js?v=98"></script>
-  <script src="checklist-config.js?v=98"></script>
-  <script src="findings.js?v=98"></script>
-  <script src="company-cranes.js?v=98"></script>
-  <script src="equipment.js?v=98"></script>
-  <script src="pdf-actions.js?v=98"></script>
-  <script src="backup.js?v=98"></script>
-  <script src="storage.js?v=98"></script>
-  <script src="settings.js?v=98"></script>
-  <script src="maintenance-panel.js?v=98"></script>
-  <script src="dashboard.js?v=98"></script>
-  <script src="report-generator.js?v=98"></script>
-  <script src="supabase-config.js?v=98"></script>
-  <script src="cloud-sync.js?v=98"></script>
-  <script src="app.js?v=98"></script>
+  <script src="report-template-config.js?v=101"></script>
+  <script src="finding-catalog-config.js?v=101"></script>
+  <script src="checklist-config.js?v=101"></script>
+  <script src="findings.js?v=101"></script>
+  <script src="company-cranes.js?v=101"></script>
+  <script src="equipment.js?v=101"></script>
+  <script src="pdf-actions.js?v=101"></script>
+  <script src="backup.js?v=101"></script>
+  <script src="storage.js?v=101"></script>
+  <script src="settings.js?v=101"></script>
+  <script src="maintenance-panel.js?v=101"></script>
+  <script src="dashboard.js?v=101"></script>
+  <script src="report-generator.js?v=101"></script>
+  <script src="supabase-config.js?v=101"></script>
+  <script src="cloud-sync.js?v=101"></script>
+  <script src="app.js?v=101"></script>
 </body>
 </html>

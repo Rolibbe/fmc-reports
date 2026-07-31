@@ -17,7 +17,7 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.5";
+const APP_VERSION = "1.3.8";
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -117,6 +117,7 @@ const elements = {
   sidebar: document.getElementById("sidebar"),
   sidebarBackdrop: document.getElementById("sidebarBackdrop"),
   openSidebarButton: document.getElementById("openSidebarButton"),
+  historyCascadePanel: document.getElementById("historyCascadePanel"),
   closeSidebarButton: document.getElementById("closeSidebarButton"),
   toolsMenuButton: document.getElementById("toolsMenuButton"),
   toolsMenuList: document.getElementById("toolsMenuList"),
@@ -373,7 +374,21 @@ function setupAppActions() {
     }
   });
   setupMobileNavigation();
-  elements.openSidebarButton.addEventListener("click", openSidebar);
+  elements.openSidebarButton.addEventListener("click", () => {
+    if (window.matchMedia("(max-width: 1080px)").matches) {
+      openSidebar();
+      return;
+    }
+    showHistoryCascade();
+  });
+  elements.openSidebarButton.addEventListener("mouseenter", showHistoryCascade);
+  elements.openSidebarButton.addEventListener("focus", showHistoryCascade);
+  elements.historyCascadePanel.addEventListener("mouseenter", showHistoryCascade);
+  elements.historyCascadePanel.addEventListener("mouseleave", hideHistoryCascade);
+  const historyAnchor = elements.openSidebarButton.closest(".nav-history-anchor");
+  if (historyAnchor) {
+    historyAnchor.addEventListener("mouseleave", hideHistoryCascade);
+  }
   elements.closeSidebarButton.addEventListener("click", closeSidebar);
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
   elements.toolsMenuButton.addEventListener("click", toggleToolsMenu);
@@ -519,6 +534,13 @@ function setupAppActions() {
       && !elements.toolsMenuList.contains(event.target)
     ) {
       closeToolsMenu();
+    }
+    if (
+      elements.historyCascadePanel
+      && !elements.openSidebarButton.contains(event.target)
+      && !elements.historyCascadePanel.contains(event.target)
+    ) {
+      hideHistoryCascade();
     }
   });
   document.addEventListener("keydown", (event) => {
@@ -915,36 +937,176 @@ async function renderSavedReports() {
     .map(normalizeInspection)
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   renderSavedReportsSummary(normalizedRecords);
+  elements.savedReports.innerHTML = renderSavedReportsBrowser(normalizedRecords);
+  wireSavedReportsBrowser(normalizedRecords);
+}
 
-  normalizedRecords
-    .forEach((record) => {
-      const findingsCount = record.equipments.reduce((sum, equipment) => sum + equipment.findings.length, 0);
-      const craneIds = getInspectionCraneIds(record);
-      const card = document.createElement("article");
-      card.className = "saved-card";
-      card.innerHTML = `
-        <div class="saved-card-top">
-          <span class="saved-folio">${escapeHtml(record.reportNumber || "Sin folio")}</span>
-          <span class="saved-date">${escapeHtml(record.inspectionDate || "Sin fecha")}</span>
+function renderSavedReportsBrowser(records) {
+  const grouped = groupReportsByClient(records);
+  const activeClient = grouped[0] ? grouped[0].client : "";
+  const activeReports = grouped[0] ? grouped[0].records : [];
+  const activeReport = activeReports[0] || null;
+
+  return `
+    <div class="saved-report-browser">
+      <section class="saved-browser-column saved-browser-main">
+        <p class="eyebrow">Empresas</p>
+        <div class="saved-company-list">
+          ${grouped.map((group, index) => renderSavedCompanyButton(group, index === 0)).join("")}
         </div>
-        <p class="saved-client">${escapeHtml(record.plantName || "Cliente sin nombre")}</p>
-        <div class="saved-meta">
-          <span>${escapeHtml(record.serviceType || "Servicio")}</span>
-          <span>${record.equipments.length} equipo(s)</span>
-          <span>${findingsCount} hallazgo(s)</span>
-        </div>
-        <p class="saved-cranes">${escapeHtml(craneIds.length ? craneIds.join(" | ") : "Sin nombre/tag capturado")}</p>
-        <div class="saved-actions">
-          <button class="secondary-button" type="button" data-open-id="${record.id}">Abrir</button>
-          <button class="secondary-button" type="button" data-duplicate-id="${record.id}">Duplicar</button>
-          <button class="secondary-button" type="button" data-export-id="${record.id}">Exportar</button>
-          <button class="ghost-button" type="button" data-delete-id="${record.id}">Eliminar</button>
-        </div>
-      `;
-      elements.savedReports.appendChild(card);
+      </section>
+      <section class="saved-browser-column saved-browser-secondary" data-saved-report-list>
+        ${renderSavedCompanyReports(activeClient, activeReports, activeReport ? activeReport.id : "")}
+      </section>
+      <section class="saved-browser-column saved-browser-detail" data-saved-report-detail>
+        ${renderSavedReportDetail(activeReport)}
+      </section>
+    </div>
+  `;
+}
+
+function groupReportsByClient(records) {
+  const groups = {};
+  records.forEach((record) => {
+    const client = normalizeClientName(record.plantName) || "Cliente sin nombre";
+    groups[client] = groups[client] || [];
+    groups[client].push(record);
+  });
+
+  return Object.entries(groups)
+    .map(([client, clientRecords]) => ({
+      client,
+      records: clientRecords.sort((a, b) => new Date(b.inspectionDate || b.updatedAt) - new Date(a.inspectionDate || a.updatedAt))
+    }))
+    .sort((a, b) => a.client.localeCompare(b.client));
+}
+
+function renderSavedCompanyButton(group, isActive = false) {
+  const findingsCount = group.records.reduce((sum, record) => (
+    sum + record.equipments.reduce((itemSum, equipment) => itemSum + equipment.findings.length, 0)
+  ), 0);
+  const lastDate = group.records[0] ? group.records[0].inspectionDate || group.records[0].updatedAt || "" : "";
+  return `
+    <button class="saved-company-button ${isActive ? "is-active" : ""}" type="button" data-saved-client="${escapeHtml(group.client)}">
+      <strong>${escapeHtml(group.client)}</strong>
+      <span>${group.records.length} reporte(s) · ${findingsCount} hallazgo(s)</span>
+      <small>Ultimo: ${escapeHtml(formatDate(lastDate) || "Sin fecha")}</small>
+    </button>
+  `;
+}
+
+function renderSavedCompanyReports(client, records, activeReportId = "") {
+  if (!client || !records.length) {
+    return '<div class="saved-browser-empty">Pasa el cursor sobre una empresa para ver sus reportes.</div>';
+  }
+
+  return `
+    <p class="eyebrow">Reportes</p>
+    <h3>${escapeHtml(client)}</h3>
+    <div class="saved-report-list">
+      ${records.map((record, index) => renderSavedReportButton(record, activeReportId ? record.id === activeReportId : index === 0)).join("")}
+    </div>
+  `;
+}
+
+function renderSavedReportButton(record, isActive = false) {
+  const findingsCount = record.equipments.reduce((sum, equipment) => sum + equipment.findings.length, 0);
+  return `
+    <button class="saved-report-button ${isActive ? "is-active" : ""}" type="button" data-saved-report="${escapeHtml(record.id)}">
+      <span class="saved-folio">${escapeHtml(record.reportNumber || "Sin folio")}</span>
+      <strong>${escapeHtml(record.inspectionDate || "Sin fecha")}</strong>
+      <small>${record.equipments.length} equipo(s) · ${findingsCount} hallazgo(s)</small>
+    </button>
+  `;
+}
+
+function renderSavedReportDetail(record) {
+  if (!record) {
+    return '<div class="saved-browser-empty">Selecciona un reporte para ver el detalle.</div>';
+  }
+
+  const findingsCount = record.equipments.reduce((sum, equipment) => sum + equipment.findings.length, 0);
+  const craneIds = getInspectionCraneIds(record);
+  return `
+    <p class="eyebrow">Detalle</p>
+    <h3>${escapeHtml(record.reportNumber || "Sin folio")}</h3>
+    <div class="saved-detail-card">
+      <dl>
+        <div><dt>Cliente</dt><dd>${escapeHtml(record.plantName || "Sin cliente")}</dd></div>
+        <div><dt>Fecha</dt><dd>${escapeHtml(record.inspectionDate || "Sin fecha")}</dd></div>
+        <div><dt>Servicio</dt><dd>${escapeHtml(record.serviceType || "Servicio")}</dd></div>
+        <div><dt>Equipos</dt><dd>${record.equipments.length}</dd></div>
+        <div><dt>Hallazgos</dt><dd>${findingsCount}</dd></div>
+        <div><dt>Gruas</dt><dd>${escapeHtml(craneIds.length ? craneIds.join(" | ") : "Sin nombre/tag capturado")}</dd></div>
+      </dl>
+      <div class="saved-actions">
+        <button class="secondary-button" type="button" data-open-id="${record.id}">Abrir</button>
+        <button class="secondary-button" type="button" data-duplicate-id="${record.id}">Duplicar</button>
+        <button class="secondary-button" type="button" data-export-id="${record.id}">Exportar</button>
+        <button class="ghost-button" type="button" data-delete-id="${record.id}">Eliminar</button>
+      </div>
+    </div>
+  `;
+}
+
+function wireSavedReportsBrowser(records) {
+  const grouped = groupReportsByClient(records);
+  const listPanel = elements.savedReports.querySelector("[data-saved-report-list]");
+  const detailPanel = elements.savedReports.querySelector("[data-saved-report-detail]");
+
+  const setActiveClient = (client) => {
+    const group = grouped.find((item) => item.client === client);
+    if (!group || !listPanel || !detailPanel) {
+      return;
+    }
+    elements.savedReports.querySelectorAll("[data-saved-client]").forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.savedClient === client);
     });
+    const firstReport = group.records[0] || null;
+    listPanel.innerHTML = renderSavedCompanyReports(group.client, group.records, firstReport ? firstReport.id : "");
+    detailPanel.innerHTML = renderSavedReportDetail(firstReport);
+    wireSavedReportHover(records);
+  };
 
+  elements.savedReports.querySelectorAll("[data-saved-client]").forEach((button) => {
+    ["mouseenter", "focus", "click"].forEach((eventName) => {
+      button.addEventListener(eventName, () => setActiveClient(button.dataset.savedClient));
+    });
+  });
+  wireSavedReportHover(records);
+}
+
+function wireSavedReportHover(records) {
+  const detailPanel = elements.savedReports.querySelector("[data-saved-report-detail]");
+  if (!detailPanel) {
+    return;
+  }
+
+  elements.savedReports.querySelectorAll("[data-saved-report]").forEach((button) => {
+    const setActiveReport = () => {
+      const record = records.find((item) => item.id === button.dataset.savedReport);
+      if (!record) {
+        return;
+      }
+      elements.savedReports.querySelectorAll("[data-saved-report]").forEach((reportButton) => {
+        reportButton.classList.toggle("is-active", reportButton.dataset.savedReport === record.id);
+      });
+      detailPanel.innerHTML = renderSavedReportDetail(record);
+      wireSavedReportActionButtons();
+    };
+    ["mouseenter", "focus", "click"].forEach((eventName) => {
+      button.addEventListener(eventName, setActiveReport);
+    });
+  });
+  wireSavedReportActionButtons();
+}
+
+function wireSavedReportActionButtons() {
   elements.savedReports.querySelectorAll("[data-open-id]").forEach((button) => {
+    if (button.dataset.savedActionWired) {
+      return;
+    }
+    button.dataset.savedActionWired = "true";
     button.addEventListener("click", async () => {
       const record = await getInspection(button.dataset.openId);
       if (record) {
@@ -955,6 +1117,10 @@ async function renderSavedReports() {
   });
 
   elements.savedReports.querySelectorAll("[data-delete-id]").forEach((button) => {
+    if (button.dataset.savedActionWired) {
+      return;
+    }
+    button.dataset.savedActionWired = "true";
     button.addEventListener("click", async () => {
       const record = await getInspection(button.dataset.deleteId);
       markInspectionDeleted(record || { id: button.dataset.deleteId });
@@ -967,12 +1133,20 @@ async function renderSavedReports() {
   });
 
   elements.savedReports.querySelectorAll("[data-duplicate-id]").forEach((button) => {
+    if (button.dataset.savedActionWired) {
+      return;
+    }
+    button.dataset.savedActionWired = "true";
     button.addEventListener("click", async () => {
       await duplicateInspection(button.dataset.duplicateId);
     });
   });
 
   elements.savedReports.querySelectorAll("[data-export-id]").forEach((button) => {
+    if (button.dataset.savedActionWired) {
+      return;
+    }
+    button.dataset.savedActionWired = "true";
     button.addEventListener("click", async () => {
       const record = await getInspection(button.dataset.exportId);
       if (record) {
@@ -1057,6 +1231,160 @@ function renderSavedReportsSummary(records) {
       <strong>${findingsCount}</strong>
     </article>
   `;
+}
+
+async function showHistoryCascade() {
+  if (!elements.historyCascadePanel) {
+    return;
+  }
+
+  const records = (await getAllInspections())
+    .map(normalizeInspection)
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+
+  if (!records.length) {
+    elements.historyCascadePanel.innerHTML = '<div class="history-cascade-empty">Todavia no hay reportes guardados.</div>';
+    elements.historyCascadePanel.classList.remove("hidden");
+    return;
+  }
+
+  const grouped = groupReportsByClient(records);
+  const activeClient = getActiveHistoryCascadeClient(grouped);
+  const activeGroup = grouped.find((group) => group.client === activeClient) || grouped[0];
+  elements.historyCascadePanel.innerHTML = renderHistoryCascade(grouped, activeGroup);
+  elements.historyCascadePanel.classList.remove("hidden");
+  wireHistoryCascade(grouped);
+}
+
+function hideHistoryCascade() {
+  if (elements.historyCascadePanel) {
+    elements.historyCascadePanel.classList.add("hidden");
+  }
+}
+
+function getActiveHistoryCascadeClient(grouped) {
+  const current = elements.historyCascadePanel ? elements.historyCascadePanel.dataset.activeClient : "";
+  return current && grouped.some((group) => group.client === current)
+    ? current
+    : grouped[0] ? grouped[0].client : "";
+}
+
+function renderHistoryCascade(grouped, activeGroup) {
+  return `
+    <section class="history-cascade-panel history-cascade-companies">
+      <p class="eyebrow">Empresas</p>
+      <div class="history-cascade-list">
+        ${grouped.map((group) => renderHistoryCascadeCompany(group, activeGroup && group.client === activeGroup.client)).join("")}
+      </div>
+    </section>
+    <section class="history-cascade-panel history-cascade-reports" data-history-cascade-reports>
+      ${renderHistoryCascadeReports(activeGroup)}
+    </section>
+  `;
+}
+
+function renderHistoryCascadeCompany(group, isActive = false) {
+  const lastDate = group.records[0] ? group.records[0].inspectionDate || group.records[0].updatedAt || "" : "";
+  return `
+    <button class="history-cascade-company ${isActive ? "is-active" : ""}" type="button" data-history-client="${escapeHtml(group.client)}">
+      <strong>${escapeHtml(group.client)}</strong>
+      <span>${group.records.length} reporte(s)</span>
+      <small>${escapeHtml(formatDate(lastDate) || "Sin fecha")}</small>
+    </button>
+  `;
+}
+
+function renderHistoryCascadeReports(group) {
+  if (!group || !group.records.length) {
+    return '<div class="history-cascade-empty">Pasa el cursor por una empresa.</div>';
+  }
+
+  return `
+    <p class="eyebrow">Reportes</p>
+    <h3>${escapeHtml(group.client)}</h3>
+    <div class="history-cascade-report-list">
+      ${group.records.map(renderHistoryCascadeReport).join("")}
+    </div>
+  `;
+}
+
+function renderHistoryCascadeReport(record) {
+  const findingsCount = record.equipments.reduce((sum, equipment) => sum + equipment.findings.length, 0);
+  return `
+    <article class="history-cascade-report">
+      <button type="button" data-open-id="${escapeHtml(record.id)}">
+        <span>${escapeHtml(record.reportNumber || "Sin folio")}</span>
+        <strong>${escapeHtml(record.inspectionDate || "Sin fecha")}</strong>
+        <small>${record.equipments.length} equipo(s) · ${findingsCount} hallazgo(s)</small>
+      </button>
+      <div>
+        <button type="button" data-duplicate-id="${escapeHtml(record.id)}">Duplicar</button>
+        <button type="button" data-export-id="${escapeHtml(record.id)}">Exportar</button>
+        <button type="button" data-delete-id="${escapeHtml(record.id)}">Eliminar</button>
+      </div>
+    </article>
+  `;
+}
+
+function wireHistoryCascade(grouped) {
+  const reportsPanel = elements.historyCascadePanel.querySelector("[data-history-cascade-reports]");
+  elements.historyCascadePanel.querySelectorAll("[data-history-client]").forEach((button) => {
+    const setActive = () => {
+      const group = grouped.find((item) => item.client === button.dataset.historyClient);
+      if (!group || !reportsPanel) {
+        return;
+      }
+      elements.historyCascadePanel.dataset.activeClient = group.client;
+      elements.historyCascadePanel.querySelectorAll("[data-history-client]").forEach((clientButton) => {
+        clientButton.classList.toggle("is-active", clientButton.dataset.historyClient === group.client);
+      });
+      reportsPanel.innerHTML = renderHistoryCascadeReports(group);
+      wireHistoryCascadeActionButtons();
+    };
+    ["mouseenter", "focus", "click"].forEach((eventName) => button.addEventListener(eventName, setActive));
+  });
+  wireHistoryCascadeActionButtons();
+}
+
+function wireHistoryCascadeActionButtons() {
+  elements.historyCascadePanel.querySelectorAll("[data-open-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const record = await getInspection(button.dataset.openId);
+      if (record) {
+        loadInspection(normalizeInspection(record));
+        hideHistoryCascade();
+      }
+    });
+  });
+
+  elements.historyCascadePanel.querySelectorAll("[data-delete-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const record = await getInspection(button.dataset.deleteId);
+      markInspectionDeleted(record || { id: button.dataset.deleteId });
+      await deleteInspection(button.dataset.deleteId);
+      if (elements.inspectionId.value === button.dataset.deleteId) {
+        resetForm();
+      }
+      await renderSavedReports();
+      await showHistoryCascade();
+    });
+  });
+
+  elements.historyCascadePanel.querySelectorAll("[data-duplicate-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await duplicateInspection(button.dataset.duplicateId);
+      hideHistoryCascade();
+    });
+  });
+
+  elements.historyCascadePanel.querySelectorAll("[data-export-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const record = await getInspection(button.dataset.exportId);
+      if (record) {
+        downloadInspectionJson(normalizeInspection(record));
+      }
+    });
+  });
 }
 
 const consolidatedHistoryColumns = [
