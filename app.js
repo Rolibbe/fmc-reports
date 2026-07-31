@@ -17,6 +17,7 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
+const APP_VERSION = "1.3.1";
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -55,6 +56,16 @@ const fallbackPolipastos = [
   "CM Lodestar",
   "R&M"
 ];
+const fallbackCraneTypes = [
+  "Puente",
+  "Grua viajera",
+  "Monorriel",
+  "Portico",
+  "Grua bandera",
+  "Pluma",
+  "Polipasto",
+  "Otro"
+];
 
 const findingCatalog = sanitizeFindingCatalog(window.FINDING_CATALOG_CONFIG) || fallbackFindingCatalog;
 const findingCatalogIndex = buildFindingCatalogIndex(findingCatalog);
@@ -86,6 +97,7 @@ const elements = {
   loginButton: document.getElementById("loginButton"),
   loginOfflineButton: document.getElementById("loginOfflineButton"),
   loginStatus: document.getElementById("loginStatus"),
+  appVersionBadge: document.getElementById("appVersionBadge"),
   mobileCloudStatus: document.getElementById("mobileCloudStatus"),
   mobileSyncButton: document.getElementById("mobileSyncButton"),
   mobileMorePanel: document.getElementById("mobileMorePanel"),
@@ -155,6 +167,10 @@ const elements = {
   settingsNewPolipasto: document.getElementById("settingsNewPolipasto"),
   addSettingsPolipastoButton: document.getElementById("addSettingsPolipastoButton"),
   settingsPolipastos: document.getElementById("settingsPolipastos"),
+  settingsNewCraneType: document.getElementById("settingsNewCraneType"),
+  addSettingsCraneTypeButton: document.getElementById("addSettingsCraneTypeButton"),
+  settingsCraneTypes: document.getElementById("settingsCraneTypes"),
+  craneTypeOptions: document.getElementById("craneTypeOptions"),
   settingsPhotoMaxSize: document.getElementById("settingsPhotoMaxSize"),
   settingsChecklistMaxSize: document.getElementById("settingsChecklistMaxSize"),
   settingsPhotoQuality: document.getElementById("settingsPhotoQuality"),
@@ -301,14 +317,16 @@ document.addEventListener("DOMContentLoaded", initializeApp);
 
 async function initializeApp() {
   updateConnectivityStatus();
+  updateAppVersionBadge();
   try {
     await initializeMasterDataStore();
     await initializeAppSettings();
     populateCategoryOptions();
     populateQuickFindingOptions();
     setupAppActions();
-    await loadClientPlantOptions();
-    await loadPolipastoOptions();
+  await loadClientPlantOptions();
+  await loadPolipastoOptions();
+  await loadCraneTypeOptions();
     setDefaultDates();
     assignNewReportNumber(true);
     resetEquipmentEditorState();
@@ -324,6 +342,12 @@ async function initializeApp() {
       elements.loginStatus.textContent = "La app no termino de cargar. Recarga la pagina o entra en modo offline.";
     }
     console.error("Error al iniciar la app", error);
+  }
+}
+
+function updateAppVersionBadge() {
+  if (elements.appVersionBadge) {
+    elements.appVersionBadge.textContent = `Version ${APP_VERSION}`;
   }
 }
 
@@ -399,6 +423,7 @@ function setupAppActions() {
   elements.saveSettingsButton.addEventListener("click", saveSettingsFromForm);
   elements.resetSettingsButton.addEventListener("click", resetSettingsToDefaults);
   elements.addSettingsPolipastoButton.addEventListener("click", addPolipastoToSettingsList);
+  elements.addSettingsCraneTypeButton.addEventListener("click", addCraneTypeToSettingsList);
   elements.cloudSignInButton.addEventListener("click", cloudSignInFromForm);
   elements.cloudSignOutButton.addEventListener("click", cloudSignOutFromForm);
   elements.syncCompaniesCranesButton.addEventListener("click", syncCompaniesAndCranesToCloud);

@@ -7,6 +7,7 @@ const SETTINGS_DEFAULT_RECOMMENDATION_TEXT = "Se recomienda atender de forma pri
 const DEFAULT_APP_SETTINGS = {
   clientPlants: [],
   polipastos: [],
+  craneTypes: [],
   defaultMaintenanceFrequency: 6,
   fixedRecommendationText: SETTINGS_DEFAULT_RECOMMENDATION_TEXT,
   photoMaxSize: 1150,
@@ -57,6 +58,7 @@ function normalizeAppSettings(settings) {
       ? source.clientPlants.map((item) => String(item || "").trim()).filter(Boolean)
       : [],
     polipastos: normalizePolipastoNames(Array.isArray(source.polipastos) ? source.polipastos : []),
+    craneTypes: normalizeCraneTypeNames(Array.isArray(source.craneTypes) ? source.craneTypes : []),
     defaultMaintenanceFrequency: clampNumber(source.defaultMaintenanceFrequency, 1, 12, DEFAULT_APP_SETTINGS.defaultMaintenanceFrequency),
     fixedRecommendationText: String(source.fixedRecommendationText || DEFAULT_APP_SETTINGS.fixedRecommendationText),
     photoMaxSize: clampNumber(source.photoMaxSize, 700, 1800, DEFAULT_APP_SETTINGS.photoMaxSize),
@@ -89,6 +91,10 @@ function getConfiguredClientPlants() {
 
 function getConfiguredPolipastos() {
   return getAppSettings().polipastos || [];
+}
+
+function getConfiguredCraneTypes() {
+  return getAppSettings().craneTypes || [];
 }
 
 function getDefaultMaintenanceFrequencyMonths() {
@@ -127,7 +133,9 @@ async function populateSettingsForm() {
   const settings = getAppSettings();
   elements.settingsClientPlants.value = (settings.clientPlants.length ? settings.clientPlants : fileClients).join("\n");
   elements.settingsPolipastos.value = (settings.polipastos.length ? settings.polipastos : filePolipastos).join("\n");
+  elements.settingsCraneTypes.value = (settings.craneTypes.length ? settings.craneTypes : fallbackCraneTypes).join("\n");
   elements.settingsNewPolipasto.value = "";
+  elements.settingsNewCraneType.value = "";
   elements.settingsDefaultFrequency.value = settings.defaultMaintenanceFrequency;
   elements.settingsRecommendationText.value = settings.fixedRecommendationText;
   elements.settingsPhotoMaxSize.value = settings.photoMaxSize;
@@ -157,6 +165,7 @@ async function saveSettingsFromForm() {
   const settings = {
     clientPlants: nextClients,
     polipastos: parsePolipastoList(elements.settingsPolipastos.value),
+    craneTypes: parseCraneTypeList(elements.settingsCraneTypes.value),
     defaultMaintenanceFrequency: elements.settingsDefaultFrequency.value,
     fixedRecommendationText: elements.settingsRecommendationText.value.trim() || DEFAULT_APP_SETTINGS.fixedRecommendationText,
     photoMaxSize: elements.settingsPhotoMaxSize.value,
@@ -176,6 +185,7 @@ async function saveSettingsFromForm() {
   await writeAppSettings(settings);
   populateClientPlantOptions(settings.clientPlants, elements.plantName.value);
   populatePolipastoOptions(settings.polipastos);
+  populateCraneTypeOptions(settings.craneTypes, elements.craneType.value);
   await showAppDialog({
     title: "Configuracion guardada",
     message: "Los cambios se aplicaran a nuevos equipos, respaldos, PDF y lista de clientes.",
@@ -198,6 +208,21 @@ function addPolipastoToSettingsList() {
   populatePolipastoOptions(polipastos);
 }
 
+function addCraneTypeToSettingsList() {
+  const value = String(elements.settingsNewCraneType.value || "").trim();
+  if (!value) {
+    return;
+  }
+
+  const craneTypes = normalizeCraneTypeNames([
+    ...parseCraneTypeList(elements.settingsCraneTypes.value),
+    value
+  ]);
+  elements.settingsCraneTypes.value = craneTypes.join("\n");
+  elements.settingsNewCraneType.value = "";
+  populateCraneTypeOptions(craneTypes, elements.craneType.value);
+}
+
 async function resetSettingsToDefaults() {
   const result = await showAppDialog({
     title: "Restaurar configuracion",
@@ -214,6 +239,7 @@ async function resetSettingsToDefaults() {
   await populateSettingsForm();
   await loadClientPlantOptions();
   await loadPolipastoOptions();
+  await loadCraneTypeOptions();
 }
 
 async function loadPolipastoOptions() {
@@ -271,4 +297,50 @@ function populatePolipastoOptions(polipastos) {
   elements.polipastoOptions.innerHTML = normalizePolipastoNames(polipastos)
     .map((polipasto) => `<option value="${escapeHtml(polipasto)}"></option>`)
     .join("");
+}
+
+async function loadCraneTypeOptions() {
+  populateCraneTypeOptions(getConfiguredCraneTypes().length ? getConfiguredCraneTypes() : fallbackCraneTypes, elements.craneType.value);
+}
+
+function parseCraneTypeList(text) {
+  return normalizeCraneTypeNames(String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#")));
+}
+
+function normalizeCraneTypeNames(items) {
+  const seen = new Set();
+  return (items || [])
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .filter((item) => {
+      const key = item.toUpperCase();
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+}
+
+function populateCraneTypeOptions(craneTypes, selectedValue = "") {
+  const options = normalizeCraneTypeNames(craneTypes && craneTypes.length ? craneTypes : fallbackCraneTypes);
+  const selected = selectedValue && options.some((type) => type === selectedValue)
+    ? selectedValue
+    : options[0] || "Puente";
+
+  if (elements.craneType) {
+    elements.craneType.innerHTML = options
+      .map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`)
+      .join("");
+    elements.craneType.value = selected;
+  }
+
+  if (elements.craneTypeOptions) {
+    elements.craneTypeOptions.innerHTML = options
+      .map((type) => `<option value="${escapeHtml(type)}"></option>`)
+      .join("");
+  }
 }

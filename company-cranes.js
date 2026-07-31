@@ -1339,7 +1339,7 @@ function createFindingFromActiveCatalogIncidence(incidence) {
 function clearEquipmentIdentityFields() {
   elements.craneId.value = "";
   elements.equipmentName.value = "";
-  elements.craneType.value = "Puente";
+  elements.craneType.value = getDefaultCraneTypeOption();
   elements.ratedCapacity.value = "";
   elements.serialNumber.value = "";
   elements.equipmentLocation.value = "";
@@ -1392,7 +1392,11 @@ function mapCatalogCraneTypeToOption(type) {
   if (normalized.includes("polipasto")) {
     return "Polipasto";
   }
-  return "Otro";
+  return options.includes("Otro") ? "Otro" : getDefaultCraneTypeOption();
+}
+
+function getDefaultCraneTypeOption() {
+  return elements.craneType.options.length ? elements.craneType.options[0].value : "Puente";
 }
 
 function mapCatalogStatusToCondition(status) {
