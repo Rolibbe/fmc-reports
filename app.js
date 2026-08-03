@@ -17,7 +17,7 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.9";
+const APP_VERSION = "1.3.10";
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -380,12 +380,15 @@ function setupAppActions() {
     }
   });
   setupMobileNavigation();
-  on(elements.openSidebarButton, "click", () => {
+  on(elements.openSidebarButton, "click", async () => {
     if (window.matchMedia("(max-width: 1080px)").matches) {
       openSidebar();
       return;
     }
-    showHistoryCascade();
+    const opened = await showHistoryCascade();
+    if (!opened) {
+      openSidebar();
+    }
   });
   on(elements.openSidebarButton, "mouseenter", showHistoryCascade);
   on(elements.openSidebarButton, "focus", showHistoryCascade);
@@ -1246,17 +1249,23 @@ function renderSavedReportsSummary(records) {
 
 async function showHistoryCascade() {
   if (!elements.historyCascadePanel) {
-    return;
+    return false;
   }
 
-  const records = (await getAllInspections())
-    .map(normalizeInspection)
-    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  let records = [];
+  try {
+    records = (await getAllInspections())
+      .map(normalizeInspection)
+      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  } catch (error) {
+    console.error("No se pudo abrir el historial rapido", error);
+    return false;
+  }
 
   if (!records.length) {
     elements.historyCascadePanel.innerHTML = '<div class="history-cascade-empty">Todavia no hay reportes guardados.</div>';
     elements.historyCascadePanel.classList.remove("hidden");
-    return;
+    return true;
   }
 
   const grouped = groupReportsByClient(records);
@@ -1265,6 +1274,7 @@ async function showHistoryCascade() {
   elements.historyCascadePanel.innerHTML = renderHistoryCascade(grouped, activeGroup);
   elements.historyCascadePanel.classList.remove("hidden");
   wireHistoryCascade(grouped);
+  return true;
 }
 
 function hideHistoryCascade() {
