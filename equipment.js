@@ -848,7 +848,7 @@ function normalizeChecklistImage(image) {
   if (typeof image === "string") {
     return normalizePhotoEntry(image);
   }
-  if (typeof image === "object" && (image.dataUrl || image.thumbUrl || image.omittedFromBackup || image.removedFromStorage)) {
+  if (typeof image === "object" && (image.dataUrl || image.thumbUrl || image.cloudPath || image.omittedFromBackup || image.omittedFromCloudSync || image.removedFromStorage)) {
     return {
       ...normalizePhotoEntry(image),
       name: image.name || "checklist.jpg"

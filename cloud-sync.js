@@ -3,6 +3,7 @@
 
 const CLOUD_SESSION_KEY = "crane-cloud-session-v1";
 const CLOUD_OFFLINE_MODE_KEY = "crane-cloud-offline-mode-v1";
+const CLOUD_EVIDENCE_BUCKET = "report-evidence";
 
 function getSupabaseConfig() {
   const config = window.SUPABASE_CONFIG || {};
@@ -305,6 +306,25 @@ async function cloudFetch(path, options = {}) {
   return response.json();
 }
 
+async function cloudStorageFetch(path, options = {}) {
+  const config = getSupabaseConfig();
+  const session = await ensureCloudSession();
+  const response = await fetch(`${config.url}/storage/v1${path}`, {
+    ...options,
+    headers: {
+      apikey: config.key,
+      Authorization: `Bearer ${session.access_token}`,
+      ...(options.headers || {})
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response;
+}
+
 async function syncCompaniesAndCranesToCloud() {
   try {
     renderCloudStatus("Descargando datos de otros dispositivos...");
@@ -322,7 +342,7 @@ async function syncCompaniesAndCranesToCloud() {
     renderCloudStatus("Preparando datos locales...");
     const localRows = await buildLocalCompanyCraneRows();
     const localFindingRows = await buildLocalActiveFindingRows();
-    const localReportRows = await buildLocalReportRows();
+    const localReportRows = await buildLocalReportRows({ syncEvidence: true });
     const localSettingsRows = buildLocalSettingsRows();
 
     renderCloudStatus(`Subiendo ${localRows.companies.length} empresa(s), ${localRows.cranes.length} grua(s), ${localRows.deletedCranes.length + localRows.deletedCompanies.length} baja(s) y ${localReportRows.reports.length} reporte(s) optimizado(s)...`);
@@ -355,9 +375,13 @@ async function syncCompaniesAndCranesToCloud() {
     const visibleCranes = cloudCranes.filter((row) => !row.deleted_at).length;
     const visibleReports = cloudReports.filter((row) => !row.deleted_at).length;
     renderCloudStatus(`Sincronizado: ${visibleCompanies} empresa(s), ${visibleCranes} grua(s), ${visibleReports} reporte(s).`);
+    const evidenceText = localReportRows.evidence?.warnings?.length
+      ? `\n\nEvidencias: ${localReportRows.evidence.uploaded} subida(s), ${localReportRows.evidence.skipped} ya estaban listas y ${localReportRows.evidence.warnings.length} pendiente(s).`
+      : `\n\nEvidencias: ${localReportRows.evidence?.uploaded || 0} subida(s) y ${localReportRows.evidence?.skipped || 0} ya estaban listas.`;
     await showAppDialog({
       title: "Sincronizacion completa",
-      message: `Se combinaron ${visibleCompanies} empresa(s), ${visibleCranes} grua(s), ${cloudFindings.filter((row) => !row.deleted_at).length} grupo(s) de hallazgos y ${visibleReports} reporte(s) con este dispositivo.`,
+      message: `Se combinaron ${visibleCompanies} empresa(s), ${visibleCranes} grua(s), ${cloudFindings.filter((row) => !row.deleted_at).length} grupo(s) de hallazgos y ${visibleReports} reporte(s) con este dispositivo.${evidenceText}`,
+      details: localReportRows.evidence?.warnings?.slice(0, 8).join("\n") || "",
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
   } catch (error) {
@@ -447,23 +471,38 @@ async function buildLocalCompanyCraneRows() {
   return { companies, cranes, deletedCranes: deletedCraneRows, deletedCompanies: deletedCompanyRows };
 }
 
-async function buildLocalReportRows() {
+async function buildLocalReportRows(options = {}) {
   const inspections = (await getAllInspections()).map(normalizeInspection);
+  const evidenceSummary = { uploaded: 0, skipped: 0, warnings: [] };
   const reports = inspections
     .filter((inspection) => !isDeletedInspectionId(inspection.id) && !isDeletedCompanyName(inspection.plantName))
-    .map((inspection) => {
-    const payload = prepareInspectionForCloud(inspection);
-    const client = normalizeClientName(payload.plantName);
-    return {
-      id: payload.id,
-      company_id: client ? createCloudCompanyId(client) : null,
-      report_number: payload.reportNumber || "",
-      inspection_date: payload.inspectionDate || null,
-      payload,
-      updated_at: payload.updatedAt || new Date().toISOString(),
-      deleted_at: null
-    };
-  });
+    .map(async (inspection) => {
+      if (options.syncEvidence) {
+        const result = await uploadInspectionEvidence(inspection).catch((error) => ({
+          uploaded: 0,
+          skipped: 0,
+          warnings: [`${inspection.reportNumber || inspection.id}: ${getReadableCloudError(error)}`]
+        }));
+        evidenceSummary.uploaded += result.uploaded || 0;
+        evidenceSummary.skipped += result.skipped || 0;
+        evidenceSummary.warnings.push(...(result.warnings || []));
+        if (result.changed) {
+          await putInspection(inspection);
+        }
+      }
+      const payload = prepareInspectionForCloud(inspection);
+      const client = normalizeClientName(payload.plantName);
+      return {
+        id: payload.id,
+        company_id: client ? createCloudCompanyId(client) : null,
+        report_number: payload.reportNumber || "",
+        inspection_date: payload.inspectionDate || null,
+        payload,
+        updated_at: payload.updatedAt || new Date().toISOString(),
+        deleted_at: null
+      };
+    });
+  const reportRows = await Promise.all(reports);
   const deletedReports = Object.values(readDeletedInspections() || {}).map((entry) => {
     const payload = prepareInspectionForCloud(entry.inspection || { id: entry.id, plantName: entry.company || "" });
     return {
@@ -479,7 +518,7 @@ async function buildLocalReportRows() {
       deleted_at: entry.deletedAt || new Date().toISOString()
     };
   });
-  return { reports, deletedReports };
+  return { reports: reportRows, deletedReports, evidence: evidenceSummary };
 }
 
 function buildLocalSettingsRows() {
@@ -498,13 +537,11 @@ function buildLocalSettingsRows() {
 }
 
 function prepareInspectionForCloud(inspection) {
-  const payload = typeof createPortableBackupInspection === "function"
-    ? createPortableBackupInspection(normalizeInspection(inspection), { includePhotos: false })
-    : stripHeavyInspectionPhotos(normalizeInspection(inspection));
+  const payload = stripHeavyInspectionPhotos(normalizeInspection(inspection));
   return {
     ...payload,
     updatedAt: payload.updatedAt || new Date().toISOString(),
-    cloudSyncVersion: 1,
+    cloudSyncVersion: 2,
     omitsPhotoData: true
   };
 }
@@ -666,14 +703,15 @@ async function mergeCloudReportRows(reports) {
     if (isDeletedInspectionId(row.id) || isDeletedCompanyName(row.payload?.plantName)) {
       continue;
     }
-    const cloudInspection = prepareInspectionForCloud({
+    const cloudInspection = normalizeInspection({
       ...row.payload,
       id: row.id,
       updatedAt: row.updated_at || row.payload.updatedAt
     });
     const localInspection = await getInspection(cloudInspection.id);
     if (!localInspection || getComparableTime(cloudInspection.updatedAt) >= getComparableTime(localInspection.updatedAt)) {
-      await putInspection(cloudInspection);
+      const hydratedInspection = await downloadInspectionEvidence(cloudInspection, localInspection);
+      await putInspection(hydratedInspection);
     }
   }
 }
@@ -724,12 +762,12 @@ function stripHeavyInspectionPhotos(inspection) {
     equipments: (inspection.equipments || []).map((equipment) => ({
       ...equipment,
       servicePhotoCount: (equipment.servicePhotos || []).length,
-      servicePhotos: [],
+      servicePhotos: createLightweightCloudPhotoList(equipment.servicePhotos || [], "servicio.jpg"),
       checklistImage: createLightweightCloudChecklist(equipment.checklistImage),
       findings: (equipment.findings || []).map((finding) => ({
         ...finding,
         photoCount: (finding.photos || []).length,
-        photos: []
+        photos: createLightweightCloudPhotoList(finding.photos || [], "hallazgo.jpg")
       }))
     }))
   };
@@ -744,9 +782,23 @@ function createLightweightCloudChecklist(checklistImage) {
   }
   return {
     name: image.name || "checklist.jpg",
-    omittedFromCloudSync: true,
-    storedSize: image.storedSize || 0
+    thumbUrl: "",
+    storedSize: image.storedSize || 0,
+    createdAt: image.createdAt || "",
+    cloudPath: image.cloudPath || "",
+    cloudBucket: image.cloudBucket || CLOUD_EVIDENCE_BUCKET,
+    cloudSyncedAt: image.cloudSyncedAt || "",
+    omittedFromCloudSync: true
   };
+}
+
+function createLightweightCloudPhotoList(photos, fallbackName = "foto.jpg") {
+  return (photos || [])
+    .map((photo) => createLightweightCloudPhoto(
+      typeof normalizePhotoEntry === "function" ? normalizePhotoEntry(photo) : photo,
+      fallbackName
+    ))
+    .filter(Boolean);
 }
 
 function createLightweightCloudPhoto(photo, fallbackName = "foto.jpg") {
@@ -755,11 +807,247 @@ function createLightweightCloudPhoto(photo, fallbackName = "foto.jpg") {
   }
   return {
     name: photo.name || fallbackName,
-    thumbUrl: photo.thumbUrl || "",
+    thumbUrl: "",
     storedSize: photo.storedSize || 0,
     createdAt: photo.createdAt || "",
+    cloudPath: photo.cloudPath || "",
+    cloudBucket: photo.cloudBucket || CLOUD_EVIDENCE_BUCKET,
+    cloudSyncedAt: photo.cloudSyncedAt || "",
     omittedFromCloudSync: true
   };
+}
+
+async function uploadInspectionEvidence(inspection) {
+  const summary = { uploaded: 0, skipped: 0, warnings: [], changed: false };
+  const reportId = createCloudSlug(inspection.id || inspection.reportNumber || "reporte");
+  const equipments = Array.isArray(inspection.equipments) ? inspection.equipments : [];
+
+  for (let equipmentIndex = 0; equipmentIndex < equipments.length; equipmentIndex += 1) {
+    const equipment = equipments[equipmentIndex];
+    const equipmentId = createCloudSlug(equipment.id || equipment.craneId || equipment.equipmentName || `equipo-${equipmentIndex + 1}`);
+
+    await uploadPhotoCollection(equipment.servicePhotos || [], {
+      summary,
+      reportId,
+      equipmentId,
+      section: "servicio",
+      fallbackName: "servicio.jpg"
+    });
+
+    if (equipment.checklistImage) {
+      const checklist = normalizeChecklistImage(equipment.checklistImage);
+      if (checklist) {
+        const changed = await uploadCloudPhoto(checklist, {
+          reportId,
+          equipmentId,
+          section: "checklist",
+          index: 0,
+          fallbackName: "checklist.jpg"
+        }, summary);
+        if (changed) {
+          equipment.checklistImage = checklist;
+        }
+      }
+    }
+
+    const findings = Array.isArray(equipment.findings) ? equipment.findings : [];
+    for (let findingIndex = 0; findingIndex < findings.length; findingIndex += 1) {
+      await uploadPhotoCollection(findings[findingIndex].photos || [], {
+        summary,
+        reportId,
+        equipmentId,
+        section: `hallazgo-${findingIndex + 1}`,
+        fallbackName: "hallazgo.jpg"
+      });
+    }
+  }
+
+  return summary;
+}
+
+async function uploadPhotoCollection(photos, context) {
+  for (let index = 0; index < photos.length; index += 1) {
+    const normalized = normalizePhotoEntry(photos[index]);
+    if (!normalized) {
+      continue;
+    }
+    const changed = await uploadCloudPhoto(normalized, { ...context, index }, context.summary);
+    if (changed) {
+      photos[index] = normalized;
+    }
+  }
+}
+
+async function uploadCloudPhoto(photo, context, summary) {
+  if (!photo.dataUrl) {
+    if (photo.cloudPath) {
+      summary.skipped += 1;
+    }
+    return false;
+  }
+  if (photo.cloudPath && photo.cloudSyncedAt) {
+    summary.skipped += 1;
+    return false;
+  }
+
+  const contentType = getDataUrlContentType(photo.dataUrl) || "image/jpeg";
+  const fileName = sanitizeStoragePathPart(photo.name || context.fallbackName || "foto.jpg");
+  const path = [
+    "reportes",
+    context.reportId,
+    "equipos",
+    context.equipmentId,
+    context.section,
+    `${String(context.index + 1).padStart(2, "0")}-${fileName}`
+  ].join("/");
+
+  try {
+    const blob = dataUrlToBlob(photo.dataUrl, contentType);
+    await cloudStorageFetch(`/object/${CLOUD_EVIDENCE_BUCKET}/${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": contentType,
+        "x-upsert": "true"
+      },
+      body: blob
+    });
+    photo.cloudPath = path;
+    photo.cloudBucket = CLOUD_EVIDENCE_BUCKET;
+    photo.cloudSyncedAt = new Date().toISOString();
+    photo.storedSize = photo.storedSize || blob.size || estimateDataUrlBytes(photo.dataUrl);
+    summary.uploaded += 1;
+    summary.changed = true;
+    return true;
+  } catch (error) {
+    summary.warnings.push(`${photo.name || context.fallbackName}: ${getReadableCloudError(error)}`);
+    return false;
+  }
+}
+
+async function downloadInspectionEvidence(inspection, localInspection) {
+  const localByPath = mapLocalEvidenceByCloudPath(localInspection);
+  const equipments = Array.isArray(inspection.equipments) ? inspection.equipments : [];
+
+  for (const equipment of equipments) {
+    equipment.servicePhotos = await downloadPhotoCollection(equipment.servicePhotos || [], localByPath);
+    equipment.checklistImage = await downloadChecklistImage(equipment.checklistImage, localByPath);
+    for (const finding of equipment.findings || []) {
+      finding.photos = await downloadPhotoCollection(finding.photos || [], localByPath);
+    }
+  }
+
+  return inspection;
+}
+
+async function downloadPhotoCollection(photos, localByPath) {
+  const hydrated = [];
+  for (const photo of photos || []) {
+    const normalized = normalizePhotoEntry(photo);
+    if (!normalized) {
+      continue;
+    }
+    hydrated.push(await hydrateCloudPhoto(normalized, localByPath));
+  }
+  return hydrated;
+}
+
+async function downloadChecklistImage(image, localByPath) {
+  const normalized = normalizeChecklistImage(image);
+  if (!normalized) {
+    return null;
+  }
+  return hydrateCloudPhoto(normalized, localByPath);
+}
+
+async function hydrateCloudPhoto(photo, localByPath) {
+  if (photo.dataUrl || !photo.cloudPath) {
+    return photo;
+  }
+
+  const localPhoto = localByPath.get(photo.cloudPath);
+  if (localPhoto?.dataUrl) {
+    return {
+      ...photo,
+      dataUrl: localPhoto.dataUrl,
+      thumbUrl: localPhoto.thumbUrl || photo.thumbUrl || ""
+    };
+  }
+
+  try {
+    const response = await cloudStorageFetch(`/object/authenticated/${CLOUD_EVIDENCE_BUCKET}/${photo.cloudPath}`, {
+      method: "GET"
+    });
+    const blob = await response.blob();
+    const dataUrl = await blobToDataUrl(blob);
+    return {
+      ...photo,
+      dataUrl,
+      thumbUrl: photo.thumbUrl || dataUrl,
+      storedSize: photo.storedSize || blob.size || estimateDataUrlBytes(dataUrl)
+    };
+  } catch (error) {
+    return {
+      ...photo,
+      dataUrl: "",
+      thumbUrl: "",
+      cloudDownloadError: getReadableCloudError(error)
+    };
+  }
+}
+
+function mapLocalEvidenceByCloudPath(inspection) {
+  const map = new Map();
+  (inspection?.equipments || []).forEach((equipment) => {
+    (equipment.servicePhotos || []).forEach((photo) => addPhotoToCloudPathMap(map, photo));
+    addPhotoToCloudPathMap(map, equipment.checklistImage);
+    (equipment.findings || []).forEach((finding) => {
+      (finding.photos || []).forEach((photo) => addPhotoToCloudPathMap(map, photo));
+    });
+  });
+  return map;
+}
+
+function addPhotoToCloudPathMap(map, photo) {
+  const normalized = photo && typeof normalizePhotoEntry === "function" ? normalizePhotoEntry(photo) : photo;
+  if (normalized?.cloudPath && normalized.dataUrl) {
+    map.set(normalized.cloudPath, normalized);
+  }
+}
+
+function dataUrlToBlob(dataUrl, fallbackType = "image/jpeg") {
+  const parts = String(dataUrl || "").split(",");
+  const metadata = parts[0] || "";
+  const base64 = parts[1] || "";
+  const contentType = getDataUrlContentType(dataUrl) || fallbackType;
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new Blob([bytes], { type: contentType || metadata || fallbackType });
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function getDataUrlContentType(dataUrl) {
+  const match = String(dataUrl || "").match(/^data:([^;]+);base64,/);
+  return match ? match[1] : "";
+}
+
+function sanitizeStoragePathPart(value) {
+  const sanitized = String(value || "archivo")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return sanitized || "archivo.jpg";
 }
 
 function chunkRows(rows, size) {
@@ -848,6 +1136,12 @@ function getReadableCloudError(error) {
   const raw = String(error?.message || error || "");
   if (/invalid string length/i.test(raw)) {
     return "Hay demasiada informacion/fotos pesadas para subir en un solo paquete. Ya se optimizo la sincronizacion; recarga la app y vuelve a intentar.";
+  }
+  if (/Bucket not found|bucket.*not.*found|404/i.test(raw) && /report-evidence|bucket|storage/i.test(raw)) {
+    return "Falta crear el bucket privado de Supabase Storage llamado report-evidence.";
+  }
+  if (/row-level security|violates row-level security|permission|Unauthorized|403/i.test(raw)) {
+    return "Faltan permisos de Supabase para guardar o leer evidencias.";
   }
   try {
     const parsed = JSON.parse(raw);
