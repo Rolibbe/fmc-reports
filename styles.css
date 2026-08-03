@@ -327,14 +327,15 @@ body.auth-locked .app-shell {
 }
 
 .history-cascade {
-  position: absolute;
-  top: -8px;
-  left: calc(100% + 14px);
+  position: fixed;
+  top: 18px;
+  left: 288px;
   z-index: 30;
   display: grid;
-  grid-template-columns: minmax(250px, 280px) minmax(310px, 360px);
+  grid-template-columns: minmax(250px, 300px) minmax(320px, 390px);
   align-items: stretch;
   gap: 10px;
+  max-width: calc(100vw - 310px);
   color: var(--ink);
 }
 
@@ -343,7 +344,7 @@ body.auth-locked .app-shell {
 }
 
 .history-cascade-panel {
-  height: min(560px, calc(100vh - 64px));
+  height: min(620px, calc(100vh - 36px));
   padding: 16px;
   border: 1px solid rgba(216, 227, 235, 0.94);
   border-radius: 16px;
@@ -380,7 +381,6 @@ body.auth-locked .app-shell {
   transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
 }
 
-.history-cascade-company:hover,
 .history-cascade-company:focus,
 .history-cascade-company.is-active {
   border-color: var(--accent);
@@ -462,7 +462,8 @@ body.auth-locked .app-shell {
   cursor: pointer;
 }
 
-.history-cascade-report div button:hover {
+.history-cascade-report div button:hover,
+.history-cascade-report div button:focus {
   border-color: var(--accent);
   color: var(--accent);
 }

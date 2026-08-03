@@ -17,7 +17,7 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.10";
+const APP_VERSION = "1.3.11";
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -390,14 +390,6 @@ function setupAppActions() {
       openSidebar();
     }
   });
-  on(elements.openSidebarButton, "mouseenter", showHistoryCascade);
-  on(elements.openSidebarButton, "focus", showHistoryCascade);
-  on(elements.historyCascadePanel, "mouseenter", showHistoryCascade);
-  on(elements.historyCascadePanel, "mouseleave", hideHistoryCascade);
-  const historyAnchor = elements.openSidebarButton ? elements.openSidebarButton.closest(".nav-history-anchor") : null;
-  if (historyAnchor) {
-    historyAnchor.addEventListener("mouseleave", hideHistoryCascade);
-  }
   elements.closeSidebarButton.addEventListener("click", closeSidebar);
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
   elements.toolsMenuButton.addEventListener("click", toggleToolsMenu);
@@ -1317,7 +1309,7 @@ function renderHistoryCascadeCompany(group, isActive = false) {
 
 function renderHistoryCascadeReports(group) {
   if (!group || !group.records.length) {
-    return '<div class="history-cascade-empty">Pasa el cursor por una empresa.</div>';
+    return '<div class="history-cascade-empty">Selecciona una empresa para ver sus reportes.</div>';
   }
 
   return `
@@ -1362,7 +1354,7 @@ function wireHistoryCascade(grouped) {
       reportsPanel.innerHTML = renderHistoryCascadeReports(group);
       wireHistoryCascadeActionButtons();
     };
-    ["mouseenter", "focus", "click"].forEach((eventName) => button.addEventListener(eventName, setActive));
+    button.addEventListener("click", setActive);
   });
   wireHistoryCascadeActionButtons();
 }
