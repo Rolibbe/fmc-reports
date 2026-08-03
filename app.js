@@ -17,7 +17,7 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.8";
+const APP_VERSION = "1.3.9";
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -365,6 +365,12 @@ function updateAppVersionBadge() {
 }
 
 function setupAppActions() {
+  const on = (element, eventName, handler) => {
+    if (element) {
+      element.addEventListener(eventName, handler);
+    }
+  };
+
   elements.loginButton.addEventListener("click", cloudSignInFromLogin);
   elements.loginOfflineButton.addEventListener("click", enterOfflineMode);
   elements.loginPassword.addEventListener("keydown", (event) => {
@@ -374,18 +380,18 @@ function setupAppActions() {
     }
   });
   setupMobileNavigation();
-  elements.openSidebarButton.addEventListener("click", () => {
+  on(elements.openSidebarButton, "click", () => {
     if (window.matchMedia("(max-width: 1080px)").matches) {
       openSidebar();
       return;
     }
     showHistoryCascade();
   });
-  elements.openSidebarButton.addEventListener("mouseenter", showHistoryCascade);
-  elements.openSidebarButton.addEventListener("focus", showHistoryCascade);
-  elements.historyCascadePanel.addEventListener("mouseenter", showHistoryCascade);
-  elements.historyCascadePanel.addEventListener("mouseleave", hideHistoryCascade);
-  const historyAnchor = elements.openSidebarButton.closest(".nav-history-anchor");
+  on(elements.openSidebarButton, "mouseenter", showHistoryCascade);
+  on(elements.openSidebarButton, "focus", showHistoryCascade);
+  on(elements.historyCascadePanel, "mouseenter", showHistoryCascade);
+  on(elements.historyCascadePanel, "mouseleave", hideHistoryCascade);
+  const historyAnchor = elements.openSidebarButton ? elements.openSidebarButton.closest(".nav-history-anchor") : null;
   if (historyAnchor) {
     historyAnchor.addEventListener("mouseleave", hideHistoryCascade);
   }
@@ -442,16 +448,16 @@ function setupAppActions() {
     showView("inspection");
   });
   elements.refreshReportsButton.addEventListener("click", renderSavedReports);
-  elements.openDashboardButton.addEventListener("click", openGeneralDashboard);
-  elements.refreshDashboardButton.addEventListener("click", renderGeneralDashboard);
-  elements.closeDashboardButton.addEventListener("click", () => showView("inspection"));
-  elements.dashboardClientFilter.addEventListener("change", renderGeneralDashboard);
-  elements.dashboardDateFrom.addEventListener("change", renderGeneralDashboard);
-  elements.dashboardDateTo.addEventListener("change", renderGeneralDashboard);
-  elements.clearDashboardFiltersButton.addEventListener("click", () => {
-    elements.dashboardClientFilter.value = "";
-    elements.dashboardDateFrom.value = "";
-    elements.dashboardDateTo.value = "";
+  on(elements.openDashboardButton, "click", openGeneralDashboard);
+  on(elements.refreshDashboardButton, "click", renderGeneralDashboard);
+  on(elements.closeDashboardButton, "click", () => showView("inspection"));
+  on(elements.dashboardClientFilter, "change", renderGeneralDashboard);
+  on(elements.dashboardDateFrom, "change", renderGeneralDashboard);
+  on(elements.dashboardDateTo, "change", renderGeneralDashboard);
+  on(elements.clearDashboardFiltersButton, "click", () => {
+    if (elements.dashboardClientFilter) elements.dashboardClientFilter.value = "";
+    if (elements.dashboardDateFrom) elements.dashboardDateFrom.value = "";
+    if (elements.dashboardDateTo) elements.dashboardDateTo.value = "";
     renderGeneralDashboard();
   });
   elements.openCompanyCraneRegistryButton.addEventListener("click", openCompanyCraneRegistry);
@@ -537,6 +543,7 @@ function setupAppActions() {
     }
     if (
       elements.historyCascadePanel
+      && elements.openSidebarButton
       && !elements.openSidebarButton.contains(event.target)
       && !elements.historyCascadePanel.contains(event.target)
     ) {
@@ -668,10 +675,12 @@ function setupMobileNavigation() {
     closeMobileMorePanel();
     await persistInspection();
   });
-  elements.mobileDashboardButton.addEventListener("click", () => {
-    closeMobileMorePanel();
-    openGeneralDashboard();
-  });
+  if (elements.mobileDashboardButton) {
+    elements.mobileDashboardButton.addEventListener("click", () => {
+      closeMobileMorePanel();
+      openGeneralDashboard();
+    });
+  }
   elements.mobileMaintenanceButton.addEventListener("click", () => {
     closeMobileMorePanel();
     openMaintenancePanel();
@@ -710,7 +719,9 @@ function closeMobileMorePanel() {
 
 function showView(view) {
   closeMobileMorePanel();
-  elements.dashboardView.classList.toggle("hidden", view !== "dashboard");
+  if (elements.dashboardView) {
+    elements.dashboardView.classList.toggle("hidden", view !== "dashboard");
+  }
   elements.inspectionView.classList.toggle("hidden", view !== "inspection");
   elements.equipmentEditorView.classList.toggle("hidden", view !== "equipment");
   elements.findingEditorView.classList.toggle("hidden", view !== "finding");
