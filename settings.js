@@ -13,6 +13,7 @@ const DEFAULT_APP_SETTINGS = {
   photoMaxSize: 1150,
   checklistMaxSize: 1500,
   photoQuality: 0.62,
+  userRoles: {},
   updatedAt: "",
   pdfTemplate: {
     companyName: "",
@@ -64,6 +65,7 @@ function normalizeAppSettings(settings) {
     photoMaxSize: clampNumber(source.photoMaxSize, 700, 1800, DEFAULT_APP_SETTINGS.photoMaxSize),
     checklistMaxSize: clampNumber(source.checklistMaxSize, 900, 2200, DEFAULT_APP_SETTINGS.checklistMaxSize),
     photoQuality: clampNumber(source.photoQuality, 0.35, 0.9, DEFAULT_APP_SETTINGS.photoQuality),
+    userRoles: normalizeUserRoles(source.userRoles),
     updatedAt: source.updatedAt || "",
     pdfTemplate: {
       companyName: source.pdfTemplate?.companyName || defaultTemplate.companyName || "",
@@ -114,6 +116,179 @@ function getPhotoConfig() {
   };
 }
 
+function getConfiguredUserRoles() {
+  return getAppSettings().userRoles || {};
+}
+
+function normalizeUserRoles(roles) {
+  const normalized = {};
+  Object.entries(roles && typeof roles === "object" ? roles : {}).forEach(([email, role]) => {
+    const normalizedEmail = normalizeRoleEmail(email);
+    const normalizedRole = normalizeUserRole(role);
+    if (normalizedEmail && normalizedRole) {
+      normalized[normalizedEmail] = normalizedRole;
+    }
+  });
+  return normalized;
+}
+
+function normalizeRoleEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function normalizeUserRole(role) {
+  const value = String(role || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (["admin", "supervisor", "tecnico", "solo_lectura"].includes(value)) {
+    return value;
+  }
+  if (value === "technician") {
+    return "tecnico";
+  }
+  if (value === "readonly" || value === "read_only" || value === "lector") {
+    return "solo_lectura";
+  }
+  return "";
+}
+
+function parseUserRoles(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .reduce((roles, line) => {
+      const [emailPart, rolePart] = line.includes("=") ? line.split("=") : line.split(",");
+      const email = normalizeRoleEmail(emailPart);
+      const role = normalizeUserRole(rolePart);
+      if (email && role) {
+        roles[email] = role;
+      }
+      return roles;
+    }, {});
+}
+
+function formatUserRoles(roles) {
+  return Object.entries(normalizeUserRoles(roles))
+    .map(([email, role]) => `${email}=${role}`)
+    .join("\n");
+}
+
+function getCurrentUserRole() {
+  const roles = getConfiguredUserRoles();
+  const roleEntries = Object.keys(roles);
+  const email = typeof getCloudUserEmail === "function" ? normalizeRoleEmail(getCloudUserEmail()) : "";
+  if (!roleEntries.length) {
+    return "admin";
+  }
+  return roles[email] || "solo_lectura";
+}
+
+function formatUserRoleLabel(role) {
+  return {
+    admin: "Admin",
+    supervisor: "Supervisor",
+    tecnico: "Tecnico",
+    solo_lectura: "Solo lectura"
+  }[normalizeUserRole(role)] || "Solo lectura";
+}
+
+function getRolePermissions(role = getCurrentUserRole()) {
+  const normalizedRole = normalizeUserRole(role) || "solo_lectura";
+  return {
+    view: true,
+    generatePdf: ["admin", "supervisor", "tecnico", "solo_lectura"].includes(normalizedRole),
+    exportData: ["admin", "supervisor", "tecnico", "solo_lectura"].includes(normalizedRole),
+    sync: ["admin", "supervisor", "tecnico"].includes(normalizedRole),
+    editReports: ["admin", "supervisor", "tecnico"].includes(normalizedRole),
+    editCatalog: ["admin", "supervisor"].includes(normalizedRole),
+    configure: normalizedRole === "admin",
+    delete: normalizedRole === "admin"
+  };
+}
+
+function canCurrentUser(action) {
+  return Boolean(getRolePermissions()[action]);
+}
+
+function applyRoleRestrictions() {
+  if (typeof elements === "undefined" || !elements) {
+    return;
+  }
+
+  const permissions = getRolePermissions();
+  const roleLabel = formatUserRoleLabel(getCurrentUserRole());
+  document.body.dataset.userRole = getCurrentUserRole();
+
+  setRoleDisabled(elements.saveInspectionButton, !permissions.editReports, roleLabel);
+  setRoleDisabled(elements.mobileSaveButton, !permissions.editReports, roleLabel);
+  setRoleDisabled(elements.addEquipmentButton, !permissions.editReports, roleLabel);
+  setRoleDisabled(elements.saveEquipmentButton, !permissions.editReports, roleLabel);
+  setRoleDisabled(elements.addFindingButton, !permissions.editReports, roleLabel);
+  setRoleDisabled(elements.saveFindingButton, !permissions.editReports, roleLabel);
+  setRoleDisabled(elements.newWorkOrderButton, !permissions.editReports, roleLabel);
+  setRoleDisabled(elements.saveWorkOrderButton, !permissions.editReports, roleLabel);
+
+  setRoleDisabled(elements.newCompanyCraneButton, !permissions.editCatalog, roleLabel);
+  setRoleDisabled(elements.saveCompanyCraneButton, !permissions.editCatalog, roleLabel);
+  setRoleDisabled(elements.deleteCompanyRegistryButton, !permissions.delete, roleLabel);
+
+  [
+    elements.saveSettingsButton,
+    elements.resetSettingsButton,
+    elements.addSettingsPolipastoButton,
+    elements.addSettingsCraneTypeButton
+  ].forEach((button) => setRoleDisabled(button, !permissions.configure, roleLabel));
+
+  [
+    elements.settingsClientPlants,
+    elements.settingsDefaultFrequency,
+    elements.settingsRecommendationText,
+    elements.settingsNewPolipasto,
+    elements.settingsPolipastos,
+    elements.settingsNewCraneType,
+    elements.settingsCraneTypes,
+    elements.settingsUserRoles,
+    elements.settingsPhotoMaxSize,
+    elements.settingsChecklistMaxSize,
+    elements.settingsPhotoQuality,
+    elements.settingsPdfCompanyName,
+    elements.settingsPdfSubtitle,
+    elements.settingsPdfTitle,
+    elements.settingsPdfRevision,
+    elements.settingsPdfFooter,
+    elements.settingsPdfAccentColor,
+    elements.settingsPdfHeaderColor
+  ].forEach((input) => setRoleDisabled(input, !permissions.configure, roleLabel));
+
+  [
+    elements.navSyncCloudButton,
+    elements.mobileSyncButton,
+    elements.syncCompaniesCranesButton,
+    elements.syncDataOnlyButton,
+    elements.syncEvidenceOnlyButton,
+    elements.forceDownloadEvidenceButton
+  ].forEach((button) => setRoleDisabled(button, !permissions.sync, roleLabel));
+
+  document.querySelectorAll("[data-delete-id], [data-delete-company-crane-id], [data-delete-work-order], #clearAuditLogButton").forEach((button) => {
+    setRoleDisabled(button, !permissions.delete, roleLabel);
+  });
+  document.querySelectorAll("[data-edit-work-order], [data-convert-work-order]").forEach((button) => {
+    setRoleDisabled(button, !permissions.editReports, roleLabel);
+  });
+}
+
+function setRoleDisabled(element, disabled, roleLabel) {
+  if (!element) {
+    return;
+  }
+  element.disabled = Boolean(disabled);
+  element.classList.toggle("role-disabled", Boolean(disabled));
+  if (disabled) {
+    element.title = `No disponible para rol ${roleLabel}`;
+  } else if (element.title && element.title.startsWith("No disponible para rol ")) {
+    element.title = "";
+  }
+}
+
 function applyPdfTemplateSettings() {
   const template = getAppSettings().pdfTemplate || {};
   window.REPORT_TEMPLATE_CONFIG = {
@@ -134,6 +309,9 @@ async function populateSettingsForm() {
   elements.settingsClientPlants.value = (settings.clientPlants.length ? settings.clientPlants : fileClients).join("\n");
   elements.settingsPolipastos.value = (settings.polipastos.length ? settings.polipastos : filePolipastos).join("\n");
   elements.settingsCraneTypes.value = (settings.craneTypes.length ? settings.craneTypes : fallbackCraneTypes).join("\n");
+  if (elements.settingsUserRoles) {
+    elements.settingsUserRoles.value = formatUserRoles(settings.userRoles);
+  }
   elements.settingsNewPolipasto.value = "";
   elements.settingsNewCraneType.value = "";
   elements.settingsDefaultFrequency.value = settings.defaultMaintenanceFrequency;
@@ -151,6 +329,15 @@ async function populateSettingsForm() {
 }
 
 async function saveSettingsFromForm() {
+  if (!canCurrentUser("configure")) {
+    await showAppDialog({
+      title: "Acceso restringido",
+      message: "Tu rol actual no permite modificar la configuracion.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    return;
+  }
+
   const previousClients = normalizeClientNames(await readClientPlantsFromFile());
   const nextClients = normalizeClientNames(parseClientPlants(elements.settingsClientPlants.value));
   const removedClients = previousClients.filter((client) => !nextClients.includes(client));
@@ -166,6 +353,7 @@ async function saveSettingsFromForm() {
     clientPlants: nextClients,
     polipastos: parsePolipastoList(elements.settingsPolipastos.value),
     craneTypes: parseCraneTypeList(elements.settingsCraneTypes.value),
+    userRoles: parseUserRoles(elements.settingsUserRoles?.value || ""),
     defaultMaintenanceFrequency: elements.settingsDefaultFrequency.value,
     fixedRecommendationText: elements.settingsRecommendationText.value.trim() || DEFAULT_APP_SETTINGS.fixedRecommendationText,
     photoMaxSize: elements.settingsPhotoMaxSize.value,
@@ -183,6 +371,7 @@ async function saveSettingsFromForm() {
   };
 
   await writeAppSettings(settings);
+  applyRoleRestrictions();
   populateClientPlantOptions(settings.clientPlants, elements.plantName.value);
   populatePolipastoOptions(settings.polipastos);
   populateCraneTypeOptions(settings.craneTypes, elements.craneType.value);
@@ -194,6 +383,9 @@ async function saveSettingsFromForm() {
 }
 
 function addPolipastoToSettingsList() {
+  if (!canCurrentUser("configure")) {
+    return;
+  }
   const value = String(elements.settingsNewPolipasto.value || "").trim();
   if (!value) {
     return;
@@ -209,6 +401,9 @@ function addPolipastoToSettingsList() {
 }
 
 function addCraneTypeToSettingsList() {
+  if (!canCurrentUser("configure")) {
+    return;
+  }
   const value = String(elements.settingsNewCraneType.value || "").trim();
   if (!value) {
     return;
@@ -224,6 +419,15 @@ function addCraneTypeToSettingsList() {
 }
 
 async function resetSettingsToDefaults() {
+  if (!canCurrentUser("configure")) {
+    await showAppDialog({
+      title: "Acceso restringido",
+      message: "Tu rol actual no permite restaurar la configuracion.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    return;
+  }
+
   const result = await showAppDialog({
     title: "Restaurar configuracion",
     message: "Se restauraran recomendaciones, fotos, plantilla PDF y se volvera a usar la lista de clientes del archivo clientes-plantas.txt.",

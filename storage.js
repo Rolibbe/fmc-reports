@@ -7,7 +7,9 @@ const masterDataCache = {
   activeCraneFindings: {},
   deletedCompanyCranes: {},
   deletedInspections: {},
-  deletedCompanies: {}
+  deletedCompanies: {},
+  auditLog: [],
+  workOrders: {}
 };
 
 async function initializeMasterDataStore() {
@@ -17,13 +19,15 @@ async function initializeMasterDataStore() {
     { cacheKey: "activeCraneFindings", storageKey: ACTIVE_CRANE_FINDINGS_KEY, fallback: {} },
     { cacheKey: "deletedCompanyCranes", storageKey: DELETED_COMPANY_CRANES_KEY, fallback: {} },
     { cacheKey: "deletedInspections", storageKey: DELETED_INSPECTIONS_KEY, fallback: {} },
-    { cacheKey: "deletedCompanies", storageKey: DELETED_COMPANIES_KEY, fallback: {} }
+    { cacheKey: "deletedCompanies", storageKey: DELETED_COMPANIES_KEY, fallback: {} },
+    { cacheKey: "auditLog", storageKey: AUDIT_LOG_KEY, fallback: [] },
+    { cacheKey: "workOrders", storageKey: WORK_ORDERS_KEY, fallback: {} }
   ];
 
   for (const source of sources) {
     try {
       const storedValue = await getMasterDataValue(source.storageKey);
-      if (storedValue && typeof storedValue === "object") {
+      if (storedValue && (typeof storedValue === "object" || Array.isArray(storedValue))) {
         masterDataCache[source.cacheKey] = storedValue;
         continue;
       }
@@ -44,11 +48,18 @@ async function initializeMasterDataStore() {
 
 function getCachedMasterData(cacheKey) {
   const value = masterDataCache[cacheKey];
+  if (Array.isArray(value)) {
+    return value;
+  }
   return value && typeof value === "object" ? value : {};
 }
 
 function setCachedMasterData(cacheKey, storageKey, value) {
-  const normalizedValue = value && typeof value === "object" ? value : {};
+  const normalizedValue = Array.isArray(value)
+    ? value
+    : value && typeof value === "object"
+      ? value
+      : {};
   masterDataCache[cacheKey] = normalizedValue;
   return putMasterDataValue(storageKey, normalizedValue).catch(() => {
     if (typeof elements !== "undefined" && elements.connectionStatus) {

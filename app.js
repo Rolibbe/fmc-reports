@@ -13,11 +13,13 @@ const ACTIVE_CRANE_FINDINGS_KEY = "active-crane-findings-v1";
 const DELETED_COMPANY_CRANES_KEY = "deleted-company-cranes-v1";
 const DELETED_INSPECTIONS_KEY = "deleted-inspections-v1";
 const DELETED_COMPANIES_KEY = "deleted-companies-v1";
+const AUDIT_LOG_KEY = "audit-log-v1";
+const WORK_ORDERS_KEY = "work-orders-v1";
 const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.12";
+const APP_VERSION = "1.3.16";
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -102,6 +104,8 @@ const elements = {
   mobileSyncButton: document.getElementById("mobileSyncButton"),
   mobileMorePanel: document.getElementById("mobileMorePanel"),
   mobileCloseMoreButton: document.getElementById("mobileCloseMoreButton"),
+  mobileHomeButton: document.getElementById("mobileHomeButton"),
+  mobileFieldModeButton: document.getElementById("mobileFieldModeButton"),
   mobileNewButton: document.getElementById("mobileNewButton"),
   mobileHistoryButton: document.getElementById("mobileHistoryButton"),
   mobileCompaniesButton: document.getElementById("mobileCompaniesButton"),
@@ -109,9 +113,12 @@ const elements = {
   mobileMoreButton: document.getElementById("mobileMoreButton"),
   mobileSaveButton: document.getElementById("mobileSaveButton"),
   mobileDashboardButton: document.getElementById("mobileDashboardButton"),
+  mobileWorkOrdersButton: document.getElementById("mobileWorkOrdersButton"),
+  mobileAuditLogButton: document.getElementById("mobileAuditLogButton"),
   mobileMaintenanceButton: document.getElementById("mobileMaintenanceButton"),
   mobileConsolidatedButton: document.getElementById("mobileConsolidatedButton"),
   mobileSettingsButton: document.getElementById("mobileSettingsButton"),
+  mobileSyncCenterButton: document.getElementById("mobileSyncCenterButton"),
   mobileBackupButton: document.getElementById("mobileBackupButton"),
   mobileOfflineButton: document.getElementById("mobileOfflineButton"),
   sidebar: document.getElementById("sidebar"),
@@ -121,12 +128,37 @@ const elements = {
   closeSidebarButton: document.getElementById("closeSidebarButton"),
   toolsMenuButton: document.getElementById("toolsMenuButton"),
   toolsMenuList: document.getElementById("toolsMenuList"),
+  homeView: document.getElementById("homeView"),
+  homeStatsGrid: document.getElementById("homeStatsGrid"),
+  homeCriticalList: document.getElementById("homeCriticalList"),
+  homeRefreshButton: document.getElementById("homeRefreshButton"),
+  homeNewReportButton: document.getElementById("homeNewReportButton"),
+  homeFieldModeButton: document.getElementById("homeFieldModeButton"),
+  homeDashboardButton: document.getElementById("homeDashboardButton"),
+  homeClientsButton: document.getElementById("homeClientsButton"),
+  homeReportsButton: document.getElementById("homeReportsButton"),
+  homeMaintenanceButton: document.getElementById("homeMaintenanceButton"),
+  homeWorkOrdersButton: document.getElementById("homeWorkOrdersButton"),
+  homeSyncButton: document.getElementById("homeSyncButton"),
+  homeSettingsButton: document.getElementById("homeSettingsButton"),
   dashboardView: document.getElementById("dashboardView"),
+  fieldModeView: document.getElementById("fieldModeView"),
+  fieldModeSummary: document.getElementById("fieldModeSummary"),
+  closeFieldModeButton: document.getElementById("closeFieldModeButton"),
+  fieldNewButton: document.getElementById("fieldNewButton"),
+  fieldClientButton: document.getElementById("fieldClientButton"),
+  fieldEquipmentButton: document.getElementById("fieldEquipmentButton"),
+  fieldCameraButton: document.getElementById("fieldCameraButton"),
+  fieldSaveButton: document.getElementById("fieldSaveButton"),
+  fieldPdfButton: document.getElementById("fieldPdfButton"),
+  workOrdersView: document.getElementById("workOrdersView"),
+  auditLogView: document.getElementById("auditLogView"),
   inspectionView: document.getElementById("inspectionView"),
   equipmentEditorView: document.getElementById("equipmentEditorView"),
   findingEditorView: document.getElementById("findingEditorView"),
   consolidatedHistoryView: document.getElementById("consolidatedHistoryView"),
   maintenancePanelView: document.getElementById("maintenancePanelView"),
+  syncCenterView: document.getElementById("syncCenterView"),
   settingsView: document.getElementById("settingsView"),
   companyCraneRegistryView: document.getElementById("companyCraneRegistryView"),
   form: document.getElementById("inspectionForm"),
@@ -152,12 +184,17 @@ const elements = {
   exportFullBackupWithPhotosButton: document.getElementById("exportFullBackupWithPhotosButton"),
   purgeStoredPhotosButton: document.getElementById("purgeStoredPhotosButton"),
   navSyncCloudButton: document.getElementById("navSyncCloudButton"),
+  openSyncCenterButton: document.getElementById("openSyncCenterButton"),
   generatePdfButton: document.getElementById("generatePdfButton"),
   newInspectionButton: document.getElementById("newInspectionButton"),
   savedReports: document.getElementById("savedReports"),
   savedReportsSummary: document.getElementById("savedReportsSummary"),
   refreshReportsButton: document.getElementById("refreshReportsButton"),
+  openHomeButton: document.getElementById("openHomeButton"),
+  openFieldModeButton: document.getElementById("openFieldModeButton"),
   openDashboardButton: document.getElementById("openDashboardButton"),
+  openWorkOrdersButton: document.getElementById("openWorkOrdersButton"),
+  openAuditLogButton: document.getElementById("openAuditLogButton"),
   refreshDashboardButton: document.getElementById("refreshDashboardButton"),
   closeDashboardButton: document.getElementById("closeDashboardButton"),
   dashboardClientFilter: document.getElementById("dashboardClientFilter"),
@@ -167,6 +204,30 @@ const elements = {
   dashboardKpis: document.getElementById("dashboardKpis"),
   dashboardInsights: document.getElementById("dashboardInsights"),
   dashboardCharts: document.getElementById("dashboardCharts"),
+  closeWorkOrdersButton: document.getElementById("closeWorkOrdersButton"),
+  newWorkOrderButton: document.getElementById("newWorkOrderButton"),
+  refreshWorkOrdersButton: document.getElementById("refreshWorkOrdersButton"),
+  workOrderStatusFilter: document.getElementById("workOrderStatusFilter"),
+  workOrdersSummary: document.getElementById("workOrdersSummary"),
+  workOrdersList: document.getElementById("workOrdersList"),
+  workOrderFormPanel: document.getElementById("workOrderFormPanel"),
+  workOrderFormTitle: document.getElementById("workOrderFormTitle"),
+  workOrderForm: document.getElementById("workOrderForm"),
+  editingWorkOrderId: document.getElementById("editingWorkOrderId"),
+  workOrderClient: document.getElementById("workOrderClient"),
+  workOrderDate: document.getElementById("workOrderDate"),
+  workOrderTechnician: document.getElementById("workOrderTechnician"),
+  workOrderStatus: document.getElementById("workOrderStatus"),
+  workOrderCranePicker: document.getElementById("workOrderCranePicker"),
+  workOrderNotes: document.getElementById("workOrderNotes"),
+  saveWorkOrderButton: document.getElementById("saveWorkOrderButton"),
+  clearWorkOrderFormButton: document.getElementById("clearWorkOrderFormButton"),
+  closeAuditLogButton: document.getElementById("closeAuditLogButton"),
+  refreshAuditLogButton: document.getElementById("refreshAuditLogButton"),
+  auditLogFilter: document.getElementById("auditLogFilter"),
+  clearAuditLogButton: document.getElementById("clearAuditLogButton"),
+  auditLogSummary: document.getElementById("auditLogSummary"),
+  auditLogTimeline: document.getElementById("auditLogTimeline"),
   openCompanyCraneRegistryButton: document.getElementById("openCompanyCraneRegistryButton"),
   openMaintenancePanelButton: document.getElementById("openMaintenancePanelButton"),
   openConsolidatedHistoryButton: document.getElementById("openConsolidatedHistoryButton"),
@@ -183,6 +244,7 @@ const elements = {
   settingsNewCraneType: document.getElementById("settingsNewCraneType"),
   addSettingsCraneTypeButton: document.getElementById("addSettingsCraneTypeButton"),
   settingsCraneTypes: document.getElementById("settingsCraneTypes"),
+  settingsUserRoles: document.getElementById("settingsUserRoles"),
   craneTypeOptions: document.getElementById("craneTypeOptions"),
   settingsPhotoMaxSize: document.getElementById("settingsPhotoMaxSize"),
   settingsChecklistMaxSize: document.getElementById("settingsChecklistMaxSize"),
@@ -204,6 +266,15 @@ const elements = {
   refreshMaintenancePanelButton: document.getElementById("refreshMaintenancePanelButton"),
   maintenancePanelSummary: document.getElementById("maintenancePanelSummary"),
   maintenancePanelContent: document.getElementById("maintenancePanelContent"),
+  closeSyncCenterButton: document.getElementById("closeSyncCenterButton"),
+  refreshSyncCenterButton: document.getElementById("refreshSyncCenterButton"),
+  syncDataOnlyButton: document.getElementById("syncDataOnlyButton"),
+  syncEvidenceOnlyButton: document.getElementById("syncEvidenceOnlyButton"),
+  forceDownloadEvidenceButton: document.getElementById("forceDownloadEvidenceButton"),
+  showPendingEvidenceButton: document.getElementById("showPendingEvidenceButton"),
+  purgeCloudSyncedLocalPhotosButton: document.getElementById("purgeCloudSyncedLocalPhotosButton"),
+  syncCenterSummary: document.getElementById("syncCenterSummary"),
+  syncCenterContent: document.getElementById("syncCenterContent"),
   closeConsolidatedHistoryButton: document.getElementById("closeConsolidatedHistoryButton"),
   refreshConsolidatedHistoryButton: document.getElementById("refreshConsolidatedHistoryButton"),
   exportConsolidatedHistoryButton: document.getElementById("exportConsolidatedHistoryButton"),
@@ -346,7 +417,8 @@ async function initializeApp() {
     renderEquipmentList();
     await renderSavedReports();
     await initializeCloudSync();
-    showView("inspection");
+    applyRoleRestrictions();
+    await openSystemHome();
     updateConnectivityStatus();
     registerServiceWorker();
   } catch (error) {
@@ -380,6 +452,37 @@ function setupAppActions() {
     }
   });
   setupMobileNavigation();
+  on(elements.openHomeButton, "click", openSystemHome);
+  on(elements.openFieldModeButton, "click", openFieldMode);
+  on(elements.homeRefreshButton, "click", renderSystemHome);
+  on(elements.homeNewReportButton, "click", () => {
+    resetForm();
+    showView("inspection");
+  });
+  on(elements.homeFieldModeButton, "click", openFieldMode);
+  on(elements.homeDashboardButton, "click", openGeneralDashboard);
+  on(elements.homeClientsButton, "click", openCompanyCraneRegistry);
+  on(elements.homeReportsButton, "click", openSidebar);
+  on(elements.homeMaintenanceButton, "click", openMaintenancePanel);
+  on(elements.homeWorkOrdersButton, "click", openWorkOrdersPanel);
+  on(elements.homeSyncButton, "click", openSyncCenter);
+  on(elements.homeSettingsButton, "click", openSettingsPanel);
+  on(elements.closeFieldModeButton, "click", openSystemHome);
+  on(elements.fieldNewButton, "click", () => {
+    resetForm();
+    showView("inspection");
+  });
+  on(elements.fieldClientButton, "click", () => focusInspectionField(elements.plantName));
+  on(elements.fieldEquipmentButton, "click", () => {
+    showView("inspection");
+    openEquipmentEditor();
+  });
+  on(elements.fieldCameraButton, "click", openFieldCameraCapture);
+  on(elements.fieldSaveButton, "click", async () => {
+    await persistInspection();
+    renderFieldModeSummary();
+  });
+  on(elements.fieldPdfButton, "click", generatePdfReport);
   on(elements.openSidebarButton, "click", async () => {
     if (window.matchMedia("(max-width: 1080px)").matches) {
       openSidebar();
@@ -437,6 +540,7 @@ function setupAppActions() {
   elements.exportFullBackupWithPhotosButton.addEventListener("click", () => exportFullBackup({ includePhotos: true }));
   elements.purgeStoredPhotosButton.addEventListener("click", purgeStoredHeavyPhotos);
   elements.navSyncCloudButton.addEventListener("click", syncCompaniesAndCranesToCloud);
+  on(elements.openSyncCenterButton, "click", openSyncCenter);
   elements.generatePdfButton.addEventListener("click", generatePdfReport);
   elements.newInspectionButton.addEventListener("click", () => {
     resetForm();
@@ -444,8 +548,10 @@ function setupAppActions() {
   });
   elements.refreshReportsButton.addEventListener("click", renderSavedReports);
   on(elements.openDashboardButton, "click", openGeneralDashboard);
+  on(elements.openWorkOrdersButton, "click", openWorkOrdersPanel);
+  on(elements.openAuditLogButton, "click", openAuditLogPanel);
   on(elements.refreshDashboardButton, "click", renderGeneralDashboard);
-  on(elements.closeDashboardButton, "click", () => showView("inspection"));
+  on(elements.closeDashboardButton, "click", openSystemHome);
   on(elements.dashboardClientFilter, "change", renderGeneralDashboard);
   on(elements.dashboardDateFrom, "change", renderGeneralDashboard);
   on(elements.dashboardDateTo, "change", renderGeneralDashboard);
@@ -455,11 +561,29 @@ function setupAppActions() {
     if (elements.dashboardDateTo) elements.dashboardDateTo.value = "";
     renderGeneralDashboard();
   });
+  on(elements.closeWorkOrdersButton, "click", openSystemHome);
+  on(elements.newWorkOrderButton, "click", () => resetWorkOrderForm());
+  on(elements.refreshWorkOrdersButton, "click", renderWorkOrdersPanel);
+  on(elements.workOrderStatusFilter, "change", renderWorkOrdersPanel);
+  on(elements.workOrderClient, "change", renderWorkOrderCranePicker);
+  on(elements.saveWorkOrderButton, "click", saveWorkOrderFromForm);
+  on(elements.clearWorkOrderFormButton, "click", () => resetWorkOrderForm());
+  on(elements.closeAuditLogButton, "click", openSystemHome);
+  on(elements.refreshAuditLogButton, "click", renderAuditLogPanel);
+  on(elements.auditLogFilter, "change", renderAuditLogPanel);
+  on(elements.clearAuditLogButton, "click", clearAuditLogWithConfirmation);
   elements.openCompanyCraneRegistryButton.addEventListener("click", openCompanyCraneRegistry);
   elements.openMaintenancePanelButton.addEventListener("click", openMaintenancePanel);
+  on(elements.closeSyncCenterButton, "click", openSystemHome);
+  on(elements.refreshSyncCenterButton, "click", renderSyncCenter);
+  on(elements.syncDataOnlyButton, "click", syncCloudDataOnly);
+  on(elements.syncEvidenceOnlyButton, "click", syncEvidenceOnlyToCloud);
+  on(elements.forceDownloadEvidenceButton, "click", forceDownloadEvidenceFromCloud);
+  on(elements.showPendingEvidenceButton, "click", toggleSyncPendingDetails);
+  on(elements.purgeCloudSyncedLocalPhotosButton, "click", purgeCloudSyncedLocalEvidence);
   elements.openConsolidatedHistoryButton.addEventListener("click", openConsolidatedHistory);
   elements.openSettingsButton.addEventListener("click", openSettingsPanel);
-  elements.closeSettingsButton.addEventListener("click", () => showView("inspection"));
+  elements.closeSettingsButton.addEventListener("click", openSystemHome);
   elements.saveSettingsButton.addEventListener("click", saveSettingsFromForm);
   elements.resetSettingsButton.addEventListener("click", resetSettingsToDefaults);
   elements.addSettingsPolipastoButton.addEventListener("click", addPolipastoToSettingsList);
@@ -467,9 +591,9 @@ function setupAppActions() {
   elements.cloudSignInButton.addEventListener("click", cloudSignInFromForm);
   elements.cloudSignOutButton.addEventListener("click", cloudSignOutFromForm);
   elements.syncCompaniesCranesButton.addEventListener("click", syncCompaniesAndCranesToCloud);
-  elements.closeMaintenancePanelButton.addEventListener("click", () => showView("inspection"));
+  elements.closeMaintenancePanelButton.addEventListener("click", openSystemHome);
   elements.refreshMaintenancePanelButton.addEventListener("click", renderMaintenancePanel);
-  elements.closeCompanyCraneRegistryButton.addEventListener("click", () => showView("inspection"));
+  elements.closeCompanyCraneRegistryButton.addEventListener("click", openSystemHome);
   elements.refreshCompanyCraneRegistryButton.addEventListener("click", renderCompanyCraneRegistry);
   elements.syncCompanyRegistryButton.addEventListener("click", syncCompanyRegistryFromReports);
   elements.deleteCompanyRegistryButton.addEventListener("click", deleteCurrentCompanyRegistry);
@@ -512,7 +636,7 @@ function setupAppActions() {
     renderCompanyCraneRegistry();
   });
   elements.companyMaintenanceFrequency.addEventListener("change", saveCompanyMaintenanceFrequency);
-  elements.closeConsolidatedHistoryButton.addEventListener("click", () => showView("inspection"));
+  elements.closeConsolidatedHistoryButton.addEventListener("click", openSystemHome);
   elements.refreshConsolidatedHistoryButton.addEventListener("click", renderConsolidatedHistory);
   elements.exportConsolidatedHistoryButton.addEventListener("click", exportConsolidatedHistoryExcel);
   elements.consolidatedClientFilter.addEventListener("input", renderConsolidatedHistory);
@@ -647,6 +771,18 @@ function closeToolsMenu() {
 }
 
 function setupMobileNavigation() {
+  if (elements.mobileHomeButton) {
+    elements.mobileHomeButton.addEventListener("click", () => {
+      closeMobileMorePanel();
+      openSystemHome();
+    });
+  }
+  if (elements.mobileFieldModeButton) {
+    elements.mobileFieldModeButton.addEventListener("click", () => {
+      closeMobileMorePanel();
+      openFieldMode();
+    });
+  }
   elements.mobileNewButton.addEventListener("click", () => {
     resetForm();
     showView("inspection");
@@ -688,6 +824,24 @@ function setupMobileNavigation() {
     closeMobileMorePanel();
     openSettingsPanel();
   });
+  if (elements.mobileSyncCenterButton) {
+    elements.mobileSyncCenterButton.addEventListener("click", () => {
+      closeMobileMorePanel();
+      openSyncCenter();
+    });
+  }
+  if (elements.mobileWorkOrdersButton) {
+    elements.mobileWorkOrdersButton.addEventListener("click", () => {
+      closeMobileMorePanel();
+      openWorkOrdersPanel();
+    });
+  }
+  if (elements.mobileAuditLogButton) {
+    elements.mobileAuditLogButton.addEventListener("click", () => {
+      closeMobileMorePanel();
+      openAuditLogPanel();
+    });
+  }
   elements.mobileBackupButton.addEventListener("click", (event) => {
     closeMobileMorePanel();
     elements.importFullBackupInput.click();
@@ -703,6 +857,136 @@ function setupMobileNavigation() {
   });
 }
 
+async function openSystemHome() {
+  await renderSystemHome();
+  showView("home");
+}
+
+async function renderSystemHome() {
+  if (!elements.homeView || !elements.homeStatsGrid || !elements.homeCriticalList) {
+    return;
+  }
+
+  try {
+    const snapshot = await buildDashboardSnapshot();
+    const metrics = buildDashboardMetrics({
+      ...snapshot,
+      clientFilter: "",
+      dateFrom: "",
+      dateTo: ""
+    });
+    const maintenanceRisk = metrics.maintenance.overdue + metrics.maintenance.soon;
+    const compliance = calculateDashboardMaintenanceCompliance(metrics.maintenance);
+    elements.homeStatsGrid.innerHTML = [
+      renderHomeStat("Clientes", metrics.clients, "Activos en catalogo"),
+      renderHomeStat("Gruas", metrics.cranes, "Identidades registradas"),
+      renderHomeStat("Servicios mes", metrics.reportsThisMonth, "Reportes capturados"),
+      renderHomeStat("Riesgo", maintenanceRisk, `${metrics.maintenance.overdue} vencidas`),
+      renderHomeStat("Hallazgo comun", getTopEntryValue(metrics.topFindings), getTopEntryLabel(metrics.topFindings) || "Sin datos"),
+      renderHomeStat("Cumplimiento", `${compliance}%`, "Mantenimiento al dia")
+    ].join("");
+    elements.homeCriticalList.innerHTML = renderHomePriorityList(metrics);
+  } catch (error) {
+    elements.homeStatsGrid.innerHTML = '<div class="inline-empty-state">No se pudieron calcular los indicadores.</div>';
+    elements.homeCriticalList.innerHTML = `<div class="inline-empty-state">${escapeHtml(error.message || "Error desconocido")}</div>`;
+  }
+}
+
+function renderHomeStat(label, value, hint) {
+  return `
+    <article class="home-stat-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(value || 0))}</strong>
+      <small>${escapeHtml(hint || "")}</small>
+    </article>
+  `;
+}
+
+function renderHomePriorityList(metrics) {
+  const priorities = [
+    {
+      title: "Mantenimiento vencido",
+      value: metrics.maintenance.overdue,
+      text: metrics.maintenance.overdue ? "Revisar panel de mantenimiento" : "Sin vencidas registradas",
+      tone: metrics.maintenance.overdue ? "danger" : "ok"
+    },
+    {
+      title: "Empresas criticas",
+      value: metrics.criticalCompanies.length,
+      text: getTopEntryLabel(metrics.criticalCompanies) || "Sin concentracion de riesgo",
+      tone: metrics.criticalCompanies.length ? "warning" : "ok"
+    },
+    {
+      title: "Hallazgos criticos/altos",
+      value: metrics.highSeverityFindings,
+      text: metrics.highSeverityFindings ? "Validar correcciones pendientes" : "Sin severidad alta detectada",
+      tone: metrics.highSeverityFindings ? "danger" : "ok"
+    },
+    {
+      title: "Proximo servicio",
+      value: metrics.maintenance.next.length ? formatDate(metrics.maintenance.next[0].date) : "Sin fecha",
+      text: metrics.maintenance.next.length ? metrics.maintenance.next[0].label : "Completar fechas en Empresas y gruas",
+      tone: metrics.maintenance.next.length && metrics.maintenance.next[0].days <= 30 ? "warning" : "ok"
+    }
+  ];
+
+  return priorities.map((item) => `
+    <article class="home-priority-card is-${item.tone}">
+      <span>${escapeHtml(item.title)}</span>
+      <strong>${escapeHtml(String(item.value))}</strong>
+      <small>${escapeHtml(item.text)}</small>
+    </article>
+  `).join("");
+}
+
+function openFieldMode() {
+  renderFieldModeSummary();
+  showView("fieldMode");
+}
+
+function renderFieldModeSummary() {
+  if (!elements.fieldModeSummary) {
+    return;
+  }
+  const findingsCount = currentEquipments.reduce((total, equipment) => total + (equipment.findings || []).length, 0);
+  elements.fieldModeSummary.innerHTML = [
+    renderFieldSummaryPill("Cliente", elements.plantName.value || "Sin seleccionar"),
+    renderFieldSummaryPill("Folio", elements.reportNumber.value || "Sin folio"),
+    renderFieldSummaryPill("Equipos", currentEquipments.length),
+    renderFieldSummaryPill("Hallazgos", findingsCount)
+  ].join("");
+}
+
+function renderFieldSummaryPill(label, value) {
+  return `
+    <article>
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(value || 0))}</strong>
+    </article>
+  `;
+}
+
+function focusInspectionField(field) {
+  showView("inspection");
+  setTimeout(() => {
+    if (field) {
+      field.scrollIntoView({ behavior: "smooth", block: "center" });
+      field.focus({ preventScroll: true });
+    }
+  }, 80);
+}
+
+function openFieldCameraCapture() {
+  showView("inspection");
+  const targetEquipmentId = currentEquipments[0] && currentEquipments[0].id;
+  openEquipmentEditor(targetEquipmentId);
+  setTimeout(() => {
+    if (elements.servicePhotoCameraButton) {
+      elements.servicePhotoCameraButton.click();
+    }
+  }, 180);
+}
+
 function toggleMobileMorePanel() {
   const isOpen = !elements.mobileMorePanel.classList.contains("hidden");
   elements.mobileMorePanel.classList.toggle("hidden", isOpen);
@@ -714,14 +998,29 @@ function closeMobileMorePanel() {
 
 function showView(view) {
   closeMobileMorePanel();
+  if (elements.homeView) {
+    elements.homeView.classList.toggle("hidden", view !== "home");
+  }
   if (elements.dashboardView) {
     elements.dashboardView.classList.toggle("hidden", view !== "dashboard");
+  }
+  if (elements.fieldModeView) {
+    elements.fieldModeView.classList.toggle("hidden", view !== "fieldMode");
+  }
+  if (elements.workOrdersView) {
+    elements.workOrdersView.classList.toggle("hidden", view !== "workOrders");
+  }
+  if (elements.auditLogView) {
+    elements.auditLogView.classList.toggle("hidden", view !== "auditLog");
   }
   elements.inspectionView.classList.toggle("hidden", view !== "inspection");
   elements.equipmentEditorView.classList.toggle("hidden", view !== "equipment");
   elements.findingEditorView.classList.toggle("hidden", view !== "finding");
   elements.consolidatedHistoryView.classList.toggle("hidden", view !== "consolidatedHistory");
   elements.maintenancePanelView.classList.toggle("hidden", view !== "maintenancePanel");
+  if (elements.syncCenterView) {
+    elements.syncCenterView.classList.toggle("hidden", view !== "syncCenter");
+  }
   elements.settingsView.classList.toggle("hidden", view !== "settings");
   elements.companyCraneRegistryView.classList.toggle("hidden", view !== "companyCraneRegistry");
 }
@@ -893,6 +1192,15 @@ function collectInspectionData() {
 }
 
 async function persistInspection() {
+  if (!canCurrentUser("editReports")) {
+    await showAppDialog({
+      title: "Acceso restringido",
+      message: "Tu rol actual no permite guardar reportes.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    return null;
+  }
+
   if (!elements.form.reportValidity()) {
     elements.form.reportValidity();
     return null;
@@ -904,9 +1212,19 @@ async function persistInspection() {
   }
 
   const inspection = collectInspectionData();
+  const previousInspection = inspection.id ? await getInspection(inspection.id) : null;
   elements.inspectionId.value = inspection.id;
   elements.reportNumber.value = inspection.reportNumber;
   await putInspection(inspection);
+  addAuditLogEntry({
+    action: previousInspection ? "updated" : "created",
+    entityType: "report",
+    entityId: inspection.id,
+    title: `${previousInspection ? "Edito" : "Creo"} reporte ${inspection.reportNumber || "sin folio"}`,
+    client: inspection.plantName,
+    before: previousInspection ? normalizeInspection(previousInspection) : null,
+    after: inspection
+  });
   await renderSavedReports();
   return inspection;
 }
@@ -945,6 +1263,7 @@ async function renderSavedReports() {
   renderSavedReportsSummary(normalizedRecords);
   elements.savedReports.innerHTML = renderSavedReportsBrowser(normalizedRecords);
   wireSavedReportsBrowser(normalizedRecords);
+  applyRoleRestrictions();
 }
 
 function renderSavedReportsBrowser(records) {
@@ -1128,7 +1447,24 @@ function wireSavedReportActionButtons() {
     }
     button.dataset.savedActionWired = "true";
     button.addEventListener("click", async () => {
+      if (!canCurrentUser("delete")) {
+        await showAppDialog({
+          title: "Acceso restringido",
+          message: "Tu rol actual no permite eliminar reportes.",
+          actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+        });
+        return;
+      }
       const record = await getInspection(button.dataset.deleteId);
+      addAuditLogEntry({
+        action: "deleted",
+        entityType: "report",
+        entityId: button.dataset.deleteId,
+        title: `Elimino reporte ${record?.reportNumber || button.dataset.deleteId}`,
+        client: record?.plantName || "",
+        before: record ? normalizeInspection(record) : { id: button.dataset.deleteId },
+        after: null
+      });
       markInspectionDeleted(record || { id: button.dataset.deleteId });
       await deleteInspection(button.dataset.deleteId);
       if (elements.inspectionId.value === button.dataset.deleteId) {
@@ -1266,6 +1602,7 @@ async function showHistoryCascade() {
   elements.historyCascadePanel.innerHTML = renderHistoryCascade(grouped, activeGroup);
   elements.historyCascadePanel.classList.remove("hidden");
   wireHistoryCascade(grouped);
+  applyRoleRestrictions();
   return true;
 }
 
@@ -1372,7 +1709,24 @@ function wireHistoryCascadeActionButtons() {
 
   elements.historyCascadePanel.querySelectorAll("[data-delete-id]").forEach((button) => {
     button.addEventListener("click", async () => {
+      if (!canCurrentUser("delete")) {
+        await showAppDialog({
+          title: "Acceso restringido",
+          message: "Tu rol actual no permite eliminar reportes.",
+          actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+        });
+        return;
+      }
       const record = await getInspection(button.dataset.deleteId);
+      addAuditLogEntry({
+        action: "deleted",
+        entityType: "report",
+        entityId: button.dataset.deleteId,
+        title: `Elimino reporte ${record?.reportNumber || button.dataset.deleteId}`,
+        client: record?.plantName || "",
+        before: record ? normalizeInspection(record) : { id: button.dataset.deleteId },
+        after: null
+      });
       markInspectionDeleted(record || { id: button.dataset.deleteId });
       await deleteInspection(button.dataset.deleteId);
       if (elements.inspectionId.value === button.dataset.deleteId) {

@@ -37,10 +37,11 @@ async function renderCompanyCraneRegistry() {
   const registry = readCompanyCraneRegistry();
   const cranes = client ? registry[client] || [] : [];
   const maintenanceLookup = client ? await buildCompanyCraneMaintenanceLookup(client, cranes) : new Map();
+  const severityLookup = client ? await buildCompanyCraneSeverityLookup(client, cranes) : new Map();
 
   await renderCompanyRegistryClientCards();
   renderCompanyRegistrySummary(client, cranes);
-  renderCompanyCraneList(client, cranes, maintenanceLookup);
+  renderCompanyCraneList(client, cranes, maintenanceLookup, severityLookup);
 }
 
 async function getCompanyRegistryClientNames() {
@@ -186,6 +187,24 @@ async function buildCompanyCraneMaintenanceLookup(client, cranes) {
   return lookup;
 }
 
+async function buildCompanyCraneSeverityLookup(client, cranes) {
+  const records = (await getAllInspections()).map(normalizeInspection);
+  const lookup = new Map(cranes.map((crane) => [crane.id, 0]));
+  records
+    .filter((record) => normalizeClientName(record.plantName) === client)
+    .forEach((record) => {
+      (record.equipments || []).forEach((equipment) => {
+        const matchedCrane = findMatchingCompanyCrane(cranes, equipment);
+        if (!matchedCrane) {
+          return;
+        }
+        const highSeverity = (equipment.findings || []).filter((finding) => isHighSeverityFinding(finding)).length;
+        lookup.set(matchedCrane.id, (lookup.get(matchedCrane.id) || 0) + highSeverity);
+      });
+    });
+  return lookup;
+}
+
 function findMatchingCompanyCrane(cranes, equipment) {
   if (equipment.catalogCraneId) {
     const selected = cranes.find((crane) => crane.id === equipment.catalogCraneId);
@@ -276,7 +295,7 @@ function formatMaintenanceDaysLabel(daysRemaining) {
   return `${days} dia(s)`;
 }
 
-function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
+function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map(), severityLookup = new Map()) {
   elements.companyCraneList.innerHTML = "";
 
   if (!client) {
@@ -291,8 +310,9 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
 
   cranes.forEach((crane) => {
     const maintenance = maintenanceLookup.get(crane.id) || null;
+    const health = calculateCraneHealth(client, crane, maintenance, { highSeverityCount: severityLookup.get(crane.id) || 0 });
     const card = document.createElement("article");
-    card.className = "company-crane-card";
+    card.className = `company-crane-card ${health.className}`;
     card.draggable = true;
     card.dataset.companyCraneId = crane.id;
     card.title = "Arrastra para cambiar el orden";
@@ -309,6 +329,7 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
     });
     card.innerHTML = `
       ${renderCompanyCraneCardImage(crane)}
+      ${renderCraneHealthPill(health)}
       <div class="company-crane-main">
         <div>
           <p class="eyebrow">${escapeHtml(crane.craneId || "Sin ID")}</p>
@@ -322,6 +343,11 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map()) {
         <span>Serial: ${escapeHtml(crane.serialNumber || "No capturado")}</span>
       </div>
       ${renderCompanyCraneMaintenanceStatus(maintenance)}
+      <div class="company-crane-health-strip" title="${escapeHtml(health.reason)}">
+        <span class="${escapeHtml(health.className)}"></span>
+        <strong>${escapeHtml(health.label)}</strong>
+        <small>${escapeHtml(health.reason)}</small>
+      </div>
       <p class="company-crane-open-hint">Clic para abrir ficha maestra</p>
       <div class="company-crane-actions">
         <button class="secondary-button" type="button" data-edit-company-crane-id="${escapeHtml(crane.id)}">Editar</button>
@@ -410,9 +436,11 @@ async function renderCompanyCraneMasterModal() {
 
   const tabRenderers = {
     data: () => renderCompanyCraneDataTab(client, crane),
+    health: () => renderCompanyCraneHealthTab(client, crane),
     maintenance: () => renderCompanyCraneMaintenanceTab(client, crane),
     findings: () => renderCompanyCraneFindingsTab(client, crane),
     checklist: () => renderCompanyCraneChecklistTab(client, crane),
+    recurrence: () => renderCompanyCraneRecurrenceTab(client, crane),
     history: () => renderCompanyCraneHistoryTab(client, crane),
     files: () => renderCompanyCraneFilesTab(client, crane)
   };
@@ -426,14 +454,19 @@ async function renderCompanyCraneMasterModal() {
   if (tab === "checklist") {
     wireCompanyCraneChecklistChecks(client, crane);
   }
+  if (tab === "files") {
+    wireCompanyCraneFilesTab(client, crane);
+  }
 }
 
 function renderCompanyCraneMasterTabs(activeTab) {
   const tabs = [
     { key: "data", label: "Datos" },
+    { key: "health", label: "Salud" },
     { key: "maintenance", label: "Mantenimiento" },
     { key: "findings", label: "Hallazgos" },
     { key: "checklist", label: "Checklist" },
+    { key: "recurrence", label: "Reincidencias" },
     { key: "history", label: "Historial de reportes" },
     { key: "files", label: "Fotos/documentos" }
   ];
@@ -458,8 +491,14 @@ function wireCompanyCraneMasterTabs() {
   });
 }
 
-function renderCompanyCraneDataTab(client, crane) {
+async function renderCompanyCraneDataTab(client, crane) {
+  const lookup = await buildCompanyCraneMaintenanceLookup(client, [crane]);
+  const maintenance = lookup.get(crane.id) || null;
+  const rows = await getCompanyCraneReportHistory(client, crane);
+  const highSeverityCount = countHighSeverityFindings(rows);
+  const fileSummary = summarizeCranePermanentFiles(crane);
   return `
+    ${renderCraneHealthHero(client, crane, maintenance, calculateCraneHealth(client, crane, maintenance, { highSeverityCount }))}
     <div class="crane-master-grid">
       <article class="crane-master-card">
         <p class="eyebrow">Identidad</p>
@@ -469,6 +508,7 @@ function renderCompanyCraneDataTab(client, crane) {
           ${renderCraneMasterDetail("Area", crane.area || "No capturada")}
           ${renderCraneMasterDetail("Tipo", crane.type || "No capturado")}
           ${renderCraneMasterDetail("Estado", crane.status || "Sin estado")}
+          ${renderCraneMasterDetail("Foto principal", crane.image ? "Capturada" : "Pendiente")}
         </dl>
       </article>
       <article class="crane-master-card">
@@ -483,12 +523,154 @@ function renderCompanyCraneDataTab(client, crane) {
           ${renderCraneMasterDetail("Serial", crane.serialNumber || "No capturado")}
         </dl>
       </article>
+      <article class="crane-master-card">
+        <p class="eyebrow">Archivos permanentes</p>
+        <dl class="crane-master-details">
+          ${renderCraneMasterDetail("Fotos", `${fileSummary.photos} archivo(s)`)}
+          ${renderCraneMasterDetail("Documentos", `${fileSummary.documents} archivo(s)`)}
+          ${renderCraneMasterDetail("Peso local", formatBytes(fileSummary.bytes || 0))}
+        </dl>
+      </article>
       <article class="crane-master-card crane-master-card-wide">
         <p class="eyebrow">Notas</p>
         <p>${escapeHtml(crane.notes || "Sin notas capturadas.")}</p>
       </article>
     </div>
   `;
+}
+
+async function renderCompanyCraneHealthTab(client, crane) {
+  const lookup = await buildCompanyCraneMaintenanceLookup(client, [crane]);
+  const maintenance = lookup.get(crane.id) || null;
+  const recurrent = await buildCraneRecurrenceInsights(client, crane);
+  const rows = await getCompanyCraneReportHistory(client, crane);
+  const highSeverityCount = countHighSeverityFindings(rows);
+  const health = calculateCraneHealth(client, crane, maintenance, { highSeverityCount });
+
+  return `
+    ${renderCraneHealthHero(client, crane, maintenance, health)}
+    <div class="crane-health-grid">
+      <article class="crane-health-card">
+        <span>Checklist actual</span>
+        <strong>${health.badChecklistCount} mal</strong>
+        <small>${health.badChecklistCount ? "Puntos marcados como hallazgo" : "Sin hallazgos activos marcados"}</small>
+      </article>
+      <article class="crane-health-card">
+        <span>Hallazgos criticos</span>
+        <strong>${highSeverityCount}</strong>
+        <small>Detectados en reportes relacionados</small>
+      </article>
+      <article class="crane-health-card">
+        <span>Mantenimiento</span>
+        <strong>${escapeHtml(maintenance ? formatMaintenanceDaysLabel(maintenance.daysRemaining) : "Sin fecha")}</strong>
+        <small>${escapeHtml(maintenance?.nextMaintenance ? `Proximo: ${formatDate(maintenance.nextMaintenance)}` : "Fecha no definida")}</small>
+      </article>
+      <article class="crane-health-card">
+        <span>Reincidencias</span>
+        <strong>${recurrent.repeatedFindings.length}</strong>
+        <small>Hallazgos repetidos 2+ veces</small>
+      </article>
+    </div>
+    ${renderCraneHealthReasons(health)}
+  `;
+}
+
+function renderCraneHealthHero(client, crane, maintenance = null, health = null) {
+  const resolvedHealth = health || calculateCraneHealth(client, crane, maintenance);
+  return `
+    <section class="crane-health-hero ${escapeHtml(resolvedHealth.className)}">
+      <div>
+        <p class="eyebrow">Estado de salud</p>
+        <h3>${escapeHtml(resolvedHealth.label)}</h3>
+        <p>${escapeHtml(resolvedHealth.reason)}</p>
+      </div>
+      <div class="crane-health-light">
+        <span></span>
+        <strong>${escapeHtml(resolvedHealth.scoreLabel)}</strong>
+      </div>
+    </section>
+  `;
+}
+
+function renderCraneHealthReasons(health) {
+  return `
+    <div class="crane-health-reasons">
+      ${health.reasons.map((reason) => `<article><span></span>${escapeHtml(reason)}</article>`).join("")}
+    </div>
+  `;
+}
+
+function calculateCraneHealth(client, crane, maintenance = null, options = {}) {
+  const badChecklistItems = getBadCraneChecklistItems(client, crane.id);
+  const criticalChecklist = badChecklistItems.filter(isCriticalChecklistItem);
+  const highSeverityCount = Number(options.highSeverityCount) || 0;
+  const daysRemaining = maintenance ? Number(maintenance.daysRemaining) : null;
+  const reasons = [];
+
+  if (criticalChecklist.length) {
+    reasons.push(`${criticalChecklist.length} hallazgo(s) critico(s) en checklist`);
+  }
+  if (highSeverityCount) {
+    reasons.push(`${highSeverityCount} hallazgo(s) critico(s) en reportes`);
+  }
+  if (badChecklistItems.length) {
+    reasons.push(`${badChecklistItems.length} punto(s) marcados como Mal`);
+  }
+  if (!maintenance || !maintenance.nextMaintenance) {
+    reasons.push("Sin fecha de proximo mantenimiento");
+  } else if (Number.isFinite(daysRemaining) && daysRemaining < 0) {
+    reasons.push(`Mantenimiento vencido hace ${Math.abs(daysRemaining)} dia(s)`);
+  } else if (Number.isFinite(daysRemaining) && daysRemaining <= 15) {
+    reasons.push(`Mantenimiento muy proximo: ${daysRemaining} dia(s)`);
+  } else if (Number.isFinite(daysRemaining) && daysRemaining <= 60) {
+    reasons.push(`Mantenimiento proximo: ${daysRemaining} dia(s)`);
+  }
+
+  if (criticalChecklist.length || highSeverityCount || (Number.isFinite(daysRemaining) && daysRemaining <= 15)) {
+    return {
+      level: "red",
+      className: "health-red",
+      label: "Rojo",
+      scoreLabel: "Riesgo alto",
+      reason: reasons[0] || "Requiere atencion inmediata",
+      reasons,
+      badChecklistCount: badChecklistItems.length
+    };
+  }
+  if (badChecklistItems.length || !maintenance?.nextMaintenance || (Number.isFinite(daysRemaining) && daysRemaining <= 60)) {
+    return {
+      level: "yellow",
+      className: "health-yellow",
+      label: "Amarillo",
+      scoreLabel: "Atencion",
+      reason: reasons[0] || "Tiene puntos por atender",
+      reasons,
+      badChecklistCount: badChecklistItems.length
+    };
+  }
+  return {
+    level: "green",
+    className: "health-green",
+    label: "Verde",
+    scoreLabel: "Operable",
+    reason: "Sin hallazgos criticos y mantenimiento vigente",
+    reasons: ["Checklist sin puntos Mal", "Mantenimiento vigente"],
+    badChecklistCount: badChecklistItems.length
+  };
+}
+
+function renderCraneHealthPill(health) {
+  return `
+    <div class="crane-card-health-pill ${escapeHtml(health.className)}">
+      <span></span>
+      ${escapeHtml(health.label)}
+    </div>
+  `;
+}
+
+function isCriticalChecklistItem(item) {
+  const text = [item.category, item.title, item.measure, item.clause].join(" ").toLowerCase();
+  return /(freno|cable|cadena|gancho|limite|limitador|estructura|deformacion|grieta|seguridad|emergencia|sobrecarga|electrico|eléctrico)/i.test(text);
 }
 
 async function renderCompanyCraneMaintenanceTab(client, crane) {
@@ -541,6 +723,141 @@ function renderBadChecklistFindingsList(items) {
       `).join("")}
     </div>
   `;
+}
+
+async function renderCompanyCraneRecurrenceTab(client, crane) {
+  const insights = await buildCraneRecurrenceInsights(client, crane);
+  return `
+    <div class="crane-master-mini-summary">
+      <article class="history-stat"><span>Hallazgos repetidos</span><strong>${insights.repeatedFindings.length}</strong></article>
+      <article class="history-stat"><span>Cliente reincidente</span><strong>${escapeHtml(insights.topClient?.label || client || "N/A")}</strong></article>
+      <article class="history-stat"><span>Marca/modelo</span><strong>${escapeHtml(insights.topBrandModel?.label || "N/A")}</strong></article>
+    </div>
+    <div class="recurrence-layout">
+      <section class="recurrence-panel">
+        <p class="eyebrow">Esta grua</p>
+        <h4>Hallazgos recurrentes</h4>
+        ${renderRepeatedFindings(insights.repeatedFindings)}
+      </section>
+      <section class="recurrence-panel">
+        <p class="eyebrow">Global</p>
+        <h4>Clientes con mayor reincidencia</h4>
+        ${renderRecurrenceRanking(insights.clientRanking)}
+      </section>
+      <section class="recurrence-panel">
+        <p class="eyebrow">Global</p>
+        <h4>Marca/modelo con mas fallas</h4>
+        ${renderRecurrenceRanking(insights.brandModelRanking)}
+      </section>
+    </div>
+  `;
+}
+
+function renderRepeatedFindings(items) {
+  if (!items.length) {
+    return '<div class="inline-empty-state compact-empty-state">No hay hallazgos repetidos en esta grua.</div>';
+  }
+  return `
+    <div class="recurrence-list">
+      ${items.map((item) => `
+        <article class="recurrence-item">
+          <strong>${escapeHtml(item.label)}</strong>
+          <span>Este problema se ha repetido ${item.count} veces.</span>
+          <small>${escapeHtml(item.lastDate ? `Ultima vez: ${formatDate(item.lastDate)}` : "Sin fecha")}</small>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderRecurrenceRanking(items) {
+  if (!items.length) {
+    return '<div class="inline-empty-state compact-empty-state">No hay suficiente historial para calcularlo.</div>';
+  }
+  return `
+    <div class="recurrence-list compact">
+      ${items.slice(0, 6).map((item, index) => `
+        <article class="recurrence-rank">
+          <span>${index + 1}</span>
+          <strong>${escapeHtml(item.label)}</strong>
+          <small>${item.count} hallazgo(s)</small>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+async function buildCraneRecurrenceInsights(client, crane) {
+  const rows = await getCompanyCraneReportHistory(client, crane);
+  const repeatedFindings = rankRepeatedFindings(rows.flatMap((row) => row.findings || []));
+  const globalRows = await getAllCraneFindingOccurrences();
+  const clientRanking = rankByKey(globalRows, (item) => item.client || "Cliente sin nombre");
+  const brandModelRanking = rankByKey(globalRows, (item) => [item.brand, item.model].filter(Boolean).join(" / ") || "Sin marca/modelo");
+
+  return {
+    repeatedFindings,
+    clientRanking,
+    brandModelRanking,
+    topClient: clientRanking[0] || null,
+    topBrandModel: brandModelRanking[0] || null
+  };
+}
+
+function rankRepeatedFindings(findings) {
+  const groups = new Map();
+  findings.forEach((finding) => {
+    const label = normalizeFindingLabel(finding);
+    if (!label) {
+      return;
+    }
+    const current = groups.get(label) || { label, count: 0, lastDate: "" };
+    current.count += 1;
+    current.lastDate = finding.date && compareDateInput(finding.date, current.lastDate) > 0 ? finding.date : current.lastDate;
+    groups.set(label, current);
+  });
+  return Array.from(groups.values())
+    .filter((item) => item.count >= 2)
+    .sort((a, b) => b.count - a.count || compareDateInput(b.lastDate, a.lastDate));
+}
+
+function rankByKey(items, getKey) {
+  const groups = new Map();
+  items.forEach((item) => {
+    const label = getKey(item);
+    groups.set(label, { label, count: (groups.get(label)?.count || 0) + 1 });
+  });
+  return Array.from(groups.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+async function getAllCraneFindingOccurrences() {
+  const records = (await getAllInspections()).map(normalizeInspection);
+  const rows = [];
+  records.forEach((record) => {
+    (record.equipments || []).forEach((equipment) => {
+      (equipment.findings || []).forEach((finding) => {
+        rows.push({
+          ...finding,
+          client: normalizeClientName(record.plantName),
+          brand: equipment.hoistManufacturer || "",
+          model: equipment.hoistModel || "",
+          date: equipment.maintenanceDate || record.inspectionDate || ""
+        });
+      });
+    });
+  });
+  return rows;
+}
+
+function normalizeFindingLabel(finding) {
+  return removeFindingCatalogNumber(
+    finding.incidence || finding.description || finding.category || ""
+  ).trim();
+}
+
+function countHighSeverityFindings(rows) {
+  return rows.reduce((sum, row) => (
+    sum + (row.findings || []).filter((finding) => isHighSeverityFinding(finding)).length
+  ), 0);
 }
 
 function renderCompanyCraneChecklistTab(client, crane) {
@@ -903,6 +1220,225 @@ function equipmentMatchesCompanyCrane(crane, equipment) {
   return sameCatalogCrane(crane, candidate);
 }
 
+async function renderCompanyCraneFilesTab(client, crane) {
+  const rows = await getCompanyCraneReportHistory(client, crane);
+  const totals = rows.reduce((summary, row) => ({
+    servicePhotos: summary.servicePhotos + row.servicePhotos,
+    findingPhotos: summary.findingPhotos + row.findingPhotos,
+    checklistImages: summary.checklistImages + (row.hasChecklist ? 1 : 0)
+  }), { servicePhotos: 0, findingPhotos: 0, checklistImages: 0 });
+  const permanentFiles = getCranePermanentFiles(crane);
+  const fileSummary = summarizeCranePermanentFiles(crane);
+
+  return `
+    <div class="crane-master-mini-summary">
+      <article class="history-stat"><span>Archivos maestros</span><strong>${permanentFiles.length}</strong></article>
+      <article class="history-stat"><span>Fotos de servicio</span><strong>${totals.servicePhotos}</strong></article>
+      <article class="history-stat"><span>Fotos de hallazgos</span><strong>${totals.findingPhotos}</strong></article>
+      <article class="history-stat"><span>Checklists</span><strong>${totals.checklistImages}</strong></article>
+    </div>
+    <section class="crane-files-panel">
+      <div class="crane-files-toolbar">
+        <div>
+          <p class="eyebrow">Ficha permanente</p>
+          <h4>${fileSummary.photos} foto(s), ${fileSummary.documents} documento(s) | ${formatBytes(fileSummary.bytes || 0)}</h4>
+        </div>
+        <button class="secondary-button" type="button" data-add-crane-file>Agregar archivo</button>
+      </div>
+      <input class="file-input-hidden" type="file" data-crane-file-input accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
+      ${renderCranePermanentFiles(permanentFiles)}
+    </section>
+  `;
+}
+
+async function getCompanyCraneReportHistory(client, crane) {
+  const records = (await getAllInspections()).map(normalizeInspection);
+  const rows = [];
+  records
+    .filter((record) => normalizeClientName(record.plantName) === client)
+    .forEach((record) => {
+      (record.equipments || []).forEach((equipment) => {
+        if (!equipmentMatchesCompanyCrane(crane, equipment)) {
+          return;
+        }
+        const servicePhotos = Array.isArray(equipment.servicePhotos) ? equipment.servicePhotos.length : 0;
+        const findingPhotos = (equipment.findings || []).reduce((sum, finding) => sum + (Array.isArray(finding.photos) ? finding.photos.length : 0), 0);
+        const date = equipment.maintenanceDate || record.inspectionDate || "";
+        rows.push({
+          date,
+          reportNumber: record.reportNumber || "",
+          condition: equipment.overallCondition || "",
+          findingsCount: (equipment.findings || []).length,
+          nextInspection: equipment.nextInspection || "",
+          servicePhotos,
+          findingPhotos,
+          hasChecklist: Boolean(equipment.checklistImage),
+          findings: (equipment.findings || []).map((finding) => ({ ...finding, date }))
+        });
+      });
+    });
+
+  return rows.sort((first, second) => compareDateInput(second.date, first.date));
+}
+
+function getCranePermanentFiles(crane) {
+  return Array.isArray(crane.files) ? crane.files : [];
+}
+
+function summarizeCranePermanentFiles(crane) {
+  return getCranePermanentFiles(crane).reduce((summary, file) => {
+    const isImage = String(file.type || "").startsWith("image/");
+    return {
+      photos: summary.photos + (isImage ? 1 : 0),
+      documents: summary.documents + (isImage ? 0 : 1),
+      bytes: summary.bytes + (Number(file.size) || estimateDataUrlBytes(file.dataUrl))
+    };
+  }, { photos: 0, documents: 0, bytes: 0 });
+}
+
+function renderCranePermanentFiles(files) {
+  if (!files.length) {
+    return '<div class="inline-empty-state compact-empty-state">Todavia no hay fotos o documentos permanentes para esta grua.</div>';
+  }
+  return `
+    <div class="crane-permanent-files">
+      ${files.map((file) => `
+        <article class="crane-permanent-file">
+          <div class="crane-file-preview">
+            ${String(file.type || "").startsWith("image/") && file.dataUrl
+              ? `<img src="${escapeHtml(file.dataUrl)}" alt="${escapeHtml(file.name || "Archivo")}">`
+              : `<span>${escapeHtml(getFileExtensionLabel(file.name))}</span>`}
+          </div>
+          <div>
+            <strong>${escapeHtml(file.name || "Archivo")}</strong>
+            <small>${escapeHtml(file.type || "archivo")} | ${formatBytes(Number(file.size) || estimateDataUrlBytes(file.dataUrl))}</small>
+          </div>
+          <div class="crane-file-actions">
+            ${file.dataUrl ? `<a class="ghost-button" href="${escapeHtml(file.dataUrl)}" download="${escapeHtml(file.name || "archivo")}">Abrir</a>` : ""}
+            <button class="ghost-button" type="button" data-delete-crane-file="${escapeHtml(file.id)}">Eliminar</button>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function wireCompanyCraneFilesTab(client, crane) {
+  const addButton = elements.companyCraneFindingsList.querySelector("[data-add-crane-file]");
+  const fileInput = elements.companyCraneFindingsList.querySelector("[data-crane-file-input]");
+  if (addButton && fileInput) {
+    addButton.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", async () => {
+      await addPermanentFilesToCrane(client, crane.id, Array.from(fileInput.files || []));
+      fileInput.value = "";
+    });
+  }
+
+  elements.companyCraneFindingsList.querySelectorAll("[data-delete-crane-file]").forEach((button) => {
+    button.addEventListener("click", async () => deletePermanentCraneFile(client, crane.id, button.dataset.deleteCraneFile));
+  });
+}
+
+async function addPermanentFilesToCrane(client, craneId, files) {
+  if (!files.length) {
+    return;
+  }
+  const registry = readCompanyCraneRegistry();
+  const cranes = registry[client] || [];
+  const crane = cranes.find((item) => item.id === craneId);
+  if (!crane) {
+    return;
+  }
+  const nextFiles = [...getCranePermanentFiles(crane)];
+  for (const file of files) {
+    if (!file) {
+      continue;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      await showAppDialog({
+        title: "Archivo muy grande",
+        message: `${file.name} pesa mas de 5 MB. Para no hacer lenta la app, no se agrego.`,
+        actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+      });
+      continue;
+    }
+    const isImage = String(file.type || "").startsWith("image/");
+    const dataUrl = isImage
+      ? (await imageFileToOptimizedPhoto(file, 1200)).dataUrl
+      : await fileToDataUrl(file);
+    nextFiles.push({
+      id: createId(),
+      name: file.name || "archivo",
+      type: file.type || "application/octet-stream",
+      size: file.size || estimateDataUrlBytes(dataUrl),
+      dataUrl,
+      createdAt: new Date().toISOString()
+    });
+  }
+  crane.files = nextFiles;
+  crane.updatedAt = new Date().toISOString();
+  registry[client] = cranes.map((item) => item.id === craneId ? crane : item);
+  writeCompanyCraneRegistry(registry);
+  addAuditLogEntry({
+    action: "updated",
+    entityType: "crane",
+    entityId: craneId,
+    title: `Agrego archivo a grua ${crane.craneId || crane.type || craneId}`,
+    client,
+    before: null,
+    after: { filesCount: nextFiles.length }
+  });
+  activeCompanyCraneMaster = { client, craneId, tab: "files" };
+  await renderCompanyCraneMasterModal();
+  await renderCompanyCraneRegistry();
+}
+
+async function deletePermanentCraneFile(client, craneId, fileId) {
+  const registry = readCompanyCraneRegistry();
+  const cranes = registry[client] || [];
+  const crane = cranes.find((item) => item.id === craneId);
+  if (!crane) {
+    return;
+  }
+  const beforeCount = getCranePermanentFiles(crane).length;
+  crane.files = getCranePermanentFiles(crane).filter((file) => file.id !== fileId);
+  crane.updatedAt = new Date().toISOString();
+  registry[client] = cranes.map((item) => item.id === craneId ? crane : item);
+  writeCompanyCraneRegistry(registry);
+  addAuditLogEntry({
+    action: "updated",
+    entityType: "crane",
+    entityId: craneId,
+    title: `Elimino archivo de grua ${crane.craneId || crane.type || craneId}`,
+    client,
+    before: { filesCount: beforeCount },
+    after: { filesCount: crane.files.length }
+  });
+  activeCompanyCraneMaster = { client, craneId, tab: "files" };
+  await renderCompanyCraneMasterModal();
+  await renderCompanyCraneRegistry();
+}
+
+function getFileExtensionLabel(name) {
+  const extension = String(name || "").split(".").pop();
+  return extension && extension !== name ? extension.toUpperCase().slice(0, 5) : "DOC";
+}
+
+function mergeCranePermanentFiles(localCrane, cloudCrane) {
+  const localFiles = getCranePermanentFiles(localCrane);
+  const cloudFiles = getCranePermanentFiles(cloudCrane);
+  if (!localFiles.length) {
+    return cloudFiles;
+  }
+  if (!cloudFiles.length) {
+    return localFiles;
+  }
+  return cloudFiles.map((cloudFile) => {
+    const localFile = localFiles.find((file) => file.id === cloudFile.id);
+    return localFile && localFile.dataUrl ? { ...cloudFile, ...localFile } : cloudFile;
+  });
+}
+
 function renderCompanyCraneFindingSelector(client, crane) {
   const selectedFindings = readActiveCraneFindings()[buildActiveCraneFindingKey(client, crane.id)] || {};
   const selectedCount = Object.keys(selectedFindings).filter((key) => getActiveCraneFindingStatus(selectedFindings, key) === "bad").length;
@@ -1018,6 +1554,15 @@ function writeActiveCraneFindings(findings) {
 }
 
 function openCompanyCraneForm(craneId) {
+  if (!canCurrentUser("editCatalog")) {
+    showAppDialog({
+      title: "Acceso restringido",
+      message: "Tu rol actual no permite modificar el catalogo maestro de gruas.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    return;
+  }
+
   const client = normalizeClientName(elements.companyRegistryClient.value);
   if (!client) {
     window.alert("Selecciona una empresa antes de agregar una grua.");
@@ -1115,6 +1660,15 @@ function updateRegistryNextMaintenanceFromLast() {
 }
 
 function saveCompanyCraneFromForm() {
+  if (!canCurrentUser("editCatalog")) {
+    showAppDialog({
+      title: "Acceso restringido",
+      message: "Tu rol actual no permite guardar cambios en gruas maestras.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    return;
+  }
+
   const client = normalizeClientName(elements.companyRegistryClient.value);
   if (!client) {
     window.alert("Selecciona una empresa antes de guardar la grua.");
@@ -1124,6 +1678,7 @@ function saveCompanyCraneFromForm() {
   const registry = readCompanyCraneRegistry();
   const cranes = registry[client] || [];
   const editingId = elements.editingCompanyCraneId.value;
+  const previousCrane = editingId ? cranes.find((item) => item.id === editingId) || null : null;
   const now = new Date().toISOString();
   const crane = {
     id: editingId || createId(),
@@ -1141,6 +1696,7 @@ function saveCompanyCraneFromForm() {
     nextMaintenanceDate: elements.registryNextMaintenance.value,
     status: elements.registryCraneStatus.value.trim(),
     image: editingCompanyCraneImage ? normalizePhotoEntry(editingCompanyCraneImage) : null,
+    files: previousCrane?.files || [],
     notes: elements.registryCraneNotes.value.trim(),
     updatedAt: now,
     createdAt: editingId ? (cranes.find((item) => item.id === editingId) || {}).createdAt || now : now
@@ -1150,15 +1706,42 @@ function saveCompanyCraneFromForm() {
     ? cranes.map((item) => item.id === editingId ? crane : item)
     : cranes.concat(crane);
   writeCompanyCraneRegistry(registry);
+  addAuditLogEntry({
+    action: previousCrane ? "updated" : "created",
+    entityType: "crane",
+    entityId: crane.id,
+    title: `${previousCrane ? "Edito" : "Creo"} grua ${crane.craneId || crane.type || "sin ID"}`,
+    client,
+    before: previousCrane,
+    after: crane
+  });
   closeCompanyCraneForm();
   renderCompanyCraneRegistry();
 }
 
 function deleteCompanyCrane(craneId) {
+  if (!canCurrentUser("delete")) {
+    showAppDialog({
+      title: "Acceso restringido",
+      message: "Tu rol actual no permite eliminar gruas.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    return;
+  }
+
   const client = normalizeClientName(elements.companyRegistryClient.value);
   const registry = readCompanyCraneRegistry();
   const cranes = registry[client] || [];
   const deletedCrane = cranes.find((crane) => crane.id === craneId);
+  addAuditLogEntry({
+    action: "deleted",
+    entityType: "crane",
+    entityId: craneId,
+    title: `Elimino grua ${deletedCrane?.craneId || deletedCrane?.type || craneId}`,
+    client,
+    before: deletedCrane || { id: craneId },
+    after: null
+  });
   markCompanyCraneDeleted(client, deletedCrane || { id: craneId });
   registry[client] = cranes.filter((crane) => crane.id !== craneId);
   writeCompanyCraneRegistry(registry);
@@ -1171,6 +1754,15 @@ function deleteCompanyCrane(craneId) {
 }
 
 async function deleteCurrentCompanyRegistry() {
+  if (!canCurrentUser("delete")) {
+    await showAppDialog({
+      title: "Acceso restringido",
+      message: "Tu rol actual no permite eliminar empresas.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    return;
+  }
+
   const client = normalizeClientName(elements.companyRegistryClient.value);
   if (!client) {
     window.alert("Selecciona una empresa antes de eliminarla.");
@@ -1190,6 +1782,18 @@ async function deleteCurrentCompanyRegistry() {
   }
 
   markCompanyDeleted(client, { source: "company-registry" });
+  addAuditLogEntry({
+    action: "deleted",
+    entityType: "company",
+    entityId: createCloudCompanyId(client),
+    title: `Elimino empresa ${client}`,
+    client,
+    before: {
+      client,
+      cranes: readCompanyCraneRegistry()[client] || []
+    },
+    after: null
+  });
   await deleteCompanyLocalData(client);
 
   elements.companyRegistryClient.value = "";

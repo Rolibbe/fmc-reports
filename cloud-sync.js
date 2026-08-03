@@ -3,6 +3,8 @@
 
 const CLOUD_SESSION_KEY = "crane-cloud-session-v1";
 const CLOUD_OFFLINE_MODE_KEY = "crane-cloud-offline-mode-v1";
+const CLOUD_LAST_SYNC_KEY = "crane-cloud-last-sync-v1";
+const CLOUD_LAST_ERROR_KEY = "crane-cloud-last-error-v1";
 const CLOUD_EVIDENCE_BUCKET = "report-evidence";
 
 function getSupabaseConfig() {
@@ -99,6 +101,19 @@ function renderCloudStatus(message) {
   if (elements.mobileSyncButton) {
     elements.mobileSyncButton.disabled = !connected || !navigator.onLine;
     elements.mobileSyncButton.classList.toggle("is-disabled", !connected || !navigator.onLine);
+  }
+  [
+    elements.syncDataOnlyButton,
+    elements.syncEvidenceOnlyButton,
+    elements.forceDownloadEvidenceButton
+  ].forEach((button) => {
+    if (button) {
+      button.disabled = !connected || !navigator.onLine;
+      button.classList.toggle("is-disabled", !connected || !navigator.onLine);
+    }
+  });
+  if (typeof applyRoleRestrictions === "function") {
+    applyRoleRestrictions();
   }
 }
 
@@ -325,7 +340,8 @@ async function cloudStorageFetch(path, options = {}) {
   return response;
 }
 
-async function syncCompaniesAndCranesToCloud() {
+async function syncCompaniesAndCranesToCloud(options = {}) {
+  const syncEvidence = options && options.syncEvidence === false ? false : true;
   try {
     renderCloudStatus("Descargando datos de otros dispositivos...");
     const initialCloudCompanies = await fetchCloudRows("companies", { includeDeleted: true });
@@ -342,7 +358,7 @@ async function syncCompaniesAndCranesToCloud() {
     renderCloudStatus("Preparando datos locales...");
     const localRows = await buildLocalCompanyCraneRows();
     const localFindingRows = await buildLocalActiveFindingRows();
-    const localReportRows = await buildLocalReportRows({ syncEvidence: true });
+    const localReportRows = await buildLocalReportRows({ syncEvidence });
     const localSettingsRows = buildLocalSettingsRows();
 
     renderCloudStatus(`Subiendo ${localRows.companies.length} empresa(s), ${localRows.cranes.length} grua(s), ${localRows.deletedCranes.length + localRows.deletedCompanies.length} baja(s) y ${localReportRows.reports.length} reporte(s) optimizado(s)...`);
@@ -354,6 +370,7 @@ async function syncCompaniesAndCranesToCloud() {
     await upsertCloudRows("reports", localReportRows.reports);
     await upsertCloudRows("reports", localReportRows.deletedReports);
     await upsertCloudRows("app_settings", localSettingsRows);
+    await markReportsCloudSynced(localReportRows.reports.map((row) => row.id));
 
     renderCloudStatus("Confirmando sincronizacion...");
     const cloudCompanies = await fetchCloudRows("companies", { includeDeleted: true });
@@ -375,9 +392,13 @@ async function syncCompaniesAndCranesToCloud() {
     const visibleCranes = cloudCranes.filter((row) => !row.deleted_at).length;
     const visibleReports = cloudReports.filter((row) => !row.deleted_at).length;
     renderCloudStatus(`Sincronizado: ${visibleCompanies} empresa(s), ${visibleCranes} grua(s), ${visibleReports} reporte(s).`);
-    const evidenceText = localReportRows.evidence?.warnings?.length
-      ? `\n\nEvidencias: ${localReportRows.evidence.uploaded} subida(s), ${localReportRows.evidence.skipped} ya estaban listas y ${localReportRows.evidence.warnings.length} pendiente(s).`
-      : `\n\nEvidencias: ${localReportRows.evidence?.uploaded || 0} subida(s) y ${localReportRows.evidence?.skipped || 0} ya estaban listas.`;
+    const evidenceText = syncEvidence
+      ? localReportRows.evidence?.warnings?.length
+        ? `\n\nEvidencias: ${localReportRows.evidence.uploaded} subida(s), ${localReportRows.evidence.skipped} ya estaban listas y ${localReportRows.evidence.warnings.length} pendiente(s).`
+        : `\n\nEvidencias: ${localReportRows.evidence?.uploaded || 0} subida(s) y ${localReportRows.evidence?.skipped || 0} ya estaban listas.`
+      : "\n\nEvidencias: no se subieron en esta sincronizacion.";
+    writeCloudSyncMeta({ success: true });
+    await renderSyncCenterIfOpen();
     await showAppDialog({
       title: "Sincronizacion completa",
       message: `Se combinaron ${visibleCompanies} empresa(s), ${visibleCranes} grua(s), ${cloudFindings.filter((row) => !row.deleted_at).length} grupo(s) de hallazgos y ${visibleReports} reporte(s) con este dispositivo.${evidenceText}`,
@@ -385,13 +406,383 @@ async function syncCompaniesAndCranesToCloud() {
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
   } catch (error) {
+    writeCloudSyncMeta({ success: false, error });
     renderCloudStatus();
+    await renderSyncCenterIfOpen();
     await showAppDialog({
       title: "No se pudo sincronizar",
       message: "La app sigue funcionando localmente. Revisa sesion, internet o permisos de Supabase.",
       details: getReadableCloudError(error),
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
+  }
+}
+
+async function syncCloudDataOnly() {
+  await syncCompaniesAndCranesToCloud({ syncEvidence: false });
+}
+
+async function syncEvidenceOnlyToCloud() {
+  try {
+    renderCloudStatus("Sincronizando evidencias...");
+    const localReportRows = await buildLocalReportRows({ syncEvidence: true });
+    await upsertCloudRows("reports", localReportRows.reports);
+    await markReportsCloudSynced(localReportRows.reports.map((row) => row.id));
+    writeCloudSyncMeta({ success: true });
+    renderCloudStatus("Evidencias sincronizadas.");
+    await renderSyncCenter();
+    await showAppDialog({
+      title: "Evidencias sincronizadas",
+      message: `Se subieron ${localReportRows.evidence.uploaded} evidencia(s). ${localReportRows.evidence.skipped} ya estaban listas.`,
+      details: localReportRows.evidence.warnings.slice(0, 12).join("\n"),
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+  } catch (error) {
+    writeCloudSyncMeta({ success: false, error });
+    renderCloudStatus();
+    await renderSyncCenterIfOpen();
+    await showAppDialog({
+      title: "No se pudieron sincronizar evidencias",
+      message: "Los datos locales se conservaron. Revisa Storage, internet o permisos.",
+      details: getReadableCloudError(error),
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+  }
+}
+
+async function forceDownloadEvidenceFromCloud() {
+  try {
+    renderCloudStatus("Descargando evidencias desde la nube...");
+    const cloudReports = await fetchCloudRows("reports", { includeDeleted: true });
+    await mergeCloudReportRows(cloudReports, { forceEvidenceDownload: true });
+    writeCloudSyncMeta({ success: true });
+    renderCloudStatus("Evidencias descargadas.");
+    await renderSavedReports();
+    await renderSyncCenter();
+    await showAppDialog({
+      title: "Descarga completa",
+      message: "Se revisaron los reportes de la nube y se descargaron las evidencias disponibles.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+  } catch (error) {
+    writeCloudSyncMeta({ success: false, error });
+    renderCloudStatus();
+    await renderSyncCenterIfOpen();
+    await showAppDialog({
+      title: "No se pudieron descargar evidencias",
+      message: "La app sigue funcionando con la informacion local.",
+      details: getReadableCloudError(error),
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+  }
+}
+
+async function openSyncCenter() {
+  showView("syncCenter");
+  await renderSyncCenter();
+}
+
+async function renderSyncCenterIfOpen() {
+  if (elements.syncCenterView && !elements.syncCenterView.classList.contains("hidden")) {
+    await renderSyncCenter();
+  }
+}
+
+async function renderSyncCenter() {
+  if (!elements.syncCenterSummary || !elements.syncCenterContent) {
+    return;
+  }
+  const summary = await buildSyncCenterSummary();
+  elements.syncCenterSummary.innerHTML = renderSyncCenterSummary(summary);
+  elements.syncCenterContent.innerHTML = renderSyncCenterContent(summary);
+  renderCloudStatus();
+}
+
+async function buildSyncCenterSummary() {
+  const inspections = (await getAllInspections()).map(normalizeInspection);
+  const evidence = collectEvidenceRecords(inspections);
+  const deletedReports = Object.keys(readDeletedInspections() || {}).length;
+  const deletedCranes = Object.keys(readDeletedCompanyCranes() || {}).length;
+  const deletedCompanies = Object.keys(readDeletedCompanies() || {}).length;
+  const pendingData = inspections.filter((inspection) => (
+    !inspection.cloudSyncedAt || getComparableTime(inspection.updatedAt) > getComparableTime(inspection.cloudSyncedAt)
+  )).length + deletedReports + deletedCranes + deletedCompanies;
+  let cloudReports = null;
+
+  if (getCloudSession()?.access_token && navigator.onLine) {
+    try {
+      cloudReports = (await fetchCloudRows("reports", { includeDeleted: true })).filter((row) => !row.deleted_at).length;
+    } catch (error) {
+      writeCloudSyncMeta({ success: false, error });
+    }
+  }
+
+  return {
+    sessionEmail: getCloudUserEmail(),
+    role: getCurrentUserRole(),
+    lastSync: readCloudLastSync(),
+    lastError: readCloudLastError(),
+    reportsLocal: inspections.length,
+    reportsCloud: cloudReports,
+    pendingData,
+    evidence,
+    connected: Boolean(getCloudSession()?.access_token),
+    online: navigator.onLine
+  };
+}
+
+function collectEvidenceRecords(inspections) {
+  const records = [];
+  (inspections || []).forEach((inspection) => {
+    (inspection.equipments || []).forEach((equipment, equipmentIndex) => {
+      addEvidenceRecords(records, equipment.servicePhotos || [], {
+        inspection,
+        equipment,
+        equipmentIndex,
+        type: "Servicio"
+      });
+      if (equipment.checklistImage) {
+        addEvidenceRecords(records, [equipment.checklistImage], {
+          inspection,
+          equipment,
+          equipmentIndex,
+          type: "Checklist"
+        });
+      }
+      (equipment.findings || []).forEach((finding, findingIndex) => {
+        addEvidenceRecords(records, finding.photos || [], {
+          inspection,
+          equipment,
+          equipmentIndex,
+          finding,
+          findingIndex,
+          type: "Hallazgo"
+        });
+      });
+    });
+  });
+
+  const counts = records.reduce((totals, record) => {
+    totals[record.status] = (totals[record.status] || 0) + 1;
+    return totals;
+  }, { local: 0, uploaded: 0, cloudOnly: 0, error: 0 });
+
+  return {
+    records,
+    total: records.length,
+    local: counts.local || 0,
+    uploaded: counts.uploaded || 0,
+    cloudOnly: counts.cloudOnly || 0,
+    error: counts.error || 0,
+    pending: (counts.local || 0) + (counts.cloudOnly || 0) + (counts.error || 0)
+  };
+}
+
+function addEvidenceRecords(records, photos, context) {
+  (photos || []).forEach((photo, photoIndex) => {
+    const normalized = normalizePhotoEntry(photo);
+    if (!normalized) {
+      return;
+    }
+    const hasLocal = Boolean(normalized.dataUrl);
+    const hasCloud = Boolean(normalized.cloudPath);
+    const status = normalized.cloudDownloadError
+      ? "error"
+      : hasCloud && hasLocal
+        ? "uploaded"
+        : hasCloud
+          ? "cloudOnly"
+          : "local";
+    records.push({
+      id: `${context.inspection.id}-${context.equipment.id || context.equipmentIndex}-${context.type}-${photoIndex}`,
+      client: normalizeClientName(context.inspection.plantName) || "Cliente sin nombre",
+      reportNumber: context.inspection.reportNumber || "Sin folio",
+      inspectionDate: context.inspection.inspectionDate || "",
+      equipmentName: context.equipment.equipmentName || context.equipment.craneId || `Equipo ${context.equipmentIndex + 1}`,
+      type: context.type,
+      finding: context.finding?.incidence || context.finding?.description || "",
+      name: normalized.name || "foto.jpg",
+      status,
+      cloudPath: normalized.cloudPath || "",
+      error: normalized.cloudDownloadError || ""
+    });
+  });
+}
+
+function renderSyncCenterSummary(summary) {
+  return `
+    <article class="sync-stat">
+      <span>Ultima sincronizacion</span>
+      <strong>${escapeHtml(summary.lastSync ? formatDateTime(summary.lastSync) : "Nunca")}</strong>
+    </article>
+    <article class="sync-stat">
+      <span>Datos pendientes</span>
+      <strong>${summary.pendingData}</strong>
+    </article>
+    <article class="sync-stat">
+      <span>Evidencias pendientes</span>
+      <strong>${summary.evidence.pending}</strong>
+    </article>
+    <article class="sync-stat">
+      <span>Reportes</span>
+      <strong>${summary.reportsCloud === null ? `${summary.reportsLocal} local` : `${summary.reportsLocal} local / ${summary.reportsCloud} nube`}</strong>
+    </article>
+    <article class="sync-stat">
+      <span>Rol actual</span>
+      <strong>${escapeHtml(formatUserRoleLabel(summary.role))}</strong>
+    </article>
+    <article class="sync-stat ${summary.lastError ? "is-warning" : "is-ok"}">
+      <span>Errores Supabase</span>
+      <strong>${summary.lastError ? "Revisar" : "Sin errores"}</strong>
+    </article>
+  `;
+}
+
+function renderSyncCenterContent(summary) {
+  const statusCards = `
+    <section class="sync-panel">
+      <p class="eyebrow">Estado de evidencias</p>
+      <div class="evidence-status-grid">
+        ${renderEvidenceStatus("Subidas", summary.evidence.uploaded, "uploaded")}
+        ${renderEvidenceStatus("Solo local", summary.evidence.local, "local")}
+        ${renderEvidenceStatus("Solo nube", summary.evidence.cloudOnly, "cloudOnly")}
+        ${renderEvidenceStatus("Con error", summary.evidence.error, "error")}
+      </div>
+    </section>
+  `;
+
+  const errorPanel = summary.lastError
+    ? `<section class="sync-panel sync-error-panel"><p class="eyebrow">Ultimo error</p><p>${escapeHtml(summary.lastError)}</p></section>`
+    : "";
+
+  return `
+    ${statusCards}
+    ${errorPanel}
+    <section class="sync-panel sync-pending-panel hidden" data-sync-pending-panel>
+      <p class="eyebrow">Pendientes y evidencias</p>
+      ${renderEvidenceRecords(summary.evidence.records)}
+    </section>
+  `;
+}
+
+function renderEvidenceStatus(label, value, status) {
+  return `
+    <article class="evidence-status-card is-${status}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${value}</strong>
+    </article>
+  `;
+}
+
+function renderEvidenceRecords(records) {
+  if (!records.length) {
+    return '<div class="inline-empty-state compact-empty-state">Todavia no hay evidencias registradas.</div>';
+  }
+
+  return `
+    <div class="evidence-record-list">
+      ${records.map((record) => `
+        <article class="evidence-record is-${record.status}">
+          <div>
+            <strong>${escapeHtml(record.client)}</strong>
+            <span>${escapeHtml(record.reportNumber)} | ${escapeHtml(formatDate(record.inspectionDate) || "Sin fecha")}</span>
+            <small>${escapeHtml(record.equipmentName)} | ${escapeHtml(record.type)}${record.finding ? ` | ${escapeHtml(record.finding)}` : ""}</small>
+          </div>
+          <div>
+            <strong>${escapeHtml(formatEvidenceStatus(record.status))}</strong>
+            <small>${escapeHtml(record.name)}</small>
+            ${record.error ? `<small>${escapeHtml(record.error)}</small>` : ""}
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function toggleSyncPendingDetails() {
+  const panel = elements.syncCenterContent?.querySelector("[data-sync-pending-panel]");
+  if (panel) {
+    panel.classList.toggle("hidden");
+  }
+}
+
+async function purgeCloudSyncedLocalEvidence() {
+  const summary = await buildSyncCenterSummary();
+  const removable = summary.evidence.records.filter((record) => record.status === "uploaded").length;
+  if (!removable) {
+    await showAppDialog({
+      title: "Sin evidencias liberables",
+      message: "No hay fotos que esten tanto en este dispositivo como en la nube.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    return;
+  }
+  await purgeStoredHeavyPhotos();
+  await renderSyncCenter();
+}
+
+function formatEvidenceStatus(status) {
+  return {
+    uploaded: "Subida",
+    local: "Pendiente de subir",
+    cloudOnly: "Pendiente de descargar",
+    error: "Error"
+  }[status] || "Local";
+}
+
+function writeCloudSyncMeta(result) {
+  try {
+    if (result.success) {
+      localStorage.setItem(CLOUD_LAST_SYNC_KEY, new Date().toISOString());
+      localStorage.removeItem(CLOUD_LAST_ERROR_KEY);
+      return;
+    }
+    localStorage.setItem(CLOUD_LAST_ERROR_KEY, getReadableCloudError(result.error));
+  } catch (error) {
+    // No bloquea la operacion principal.
+  }
+}
+
+function readCloudLastSync() {
+  try {
+    return localStorage.getItem(CLOUD_LAST_SYNC_KEY) || "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function readCloudLastError() {
+  try {
+    return localStorage.getItem(CLOUD_LAST_ERROR_KEY) || "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function formatDateTime(value) {
+  const date = new Date(value || "");
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toLocaleString("es-MX", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+async function markReportsCloudSynced(reportIds) {
+  const syncedAt = new Date().toISOString();
+  for (const reportId of reportIds || []) {
+    const inspection = await getInspection(reportId);
+    if (inspection) {
+      await putInspection({
+        ...inspection,
+        cloudSyncedAt: syncedAt
+      });
+    }
   }
 }
 
@@ -578,6 +969,16 @@ function prepareCraneForCloud(crane) {
   if (payload.image && typeof normalizePhotoEntry === "function") {
     payload.image = createLightweightCloudPhoto(normalizePhotoEntry(payload.image), "grua.jpg");
   }
+  if (Array.isArray(payload.files)) {
+    payload.files = payload.files.map((file) => ({
+      id: file.id || createId(),
+      name: file.name || "archivo",
+      type: file.type || "",
+      size: Number(file.size) || 0,
+      createdAt: file.createdAt || "",
+      omittedFromCloudSync: true
+    }));
+  }
   return payload;
 }
 
@@ -673,6 +1074,9 @@ async function mergeCloudCompanyCraneRows(companies, cranes) {
         const localTime = getComparableTime(cranesForClient[existingIndex].updatedAt);
         const cloudTime = getComparableTime(cloudCrane.updatedAt);
         if (cloudTime >= localTime) {
+          if (typeof mergeCranePermanentFiles === "function") {
+            cloudCrane.files = mergeCranePermanentFiles(cranesForClient[existingIndex], cloudCrane);
+          }
           cranesForClient[existingIndex] = { ...cranesForClient[existingIndex], ...cloudCrane };
         }
       } else {
@@ -686,7 +1090,7 @@ async function mergeCloudCompanyCraneRows(companies, cranes) {
   writeCompanyCraneRegistry(registry);
 }
 
-async function mergeCloudReportRows(reports) {
+async function mergeCloudReportRows(reports, options = {}) {
   for (const row of reports || []) {
     if (!row?.payload?.id) {
       continue;
@@ -709,11 +1113,59 @@ async function mergeCloudReportRows(reports) {
       updatedAt: row.updated_at || row.payload.updatedAt
     });
     const localInspection = await getInspection(cloudInspection.id);
-    if (!localInspection || getComparableTime(cloudInspection.updatedAt) >= getComparableTime(localInspection.updatedAt)) {
+    if (options.forceEvidenceDownload || !localInspection || getComparableTime(cloudInspection.updatedAt) >= getComparableTime(localInspection.updatedAt)) {
       const hydratedInspection = await downloadInspectionEvidence(cloudInspection, localInspection);
-      await putInspection(hydratedInspection);
+      await putInspection(options.forceEvidenceDownload && localInspection
+        ? mergeDownloadedEvidenceIntoLocalInspection(normalizeInspection(localInspection), hydratedInspection)
+        : hydratedInspection);
     }
   }
+}
+
+function mergeDownloadedEvidenceIntoLocalInspection(localInspection, cloudInspection) {
+  const localEquipments = Array.isArray(localInspection.equipments) ? localInspection.equipments : [];
+  (cloudInspection.equipments || []).forEach((cloudEquipment, equipmentIndex) => {
+    const localEquipment = localEquipments.find((equipment) => equipment.id === cloudEquipment.id) || localEquipments[equipmentIndex];
+    if (!localEquipment) {
+      return;
+    }
+    localEquipment.servicePhotos = mergePhotoListsByCloudPath(localEquipment.servicePhotos || [], cloudEquipment.servicePhotos || []);
+    if (cloudEquipment.checklistImage?.dataUrl && !localEquipment.checklistImage?.dataUrl) {
+      localEquipment.checklistImage = cloudEquipment.checklistImage;
+    }
+    (cloudEquipment.findings || []).forEach((cloudFinding, findingIndex) => {
+      const localFinding = (localEquipment.findings || []).find((finding) => finding.id === cloudFinding.id)
+        || (localEquipment.findings || [])[findingIndex];
+      if (localFinding) {
+        localFinding.photos = mergePhotoListsByCloudPath(localFinding.photos || [], cloudFinding.photos || []);
+      }
+    });
+  });
+  return normalizeInspection({
+    ...localInspection,
+    equipments: localEquipments
+  });
+}
+
+function mergePhotoListsByCloudPath(localPhotos, cloudPhotos) {
+  const merged = [...localPhotos];
+  (cloudPhotos || []).forEach((cloudPhoto, index) => {
+    const cloudPath = cloudPhoto?.cloudPath || "";
+    const existingIndex = cloudPath
+      ? merged.findIndex((photo) => photo?.cloudPath === cloudPath)
+      : index;
+    if (existingIndex >= 0 && merged[existingIndex]) {
+      merged[existingIndex] = {
+        ...merged[existingIndex],
+        ...cloudPhoto,
+        dataUrl: merged[existingIndex].dataUrl || cloudPhoto.dataUrl || "",
+        thumbUrl: merged[existingIndex].thumbUrl || cloudPhoto.thumbUrl || ""
+      };
+    } else {
+      merged.push(cloudPhoto);
+    }
+  });
+  return merged;
 }
 
 async function mergeCloudSettingsRows(rows) {

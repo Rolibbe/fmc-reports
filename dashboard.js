@@ -111,8 +111,10 @@ function buildDashboardMetrics(data) {
   const monthCounts = {};
   const craneFindingCounts = {};
   const checklistBadCounts = {};
+  const highSeverityByClient = {};
   let totalFindings = 0;
   let totalEquipments = 0;
+  let highSeverityFindings = 0;
 
   data.cranes.forEach((crane) => {
     incrementCount(clientCraneCounts, crane.client || "Sin cliente");
@@ -137,6 +139,10 @@ function buildDashboardMetrics(data) {
         incrementCount(findingCounts, incidence);
         incrementCount(clientFindings, client);
         incrementCount(craneFindingCounts, craneKey);
+        if (typeof isHighSeverityFinding === "function" && isHighSeverityFinding(finding)) {
+          incrementCount(highSeverityByClient, client);
+          highSeverityFindings += 1;
+        }
         totalFindings += 1;
       });
     });
@@ -157,9 +163,11 @@ function buildDashboardMetrics(data) {
   });
 
   const maintenance = summarizeDashboardMaintenance(data.cranes, data.inspections);
+  const criticalCompanyCounts = buildCriticalCompanyCounts(clientFindings, highSeverityByClient, maintenance.next);
   const currentMonth = getDashboardMonthKey(new Date().toISOString().slice(0, 10));
   const reportsThisMonth = monthCounts[currentMonth] || 0;
   const months = getRecentDashboardMonths(6);
+  const maintenanceCompliance = calculateDashboardMaintenanceCompliance(maintenance);
 
   return {
     clients: data.clients.length,
@@ -169,6 +177,8 @@ function buildDashboardMetrics(data) {
     totalFindings,
     totalEquipments,
     reportsThisMonth,
+    highSeverityFindings,
+    maintenanceCompliance,
     avgFindingsPerEquipment: totalEquipments ? totalFindings / totalEquipments : 0,
     hoistBrandCount: Object.keys(hoistCounts).filter((key) => key !== "Sin marca").length,
     topFindings: topEntries(findingCounts, 8),
@@ -178,12 +188,41 @@ function buildDashboardMetrics(data) {
     topCraneTypes: topEntries(craneTypeCounts, 6),
     conditions: topEntries(conditionCounts, 6),
     technicians: topEntries(technicianCounts, 6),
+    topTechnician: topEntries(technicianCounts, 1),
     services: topEntries(serviceTypeCounts, 6),
     monthTrend: months.map((month) => ({ label: formatDashboardMonth(month), value: monthCounts[month] || 0 })),
     topCranesByFindings: topEntries(craneFindingCounts, 8),
+    criticalCompanies: topEntries(criticalCompanyCounts, 8),
     checklistRisk: topEntries(checklistBadCounts, 8),
     maintenance
   };
+}
+
+function buildCriticalCompanyCounts(clientFindings, highSeverityByClient, maintenanceRows) {
+  const scores = {};
+  Object.entries(clientFindings || {}).forEach(([client, count]) => {
+    incrementCount(scores, client, count);
+  });
+  Object.entries(highSeverityByClient || {}).forEach(([client, count]) => {
+    incrementCount(scores, client, count * 3);
+  });
+  (maintenanceRows || []).forEach((row) => {
+    const client = String(row.label || "").split("|")[0].trim() || "Sin cliente";
+    if (row.days < 0) {
+      incrementCount(scores, client, 3);
+    } else if (row.days <= 30) {
+      incrementCount(scores, client, 1);
+    }
+  });
+  return scores;
+}
+
+function calculateDashboardMaintenanceCompliance(maintenance) {
+  const tracked = (maintenance.ok || 0) + (maintenance.soon || 0) + (maintenance.overdue || 0);
+  if (!tracked) {
+    return 0;
+  }
+  return Math.round(((maintenance.ok || 0) / tracked) * 100);
 }
 
 function summarizeDashboardMaintenance(cranes, inspections) {
@@ -244,10 +283,13 @@ function renderDashboardKpis(metrics) {
     { label: "Gruas registradas", value: metrics.cranes, hint: "Catalogo maestro" },
     { label: "Reportes filtrados", value: metrics.inspections, hint: `${metrics.reportsThisMonth} este mes` },
     { label: "Hallazgos detectados", value: metrics.totalFindings, hint: `${formatDashboardNumber(metrics.avgFindingsPerEquipment)} por equipo` },
+    { label: "Criticos/altos", value: metrics.highSeverityFindings, hint: "Hallazgos con mayor prioridad" },
     { label: "Marcas polipasto", value: metrics.hoistBrandCount, hint: getTopEntryLabel(metrics.topHoists) },
     { label: "Vencidas", value: metrics.maintenance.overdue, hint: `${metrics.maintenance.soon} por vencer` },
+    { label: "Cumplimiento", value: `${metrics.maintenanceCompliance}%`, hint: "Gruas al dia con fecha" },
     { label: "Sin fecha", value: metrics.maintenance.noDate, hint: "Requieren completar mantenimiento" },
-    { label: "Hallazgo lider", value: getTopEntryValue(metrics.topFindings), hint: getTopEntryLabel(metrics.topFindings) }
+    { label: "Hallazgo lider", value: getTopEntryValue(metrics.topFindings), hint: getTopEntryLabel(metrics.topFindings) },
+    { label: "Tecnico lider", value: getTopEntryValue(metrics.topTechnician), hint: getTopEntryLabel(metrics.topTechnician) || "Sin datos" }
   ];
 
   return cards.map((card) => `
@@ -263,8 +305,10 @@ function renderDashboardInsights(metrics) {
   const insights = [
     `El hallazgo mas repetido es ${getTopEntryLabel(metrics.topFindings) || "sin datos"} (${getTopEntryValue(metrics.topFindings)} veces).`,
     `El cliente con mas gruas es ${getTopEntryLabel(metrics.topClientsByCranes) || "sin datos"}.`,
+    `La empresa con mayor criticidad es ${getTopEntryLabel(metrics.criticalCompanies) || "sin datos"}.`,
     `La marca/modelo de polipasto mas frecuente es ${getTopEntryLabel(metrics.topHoists) || "sin datos"}.`,
-    `${metrics.maintenance.overdue + metrics.maintenance.soon} grua(s) requieren atencion de mantenimiento pronto o ya vencida.`
+    `${metrics.maintenance.overdue + metrics.maintenance.soon} grua(s) requieren atencion de mantenimiento pronto o ya vencida.`,
+    `Cumplimiento de mantenimiento: ${metrics.maintenanceCompliance}% de gruas con fecha vigente.`
   ];
 
   return insights.map((insight) => `<article>${escapeHtml(insight)}</article>`).join("");
@@ -277,6 +321,7 @@ function renderDashboardCharts(metrics) {
     renderDashboardPanel("Estado de mantenimiento", renderMaintenanceDonut(metrics.maintenance)),
     renderDashboardPanel("Reportes ultimos 6 meses", renderColumnChart(metrics.monthTrend)),
     renderDashboardPanel("Gruas por cliente", renderBarChart(metrics.topClientsByCranes)),
+    renderDashboardPanel("Empresas criticas", renderRankList(metrics.criticalCompanies)),
     renderDashboardPanel("Tipos de grua", renderBarChart(metrics.topCraneTypes)),
     renderDashboardPanel("Top gruas con mas hallazgos", renderRankList(metrics.topCranesByFindings)),
     renderDashboardPanel("Checklist con mas puntos en Mal", renderRankList(metrics.checklistRisk)),

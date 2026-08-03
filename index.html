@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f4c5c">
   <title>Inspecciones de Gruas</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css?v=105">
+  <link rel="stylesheet" href="styles.css?v=109">
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -79,15 +79,23 @@
       </div>
 
       <div class="nav-group">
-        <p class="nav-label">Operacion</p>
+        <p class="nav-label">Inicio</p>
+        <button id="openHomeButton" class="nav-action nav-action-strong" type="button">Panel principal</button>
+        <button id="openFieldModeButton" class="nav-link" type="button">Modo campo</button>
+        <button id="openDashboardButton" class="nav-link" type="button">Dashboard ejecutivo</button>
+      </div>
+
+      <div class="nav-group">
+        <p class="nav-label">Reportes</p>
         <button id="newInspectionButton" class="nav-action nav-action-strong" type="button">Nuevo reporte</button>
         <button id="saveInspectionButton" class="nav-action" type="button">Guardar reporte</button>
         <button id="generatePdfButton" class="nav-action nav-action-primary" type="button">Generar PDF</button>
       </div>
 
       <div class="nav-group">
-        <p class="nav-label">Modulos</p>
-        <button id="openDashboardButton" class="nav-link" type="button">Dashboard general</button>
+        <p class="nav-label">Operacion</p>
+        <button id="openWorkOrdersButton" class="nav-link" type="button">Agenda de servicios</button>
+        <button id="openAuditLogButton" class="nav-link" type="button">Bitacora de cambios</button>
         <div class="nav-history-anchor">
           <button id="openSidebarButton" class="nav-link" type="button">Historial de reportes</button>
           <div id="historyCascadePanel" class="history-cascade hidden" aria-label="Historial por empresa"></div>
@@ -95,12 +103,17 @@
         <button id="openCompanyCraneRegistryButton" class="nav-link" type="button">Empresas y gruas</button>
         <button id="openMaintenancePanelButton" class="nav-link" type="button">Mantenimiento</button>
         <button id="openConsolidatedHistoryButton" class="nav-link" type="button">Concentrado general</button>
+      </div>
+
+      <div class="nav-group">
+        <p class="nav-label">Sistema</p>
         <button id="openSettingsButton" class="nav-link" type="button">Configuracion</button>
       </div>
 
       <div class="nav-group nav-data-group">
         <p class="nav-label">Datos</p>
         <button id="navSyncCloudButton" class="nav-link nav-sync-button" type="button">☁ Sincronizar todo</button>
+        <button id="openSyncCenterButton" class="nav-link" type="button">Centro de sincronizacion</button>
         <button id="toolsMenuButton" class="nav-link nav-link-with-menu" type="button" aria-label="Abrir opciones de datos" aria-expanded="false" aria-controls="toolsMenuList">
           Importar / Exportar
           <span class="nav-caret">v</span>
@@ -150,11 +163,16 @@
           <button id="mobileCloseMoreButton" class="ghost-button" type="button">Cerrar</button>
         </div>
         <div class="mobile-more-grid">
+          <button id="mobileHomeButton" type="button">Inicio</button>
+          <button id="mobileFieldModeButton" type="button">Modo campo</button>
           <button id="mobileSaveButton" type="button">Guardar</button>
           <button id="mobileDashboardButton" type="button">Dashboard</button>
+          <button id="mobileWorkOrdersButton" type="button">Agenda</button>
+          <button id="mobileAuditLogButton" type="button">Bitacora</button>
           <button id="mobileMaintenanceButton" type="button">Mantenimiento</button>
           <button id="mobileConsolidatedButton" type="button">Concentrado</button>
           <button id="mobileSettingsButton" type="button">Configuracion</button>
+          <button id="mobileSyncCenterButton" type="button">Centro sync</button>
           <button id="mobileBackupButton" type="button">Importar respaldo</button>
           <button id="mobileOfflineButton" type="button">Modo offline</button>
         </div>
@@ -162,6 +180,71 @@
     </section>
 
     <main class="main-content">
+      <section class="panel app-view hidden" id="homeView">
+        <div class="system-home-hero">
+          <div>
+            <p class="eyebrow">Centro de operacion</p>
+            <h2>Panel principal</h2>
+            <p class="page-subtitle">Accesos claros para captura, mantenimiento, reportes, clientes, sincronizacion y analisis general.</p>
+          </div>
+          <div class="system-home-actions">
+            <button id="homeNewReportButton" class="primary-button" type="button">Nuevo reporte</button>
+            <button id="homeFieldModeButton" class="secondary-button" type="button">Modo campo</button>
+          </div>
+        </div>
+
+        <div id="homeStatsGrid" class="home-stats-grid"></div>
+
+        <div class="home-module-grid" aria-label="Modulos principales">
+          <button id="homeDashboardButton" class="home-module-card" type="button">
+            <span>01</span>
+            <strong>Dashboard</strong>
+            <small>Indicadores, graficas y empresas criticas.</small>
+          </button>
+          <button id="homeClientsButton" class="home-module-card" type="button">
+            <span>02</span>
+            <strong>Clientes y gruas</strong>
+            <small>Catalogo maestro, fichas tecnicas y checklist.</small>
+          </button>
+          <button id="homeReportsButton" class="home-module-card" type="button">
+            <span>03</span>
+            <strong>Reportes</strong>
+            <small>Historial guardado por empresa y folio.</small>
+          </button>
+          <button id="homeMaintenanceButton" class="home-module-card" type="button">
+            <span>04</span>
+            <strong>Mantenimiento</strong>
+            <small>Vencidas, por vencer y sin fecha.</small>
+          </button>
+          <button id="homeWorkOrdersButton" class="home-module-card" type="button">
+            <span>05</span>
+            <strong>Agenda</strong>
+            <small>Ordenes de trabajo y servicios programados.</small>
+          </button>
+          <button id="homeSyncButton" class="home-module-card" type="button">
+            <span>06</span>
+            <strong>Sincronizacion</strong>
+            <small>Datos, evidencias, pendientes y errores.</small>
+          </button>
+          <button id="homeSettingsButton" class="home-module-card" type="button">
+            <span>07</span>
+            <strong>Configuracion</strong>
+            <small>Clientes, polipastos, PDF, roles y respaldos.</small>
+          </button>
+        </div>
+
+        <section class="home-critical-panel">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Atencion rapida</p>
+              <h3>Prioridades del dia</h3>
+            </div>
+            <button id="homeRefreshButton" class="ghost-button" type="button">Actualizar</button>
+          </div>
+          <div id="homeCriticalList" class="home-critical-list"></div>
+        </section>
+      </section>
+
       <section class="panel app-view hidden" id="dashboardView">
         <div class="dashboard-hero">
           <div>
@@ -196,6 +279,52 @@
         <div id="dashboardKpis" class="dashboard-kpis"></div>
         <div id="dashboardInsights" class="dashboard-insights"></div>
         <div id="dashboardCharts" class="dashboard-grid"></div>
+      </section>
+
+      <section class="panel app-view hidden" id="fieldModeView">
+        <div class="field-mode-hero">
+          <div>
+            <p class="eyebrow">Modo movil de campo</p>
+            <h2>Captura rapida</h2>
+            <p class="page-subtitle">Flujo simple para trabajar desde celular con botones grandes, menos columnas y acciones directas.</p>
+          </div>
+          <button id="closeFieldModeButton" class="ghost-button" type="button">Volver</button>
+        </div>
+
+        <div id="fieldModeSummary" class="field-mode-summary"></div>
+
+        <div class="field-step-grid">
+          <button id="fieldNewButton" class="field-step-card" type="button">
+            <span>1</span>
+            <strong>Iniciar reporte</strong>
+            <small>Folio, servicio, fecha y tecnico.</small>
+          </button>
+          <button id="fieldClientButton" class="field-step-card" type="button">
+            <span>2</span>
+            <strong>Cliente</strong>
+            <small>Selecciona planta y contacto.</small>
+          </button>
+          <button id="fieldEquipmentButton" class="field-step-card" type="button">
+            <span>3</span>
+            <strong>Gruas</strong>
+            <small>Agregar equipo y checklist por tarjetas.</small>
+          </button>
+          <button id="fieldCameraButton" class="field-step-card" type="button">
+            <span>4</span>
+            <strong>Cámara</strong>
+            <small>Captura evidencias del equipo.</small>
+          </button>
+          <button id="fieldSaveButton" class="field-step-card is-accent" type="button">
+            <span>5</span>
+            <strong>Guardar rápido</strong>
+            <small>Respalda el avance localmente.</small>
+          </button>
+          <button id="fieldPdfButton" class="field-step-card is-dark" type="button">
+            <span>6</span>
+            <strong>Generar PDF</strong>
+            <small>Entrega el reporte final.</small>
+          </button>
+        </div>
       </section>
 
       <section class="panel app-view" id="inspectionView">
@@ -581,6 +710,134 @@
         <div id="maintenancePanelContent" class="maintenance-panel-content"></div>
       </section>
 
+      <section class="panel app-view hidden ops-view" id="workOrdersView">
+        <div class="ops-hero">
+          <div>
+            <p class="eyebrow">Operacion en campo</p>
+            <h2>Agenda y ordenes de trabajo</h2>
+            <p class="page-subtitle">Programa servicios, asigna tecnico, selecciona gruas y convierte la orden en un reporte listo para capturar.</p>
+          </div>
+          <div class="toolbar">
+            <button id="newWorkOrderButton" class="secondary-button" type="button">Nueva orden</button>
+            <button id="closeWorkOrdersButton" class="ghost-button" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div id="workOrdersSummary" class="ops-summary"></div>
+
+        <div class="work-order-layout">
+          <section class="ops-board">
+            <div class="ops-board-header">
+              <label>
+                Filtrar
+                <select id="workOrderStatusFilter">
+                  <option value="">Todas</option>
+                  <option value="pending">Pendientes</option>
+                  <option value="in_progress">En proceso</option>
+                  <option value="done">Terminadas</option>
+                </select>
+              </label>
+              <button id="refreshWorkOrdersButton" class="ghost-button" type="button">Actualizar</button>
+            </div>
+            <div id="workOrdersList" class="work-order-list"></div>
+          </section>
+
+          <section id="workOrderFormPanel" class="ops-form-panel">
+            <p class="eyebrow">Orden</p>
+            <h3 id="workOrderFormTitle">Nueva orden</h3>
+            <form id="workOrderForm">
+              <input id="editingWorkOrderId" type="hidden">
+              <label>
+                Cliente
+                <select id="workOrderClient"></select>
+              </label>
+              <label>
+                Fecha programada
+                <input id="workOrderDate" type="date">
+              </label>
+              <label>
+                Tecnico asignado
+                <input id="workOrderTechnician" type="text" placeholder="Nombre del tecnico">
+              </label>
+              <label>
+                Estado
+                <select id="workOrderStatus">
+                  <option value="pending">Pendiente</option>
+                  <option value="in_progress">En proceso</option>
+                  <option value="done">Terminado</option>
+                </select>
+              </label>
+              <div>
+                <span class="field-label">Gruas incluidas</span>
+                <div id="workOrderCranePicker" class="work-order-crane-picker"></div>
+              </div>
+              <label>
+                Notas
+                <textarea id="workOrderNotes" rows="4" placeholder="Indicaciones, contacto, horario o comentarios"></textarea>
+              </label>
+              <div class="toolbar">
+                <button id="saveWorkOrderButton" class="primary-button" type="button">Guardar orden</button>
+                <button id="clearWorkOrderFormButton" class="ghost-button" type="button">Limpiar</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      </section>
+
+      <section class="panel app-view hidden ops-view" id="auditLogView">
+        <div class="ops-hero audit-hero">
+          <div>
+            <p class="eyebrow">Control y trazabilidad</p>
+            <h2>Bitacora de cambios</h2>
+            <p class="page-subtitle">Consulta quien hizo cada accion, cuando ocurrio y que cambio antes/despues.</p>
+          </div>
+          <div class="toolbar">
+            <button id="refreshAuditLogButton" class="secondary-button" type="button">Actualizar</button>
+            <button id="closeAuditLogButton" class="ghost-button" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div id="auditLogSummary" class="ops-summary"></div>
+        <div class="audit-filter-row">
+          <label>
+            Tipo
+            <select id="auditLogFilter">
+              <option value="">Todo</option>
+              <option value="report">Reportes</option>
+              <option value="crane">Gruas</option>
+              <option value="company">Empresas</option>
+              <option value="work_order">Ordenes</option>
+            </select>
+          </label>
+          <button id="clearAuditLogButton" class="ghost-button" type="button">Limpiar bitacora</button>
+        </div>
+        <div id="auditLogTimeline" class="audit-timeline"></div>
+      </section>
+
+      <section class="panel app-view hidden" id="syncCenterView">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Nube y evidencias</p>
+            <h2>Centro de sincronizacion</h2>
+          </div>
+          <div class="toolbar">
+            <button id="refreshSyncCenterButton" class="secondary-button" type="button">Actualizar</button>
+            <button id="closeSyncCenterButton" class="ghost-button" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div class="sync-center-actions">
+          <button id="syncDataOnlyButton" class="secondary-button" type="button">Sincronizar datos</button>
+          <button id="syncEvidenceOnlyButton" class="secondary-button" type="button">Sincronizar evidencias</button>
+          <button id="forceDownloadEvidenceButton" class="ghost-button" type="button">Forzar descarga</button>
+          <button id="showPendingEvidenceButton" class="ghost-button" type="button">Ver pendientes</button>
+          <button id="purgeCloudSyncedLocalPhotosButton" class="ghost-button" type="button">Liberar espacio local</button>
+        </div>
+
+        <div id="syncCenterSummary" class="sync-center-summary"></div>
+        <div id="syncCenterContent" class="sync-center-content"></div>
+      </section>
+
       <section class="panel app-view hidden" id="settingsView">
         <div class="section-header">
           <div>
@@ -623,6 +880,16 @@
               <button id="syncCompaniesCranesButton" class="secondary-button" type="button">Sincronizar todo</button>
             </div>
             <small class="cloud-helper">Este modulo mantiene la app offline y sincroniza reportes sin fotos pesadas para evitar errores de memoria.</small>
+          </section>
+
+          <section class="subpanel">
+            <p class="eyebrow">Usuarios</p>
+            <h3>Roles de acceso</h3>
+            <label>
+              Correos y roles
+              <textarea id="settingsUserRoles" rows="7" placeholder="correo@empresa.com=admin&#10;tecnico@empresa.com=tecnico&#10;supervisor@empresa.com=supervisor&#10;lector@empresa.com=solo_lectura"></textarea>
+            </label>
+            <small class="cloud-helper">Roles disponibles: admin, supervisor, tecnico y solo_lectura. Si no configuras roles, el usuario conectado conserva acceso de admin.</small>
           </section>
 
           <section class="subpanel">
@@ -930,21 +1197,22 @@
     <button id="mobileMoreButton" type="button"><span>☰</span>Mas</button>
   </nav>
 
-  <script src="report-template-config.js?v=105"></script>
-  <script src="finding-catalog-config.js?v=105"></script>
-  <script src="checklist-config.js?v=105"></script>
-  <script src="findings.js?v=105"></script>
-  <script src="company-cranes.js?v=105"></script>
-  <script src="equipment.js?v=105"></script>
-  <script src="pdf-actions.js?v=105"></script>
-  <script src="backup.js?v=105"></script>
-  <script src="storage.js?v=105"></script>
-  <script src="settings.js?v=105"></script>
-  <script src="maintenance-panel.js?v=105"></script>
-  <script src="dashboard.js?v=105"></script>
-  <script src="report-generator.js?v=105"></script>
-  <script src="supabase-config.js?v=105"></script>
-  <script src="cloud-sync.js?v=105"></script>
-  <script src="app.js?v=105"></script>
+  <script src="report-template-config.js?v=109"></script>
+  <script src="finding-catalog-config.js?v=109"></script>
+  <script src="checklist-config.js?v=109"></script>
+  <script src="findings.js?v=109"></script>
+  <script src="company-cranes.js?v=109"></script>
+  <script src="equipment.js?v=109"></script>
+  <script src="pdf-actions.js?v=109"></script>
+  <script src="backup.js?v=109"></script>
+  <script src="storage.js?v=109"></script>
+  <script src="settings.js?v=109"></script>
+  <script src="operations.js?v=109"></script>
+  <script src="maintenance-panel.js?v=109"></script>
+  <script src="dashboard.js?v=109"></script>
+  <script src="report-generator.js?v=109"></script>
+  <script src="supabase-config.js?v=109"></script>
+  <script src="cloud-sync.js?v=109"></script>
+  <script src="app.js?v=109"></script>
 </body>
 </html>
