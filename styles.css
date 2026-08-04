@@ -1945,7 +1945,8 @@ textarea[readonly] {
 }
 
 .crane-master-modal {
-  width: min(1080px, 100%);
+  width: min(1500px, calc(100vw - 36px));
+  max-width: calc(100vw - 36px);
 }
 
 .crane-master-tabs {
@@ -2376,7 +2377,9 @@ textarea[readonly] {
 }
 
 .crane-checklist-sheet-wrap {
-  overflow: auto;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: visible;
   border: 1px solid #000;
   border-radius: 4px;
   background: #fff;
@@ -2384,18 +2387,18 @@ textarea[readonly] {
 
 .crane-checklist-sheet {
   width: 100%;
-  min-width: 1180px;
+  min-width: 0;
   border-collapse: collapse;
   table-layout: fixed;
   background: #fff;
   color: #000;
-  font-size: 0.78rem;
+  font-size: clamp(0.62rem, 0.68vw, 0.76rem);
 }
 
 .crane-checklist-sheet th,
 .crane-checklist-sheet td {
   border: 1px solid #000;
-  padding: 3px 5px;
+  padding: 3px 4px;
   vertical-align: middle;
 }
 
@@ -2506,19 +2509,19 @@ textarea[readonly] {
 
 .crane-checklist-compact-options {
   display: grid;
-  grid-template-columns: repeat(3, minmax(28px, 1fr));
+  grid-template-columns: repeat(3, minmax(22px, 1fr));
   gap: 2px;
 }
 
 .crane-checklist-compact-options label {
   display: grid;
   place-items: center;
-  min-height: 24px;
+  min-height: 23px;
   margin: 0;
   border: 1px solid #9aa8b3;
   background: #fff;
   cursor: pointer;
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   font-weight: 900;
 }
 
@@ -4331,7 +4334,31 @@ textarea[readonly] {
   }
 
   .crane-master-modal {
+    width: 100%;
+    max-width: none;
     max-height: none;
+  }
+
+  .crane-checklist-sheet {
+    font-size: 0.56rem;
+  }
+
+  .crane-checklist-sheet th,
+  .crane-checklist-sheet td {
+    padding: 2px 3px;
+  }
+
+  .crane-checklist-point small {
+    font-size: 0.54rem;
+  }
+
+  .crane-checklist-compact-options {
+    grid-template-columns: repeat(3, minmax(18px, 1fr));
+  }
+
+  .crane-checklist-compact-options label {
+    min-height: 22px;
+    font-size: 0.58rem;
   }
 
   .crane-health-hero,
