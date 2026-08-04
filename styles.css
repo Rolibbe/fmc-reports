@@ -3831,6 +3831,30 @@ textarea[readonly] {
   object-fit: cover;
 }
 
+.photo-thumb.is-placeholder {
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  border-style: dashed;
+  background: #f7f3ea;
+}
+
+.photo-thumb-placeholder {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.photo-thumb-placeholder strong {
+  color: var(--brand);
+}
+
+.photo-thumb-placeholder span {
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 .photo-remove {
   position: absolute;
   top: 8px;

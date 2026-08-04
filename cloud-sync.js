@@ -1115,11 +1115,42 @@ async function mergeCloudReportRows(reports, options = {}) {
     const localInspection = await getInspection(cloudInspection.id);
     if (options.forceEvidenceDownload || !localInspection || getComparableTime(cloudInspection.updatedAt) >= getComparableTime(localInspection.updatedAt)) {
       const hydratedInspection = await downloadInspectionEvidence(cloudInspection, localInspection);
-      await putInspection(options.forceEvidenceDownload && localInspection
-        ? mergeDownloadedEvidenceIntoLocalInspection(normalizeInspection(localInspection), hydratedInspection)
+      await putInspection(localInspection
+        ? mergeLocalEvidenceIntoCloudInspection(hydratedInspection, normalizeInspection(localInspection))
         : hydratedInspection);
     }
   }
+}
+
+function mergeLocalEvidenceIntoCloudInspection(cloudInspection, localInspection) {
+  const cloudEquipments = Array.isArray(cloudInspection.equipments) ? cloudInspection.equipments : [];
+  const localEquipments = Array.isArray(localInspection.equipments) ? localInspection.equipments : [];
+  cloudEquipments.forEach((cloudEquipment, equipmentIndex) => {
+    const localEquipment = localEquipments.find((equipment) => equipment.id === cloudEquipment.id) || localEquipments[equipmentIndex];
+    if (!localEquipment) {
+      return;
+    }
+    cloudEquipment.servicePhotos = mergePhotoListsByCloudPath(localEquipment.servicePhotos || [], cloudEquipment.servicePhotos || []);
+    if ((!cloudEquipment.checklistImage?.dataUrl && !cloudEquipment.checklistImage?.thumbUrl) && (localEquipment.checklistImage?.dataUrl || localEquipment.checklistImage?.thumbUrl)) {
+      cloudEquipment.checklistImage = {
+        ...cloudEquipment.checklistImage,
+        ...localEquipment.checklistImage,
+        cloudPath: cloudEquipment.checklistImage?.cloudPath || localEquipment.checklistImage?.cloudPath || "",
+        cloudSyncedAt: cloudEquipment.checklistImage?.cloudSyncedAt || localEquipment.checklistImage?.cloudSyncedAt || ""
+      };
+    }
+    (cloudEquipment.findings || []).forEach((cloudFinding, findingIndex) => {
+      const localFinding = (localEquipment.findings || []).find((finding) => finding.id === cloudFinding.id)
+        || (localEquipment.findings || [])[findingIndex];
+      if (localFinding) {
+        cloudFinding.photos = mergePhotoListsByCloudPath(localFinding.photos || [], cloudFinding.photos || []);
+      }
+    });
+  });
+  return normalizeInspection({
+    ...cloudInspection,
+    equipments: cloudEquipments
+  });
 }
 
 function mergeDownloadedEvidenceIntoLocalInspection(localInspection, cloudInspection) {
@@ -1234,7 +1265,7 @@ function createLightweightCloudChecklist(checklistImage) {
   }
   return {
     name: image.name || "checklist.jpg",
-    thumbUrl: "",
+    thumbUrl: image.thumbUrl || "",
     storedSize: image.storedSize || 0,
     createdAt: image.createdAt || "",
     cloudPath: image.cloudPath || "",
@@ -1259,7 +1290,7 @@ function createLightweightCloudPhoto(photo, fallbackName = "foto.jpg") {
   }
   return {
     name: photo.name || fallbackName,
-    thumbUrl: "",
+    thumbUrl: photo.thumbUrl || "",
     storedSize: photo.storedSize || 0,
     createdAt: photo.createdAt || "",
     cloudPath: photo.cloudPath || "",

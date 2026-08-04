@@ -303,15 +303,28 @@ function clearChecklistImage() {
 function buildPhotoThumb(photo, onRemove) {
   const wrapper = document.createElement("div");
   wrapper.className = "photo-thumb";
-  const img = document.createElement("img");
-  img.src = getPhotoThumbnailUrl(photo) || getPhotoDataUrl(photo);
-  img.alt = "Evidencia fotografica";
+  const imageSource = getPhotoThumbnailUrl(photo) || getPhotoDataUrl(photo);
+  if (imageSource) {
+    const img = document.createElement("img");
+    img.src = imageSource;
+    img.alt = "Evidencia fotografica";
+    wrapper.appendChild(img);
+  } else {
+    const placeholder = document.createElement("div");
+    placeholder.className = "photo-thumb-placeholder";
+    const normalized = normalizePhotoEntry(photo);
+    placeholder.innerHTML = `
+      <strong>${normalized?.cloudDownloadError ? "No se pudo descargar" : "Evidencia pendiente"}</strong>
+      <span>${normalized?.cloudPath ? "Disponible en nube" : "Sin imagen local"}</span>
+    `;
+    wrapper.classList.add("is-placeholder");
+    wrapper.appendChild(placeholder);
+  }
   const removeButton = document.createElement("button");
   removeButton.type = "button";
   removeButton.className = "photo-remove";
   removeButton.textContent = "x";
   removeButton.addEventListener("click", onRemove);
-  wrapper.appendChild(img);
   wrapper.appendChild(removeButton);
   return wrapper;
 }
