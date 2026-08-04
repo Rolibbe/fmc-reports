@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = "crane-inspection-cache-v112";
+﻿const CACHE_NAME = "crane-inspection-cache-v114";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -23,14 +23,25 @@ const APP_ASSETS = [
   "./clientes-plantas.txt",
   "./Polipastos/Lista Polipastos.txt",
   "./Polipastos/CM Lodestar.png",
+  "./Polipastos/Coffing.png",
+  "./Polipastos/Dayton.png",
+  "./Polipastos/Demag.png",
+  "./Polipastos/Gorbel.png",
+  "./Polipastos/Harrington.png",
+  "./Polipastos/Hitachi.png",
   "./Polipastos/R&M.png",
+  "./Polipastos/Stahl.png",
+  "./Polipastos/Yale.png",
+  "./logo.png",
   "./concentrado-general.csv",
   "./manifest.json"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_ASSETS))
+    caches.open(CACHE_NAME)
+      .then((cache) => Promise.allSettled(APP_ASSETS.map((asset) => cache.add(asset))))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -40,14 +51,15 @@ self.addEventListener("activate", (event) => {
       keys
         .filter((key) => key !== CACHE_NAME)
         .map((key) => caches.delete(key))
-    ))
+    )).then(() => self.clients.claim())
   );
 });
 
 self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") {
+    return;
+  }
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    caches.match(event.request, { ignoreSearch: true }).then((cached) => cached || fetch(event.request))
   );
 });
-
-

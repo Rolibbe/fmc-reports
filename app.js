@@ -19,7 +19,7 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.19";
+const APP_VERSION = "1.3.21";
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -1353,7 +1353,7 @@ function renderSavedCompanyButton(group, isActive = false) {
   return `
     <button class="saved-company-button ${isActive ? "is-active" : ""}" type="button" data-saved-client="${escapeHtml(group.client)}">
       <strong>${escapeHtml(group.client)}</strong>
-      <span>${group.records.length} reporte(s) Â· ${findingsCount} hallazgo(s)</span>
+      <span>${group.records.length} reporte(s) - ${findingsCount} hallazgo(s)</span>
       <small>Ultimo: ${escapeHtml(formatDate(lastDate) || "Sin fecha")}</small>
     </button>
   `;
@@ -1379,7 +1379,7 @@ function renderSavedReportButton(record, isActive = false) {
     <button class="saved-report-button ${isActive ? "is-active" : ""}" type="button" data-saved-report="${escapeHtml(record.id)}">
       <span class="saved-folio">${escapeHtml(record.reportNumber || "Sin folio")}</span>
       <strong>${escapeHtml(record.inspectionDate || "Sin fecha")}</strong>
-      <small>${record.equipments.length} equipo(s) Â· ${findingsCount} hallazgo(s)</small>
+      <small>${record.equipments.length} equipo(s) - ${findingsCount} hallazgo(s)</small>
     </button>
   `;
 }
@@ -1704,7 +1704,7 @@ function renderHistoryCascadeReport(record) {
       <button type="button" data-open-id="${escapeHtml(record.id)}">
         <span>${escapeHtml(record.reportNumber || "Sin folio")}</span>
         <strong>${escapeHtml(record.inspectionDate || "Sin fecha")}</strong>
-        <small>${record.equipments.length} equipo(s) Â· ${findingsCount} hallazgo(s)</small>
+        <small>${record.equipments.length} equipo(s) - ${findingsCount} hallazgo(s)</small>
       </button>
       <div>
         <button type="button" data-duplicate-id="${escapeHtml(record.id)}">Duplicar</button>

@@ -63,10 +63,10 @@ function renderCloudStatus(message) {
   }
   if (elements.navCloudStatus) {
     elements.navCloudStatus.textContent = connected
-      ? `☁ ${getCloudUserEmail()}`
+      ? `Nube: ${getCloudUserEmail()}`
       : offlineMode
-        ? "☁ Modo offline"
-        : "☁ Nube sin sesion";
+        ? "Nube: modo offline"
+        : "Nube sin sesion";
     elements.navCloudStatus.classList.toggle("is-connected", connected);
   }
   if (elements.mobileCloudStatus) {
