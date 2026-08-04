@@ -1,4 +1,4 @@
-
+﻿
 const DB_NAME = "crane-inspections-db";
 const DB_VERSION = 2;
 const STORE_NAME = "inspections";
@@ -19,7 +19,7 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.16";
+const APP_VERSION = "1.3.18";
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -128,6 +128,9 @@ const elements = {
   closeSidebarButton: document.getElementById("closeSidebarButton"),
   toolsMenuButton: document.getElementById("toolsMenuButton"),
   toolsMenuList: document.getElementById("toolsMenuList"),
+  contextToolbar: document.getElementById("contextToolbar"),
+  contextEyebrow: document.getElementById("contextEyebrow"),
+  contextTitle: document.getElementById("contextTitle"),
   homeView: document.getElementById("homeView"),
   homeStatsGrid: document.getElementById("homeStatsGrid"),
   homeCriticalList: document.getElementById("homeCriticalList"),
@@ -998,6 +1001,7 @@ function closeMobileMorePanel() {
 
 function showView(view) {
   closeMobileMorePanel();
+  updateContextToolbar(view);
   if (elements.homeView) {
     elements.homeView.classList.toggle("hidden", view !== "home");
   }
@@ -1023,6 +1027,41 @@ function showView(view) {
   }
   elements.settingsView.classList.toggle("hidden", view !== "settings");
   elements.companyCraneRegistryView.classList.toggle("hidden", view !== "companyCraneRegistry");
+}
+
+function updateContextToolbar(view) {
+  if (!elements.contextToolbar) {
+    return;
+  }
+
+  const contextMap = {
+    home: { eyebrow: "Inicio", title: "Panel principal", report: false },
+    inspection: { eyebrow: "Captura", title: "Nuevo reporte", report: true },
+    equipment: { eyebrow: "Captura", title: "Editar equipo", report: true },
+    finding: { eyebrow: "Captura", title: "Editar hallazgo", report: true },
+    dashboard: { eyebrow: "Analisis", title: "Dashboard ejecutivo", report: false },
+    fieldMode: { eyebrow: "Campo", title: "Modo campo", report: true },
+    workOrders: { eyebrow: "Operacion", title: "Agenda de servicios", report: false },
+    auditLog: { eyebrow: "Control", title: "Bitacora de cambios", report: false },
+    consolidatedHistory: { eyebrow: "Datos", title: "Concentrado general", report: false },
+    maintenancePanel: { eyebrow: "Mantenimiento", title: "Panel de mantenimiento", report: false },
+    syncCenter: { eyebrow: "Datos", title: "Centro de sincronizacion", report: false },
+    settings: { eyebrow: "Sistema", title: "Configuracion", report: false },
+    companyCraneRegistry: { eyebrow: "Catalogo", title: "Empresas y gruas", report: false }
+  };
+  const context = contextMap[view] || contextMap.home;
+
+  if (elements.contextEyebrow) {
+    elements.contextEyebrow.textContent = context.eyebrow;
+  }
+  if (elements.contextTitle) {
+    elements.contextTitle.textContent = context.title;
+  }
+
+  const reportActions = elements.contextToolbar.querySelectorAll(".context-report-action");
+  reportActions.forEach((action) => {
+    action.classList.toggle("hidden", !context.report);
+  });
 }
 
 function openSidebar() {
@@ -1314,7 +1353,7 @@ function renderSavedCompanyButton(group, isActive = false) {
   return `
     <button class="saved-company-button ${isActive ? "is-active" : ""}" type="button" data-saved-client="${escapeHtml(group.client)}">
       <strong>${escapeHtml(group.client)}</strong>
-      <span>${group.records.length} reporte(s) · ${findingsCount} hallazgo(s)</span>
+      <span>${group.records.length} reporte(s) Â· ${findingsCount} hallazgo(s)</span>
       <small>Ultimo: ${escapeHtml(formatDate(lastDate) || "Sin fecha")}</small>
     </button>
   `;
@@ -1340,7 +1379,7 @@ function renderSavedReportButton(record, isActive = false) {
     <button class="saved-report-button ${isActive ? "is-active" : ""}" type="button" data-saved-report="${escapeHtml(record.id)}">
       <span class="saved-folio">${escapeHtml(record.reportNumber || "Sin folio")}</span>
       <strong>${escapeHtml(record.inspectionDate || "Sin fecha")}</strong>
-      <small>${record.equipments.length} equipo(s) · ${findingsCount} hallazgo(s)</small>
+      <small>${record.equipments.length} equipo(s) Â· ${findingsCount} hallazgo(s)</small>
     </button>
   `;
 }
@@ -1665,7 +1704,7 @@ function renderHistoryCascadeReport(record) {
       <button type="button" data-open-id="${escapeHtml(record.id)}">
         <span>${escapeHtml(record.reportNumber || "Sin folio")}</span>
         <strong>${escapeHtml(record.inspectionDate || "Sin fecha")}</strong>
-        <small>${record.equipments.length} equipo(s) · ${findingsCount} hallazgo(s)</small>
+        <small>${record.equipments.length} equipo(s) Â· ${findingsCount} hallazgo(s)</small>
       </button>
       <div>
         <button type="button" data-duplicate-id="${escapeHtml(record.id)}">Duplicar</button>
@@ -2156,7 +2195,7 @@ function isHighSeverityFinding(finding) {
     finding.recommendation
   ].join(" ").toLowerCase();
 
-  return /\b(alta|alto|critico|critica|crítico|crítica|grave|urgente|riesgo alto)\b/.test(severityText);
+  return /\b(alta|alto|critico|critica|crÃ­tico|crÃ­tica|grave|urgente|riesgo alto)\b/.test(severityText);
 }
 
 function loadInspection(record) {

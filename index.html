@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f4c5c">
   <title>Inspecciones de Gruas</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css?v=109">
+  <link rel="stylesheet" href="styles.css?v=111">
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -19,9 +19,9 @@
         </div>
       </div>
       <div class="login-hero-icons" aria-hidden="true">
-        <span>🏗️</span>
-        <span>🔧</span>
-        <span>☁️</span>
+        <span>ðŸ—ï¸</span>
+        <span>ðŸ”§</span>
+        <span>â˜ï¸</span>
       </div>
       <p class="login-copy">Ingresa para sincronizar empresas, gruas y reportes entre dispositivos.</p>
       <div class="login-form">
@@ -79,61 +79,26 @@
       </div>
 
       <div class="nav-group">
-        <p class="nav-label">Inicio</p>
+        <p class="nav-label">Menu principal</p>
         <button id="openHomeButton" class="nav-action nav-action-strong" type="button">Panel principal</button>
-        <button id="openFieldModeButton" class="nav-link" type="button">Modo campo</button>
-        <button id="openDashboardButton" class="nav-link" type="button">Dashboard ejecutivo</button>
-      </div>
-
-      <div class="nav-group">
-        <p class="nav-label">Reportes</p>
-        <button id="newInspectionButton" class="nav-action nav-action-strong" type="button">Nuevo reporte</button>
-        <button id="saveInspectionButton" class="nav-action" type="button">Guardar reporte</button>
-        <button id="generatePdfButton" class="nav-action nav-action-primary" type="button">Generar PDF</button>
-      </div>
-
-      <div class="nav-group">
-        <p class="nav-label">Operacion</p>
-        <button id="openWorkOrdersButton" class="nav-link" type="button">Agenda de servicios</button>
-        <button id="openAuditLogButton" class="nav-link" type="button">Bitacora de cambios</button>
+        <button id="newInspectionButton" class="nav-link" type="button">Nuevo reporte</button>
         <div class="nav-history-anchor">
-          <button id="openSidebarButton" class="nav-link" type="button">Historial de reportes</button>
+          <button id="openSidebarButton" class="nav-link" type="button">Reportes</button>
           <div id="historyCascadePanel" class="history-cascade hidden" aria-label="Historial por empresa"></div>
         </div>
         <button id="openCompanyCraneRegistryButton" class="nav-link" type="button">Empresas y gruas</button>
         <button id="openMaintenancePanelButton" class="nav-link" type="button">Mantenimiento</button>
-        <button id="openConsolidatedHistoryButton" class="nav-link" type="button">Concentrado general</button>
-      </div>
-
-      <div class="nav-group">
-        <p class="nav-label">Sistema</p>
+        <button id="openDashboardButton" class="nav-link" type="button">Dashboard</button>
         <button id="openSettingsButton" class="nav-link" type="button">Configuracion</button>
       </div>
 
-      <div class="nav-group nav-data-group">
-        <p class="nav-label">Datos</p>
-        <button id="navSyncCloudButton" class="nav-link nav-sync-button" type="button">☁ Sincronizar todo</button>
-        <button id="openSyncCenterButton" class="nav-link" type="button">Centro de sincronizacion</button>
-        <button id="toolsMenuButton" class="nav-link nav-link-with-menu" type="button" aria-label="Abrir opciones de datos" aria-expanded="false" aria-controls="toolsMenuList">
-          Importar / Exportar
-          <span class="nav-caret">v</span>
-        </button>
-        <div id="toolsMenuList" class="tools-side-panel nav-submenu hidden">
-          <div class="tools-side-header">
-            <div>
-              <p class="eyebrow">Datos</p>
-              <strong>Respaldos</strong>
-            </div>
-            <button type="button" aria-label="Cerrar herramientas">Cerrar</button>
-          </div>
-          <button id="importInspectionButton" type="button">Importar reporte</button>
-          <button id="exportInspectionButton" type="button">Exportar reporte</button>
-          <button id="importFullBackupButton" type="button">Importar respaldo completo</button>
-          <button id="exportFullBackupButton" type="button">Exportar respaldo sin fotos</button>
-          <button id="exportFullBackupWithPhotosButton" type="button">Exportar respaldo con fotos</button>
-          <button id="purgeStoredPhotosButton" type="button">Borrar fotos pesadas guardadas</button>
-        </div>
-      </div>
+      <details class="nav-group nav-tools-group">
+        <summary>Mas herramientas</summary>
+        <button id="openFieldModeButton" class="nav-link" type="button">Modo campo</button>
+        <button id="openWorkOrdersButton" class="nav-link" type="button">Agenda</button>
+        <button id="openConsolidatedHistoryButton" class="nav-link" type="button">Concentrado</button>
+        <button id="openAuditLogButton" class="nav-link" type="button">Bitacora</button>
+      </details>
 
       <div class="nav-footer">
         <span id="navCloudStatus" class="nav-status nav-cloud-status">Nube sin sesion</span>
@@ -150,7 +115,7 @@
           <small id="mobileCloudStatus">Nube sin sesion</small>
         </div>
       </div>
-      <button id="mobileSyncButton" class="mobile-icon-button" type="button" aria-label="Sincronizar">☁</button>
+      <button id="mobileSyncButton" class="mobile-icon-button" type="button" aria-label="Sincronizar">â˜</button>
     </header>
 
     <section id="mobileMorePanel" class="mobile-more-panel hidden" aria-label="Mas opciones">
@@ -175,6 +140,40 @@
           <button id="mobileSyncCenterButton" type="button">Centro sync</button>
           <button id="mobileBackupButton" type="button">Importar respaldo</button>
           <button id="mobileOfflineButton" type="button">Modo offline</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="contextToolbar" class="context-toolbar" aria-label="Acciones de la pantalla actual">
+      <div class="context-title-block">
+        <p id="contextEyebrow" class="eyebrow">Operacion</p>
+        <h2 id="contextTitle">Panel principal</h2>
+      </div>
+      <div id="contextActions" class="context-actions">
+        <button id="saveInspectionButton" class="secondary-button context-report-action" type="button">Guardar</button>
+        <button id="generatePdfButton" class="primary-button context-report-action" type="button">Generar PDF</button>
+        <button id="navSyncCloudButton" class="ghost-button context-data-action nav-sync-button" type="button">Sincronizar</button>
+        <button id="openSyncCenterButton" class="ghost-button context-data-action" type="button">Centro sync</button>
+        <div class="context-tools-wrap context-data-action">
+          <button id="toolsMenuButton" class="ghost-button nav-link-with-menu" type="button" aria-label="Abrir opciones de datos" aria-expanded="false" aria-controls="toolsMenuList">
+            Datos
+            <span class="nav-caret">v</span>
+          </button>
+          <div id="toolsMenuList" class="tools-side-panel nav-submenu hidden">
+            <div class="tools-side-header">
+              <div>
+                <p class="eyebrow">Datos</p>
+                <strong>Respaldos</strong>
+              </div>
+              <button type="button" aria-label="Cerrar herramientas">Cerrar</button>
+            </div>
+            <button id="importInspectionButton" type="button">Importar reporte</button>
+            <button id="exportInspectionButton" type="button">Exportar reporte</button>
+            <button id="importFullBackupButton" type="button">Importar respaldo completo</button>
+            <button id="exportFullBackupButton" type="button">Exportar respaldo sin fotos</button>
+            <button id="exportFullBackupWithPhotosButton" type="button">Exportar respaldo con fotos</button>
+            <button id="purgeStoredPhotosButton" type="button">Borrar fotos pesadas guardadas</button>
+          </div>
         </div>
       </div>
     </section>
@@ -311,12 +310,12 @@
           </button>
           <button id="fieldCameraButton" class="field-step-card" type="button">
             <span>4</span>
-            <strong>Cámara</strong>
+            <strong>CÃ¡mara</strong>
             <small>Captura evidencias del equipo.</small>
           </button>
           <button id="fieldSaveButton" class="field-step-card is-accent" type="button">
             <span>5</span>
-            <strong>Guardar rápido</strong>
+            <strong>Guardar rÃ¡pido</strong>
             <small>Respalda el avance localmente.</small>
           </button>
           <button id="fieldPdfButton" class="field-step-card is-dark" type="button">
@@ -1190,29 +1189,29 @@
   </div>
 
   <nav class="mobile-bottom-nav" aria-label="Navegacion movil">
-    <button id="mobileNewButton" type="button"><span>＋</span>Nuevo</button>
-    <button id="mobileHistoryButton" type="button"><span>▤</span>Historial</button>
-    <button id="mobileCompaniesButton" type="button"><span>▦</span>Empresas</button>
-    <button id="mobilePdfButton" type="button"><span>▣</span>PDF</button>
-    <button id="mobileMoreButton" type="button"><span>☰</span>Mas</button>
+    <button id="mobileNewButton" type="button"><span>ï¼‹</span>Nuevo</button>
+    <button id="mobileHistoryButton" type="button"><span>â–¤</span>Historial</button>
+    <button id="mobileCompaniesButton" type="button"><span>â–¦</span>Empresas</button>
+    <button id="mobilePdfButton" type="button"><span>â–£</span>PDF</button>
+    <button id="mobileMoreButton" type="button"><span>â˜°</span>Mas</button>
   </nav>
 
-  <script src="report-template-config.js?v=109"></script>
-  <script src="finding-catalog-config.js?v=109"></script>
-  <script src="checklist-config.js?v=109"></script>
-  <script src="findings.js?v=109"></script>
-  <script src="company-cranes.js?v=109"></script>
-  <script src="equipment.js?v=109"></script>
-  <script src="pdf-actions.js?v=109"></script>
-  <script src="backup.js?v=109"></script>
-  <script src="storage.js?v=109"></script>
-  <script src="settings.js?v=109"></script>
-  <script src="operations.js?v=109"></script>
-  <script src="maintenance-panel.js?v=109"></script>
-  <script src="dashboard.js?v=109"></script>
-  <script src="report-generator.js?v=109"></script>
-  <script src="supabase-config.js?v=109"></script>
-  <script src="cloud-sync.js?v=109"></script>
-  <script src="app.js?v=109"></script>
+  <script src="report-template-config.js?v=111"></script>
+  <script src="finding-catalog-config.js?v=111"></script>
+  <script src="checklist-config.js?v=111"></script>
+  <script src="findings.js?v=111"></script>
+  <script src="company-cranes.js?v=111"></script>
+  <script src="equipment.js?v=111"></script>
+  <script src="pdf-actions.js?v=111"></script>
+  <script src="backup.js?v=111"></script>
+  <script src="storage.js?v=111"></script>
+  <script src="settings.js?v=111"></script>
+  <script src="operations.js?v=111"></script>
+  <script src="maintenance-panel.js?v=111"></script>
+  <script src="dashboard.js?v=111"></script>
+  <script src="report-generator.js?v=111"></script>
+  <script src="supabase-config.js?v=111"></script>
+  <script src="cloud-sync.js?v=111"></script>
+  <script src="app.js?v=111"></script>
 </body>
 </html>
