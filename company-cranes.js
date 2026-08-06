@@ -431,8 +431,10 @@ async function renderCompanyCraneMasterModal() {
     return;
   }
 
+  const activeTab = tab === "recurrence" ? "data" : tab;
+  activeCompanyCraneMaster.tab = activeTab;
   elements.companyCraneFindingsTitle.textContent = crane.craneId || crane.type || "Detalle de grua";
-  elements.companyCraneFindingsSummary.innerHTML = renderCompanyCraneMasterTabs(tab);
+  elements.companyCraneFindingsSummary.innerHTML = renderCompanyCraneMasterTabs(activeTab);
 
   const tabRenderers = {
     data: () => renderCompanyCraneDataTab(client, crane),
@@ -440,21 +442,20 @@ async function renderCompanyCraneMasterModal() {
     maintenance: () => renderCompanyCraneMaintenanceTab(client, crane),
     findings: () => renderCompanyCraneFindingsTab(client, crane),
     checklist: () => renderCompanyCraneChecklistTab(client, crane),
-    recurrence: () => renderCompanyCraneRecurrenceTab(client, crane),
     history: () => renderCompanyCraneHistoryTab(client, crane),
     files: () => renderCompanyCraneFilesTab(client, crane)
   };
 
-  const renderer = tabRenderers[tab] || tabRenderers.data;
+  const renderer = tabRenderers[activeTab] || tabRenderers.data;
   elements.companyCraneFindingsList.innerHTML = await renderer();
   wireCompanyCraneMasterTabs();
-  if (tab === "findings") {
+  if (activeTab === "findings") {
     wireActiveCraneFindingChecks(client, crane);
   }
-  if (tab === "checklist") {
+  if (activeTab === "checklist") {
     wireCompanyCraneChecklistChecks(client, crane);
   }
-  if (tab === "files") {
+  if (activeTab === "files") {
     wireCompanyCraneFilesTab(client, crane);
   }
 }
@@ -466,7 +467,6 @@ function renderCompanyCraneMasterTabs(activeTab) {
     { key: "maintenance", label: "Mantenimiento" },
     { key: "findings", label: "Hallazgos" },
     { key: "checklist", label: "Checklist" },
-    { key: "recurrence", label: "Reincidencias" },
     { key: "history", label: "Historial de reportes" },
     { key: "files", label: "Fotos/documentos" }
   ];
@@ -542,7 +542,6 @@ async function renderCompanyCraneDataTab(client, crane) {
 async function renderCompanyCraneHealthTab(client, crane) {
   const lookup = await buildCompanyCraneMaintenanceLookup(client, [crane]);
   const maintenance = lookup.get(crane.id) || null;
-  const recurrent = await buildCraneRecurrenceInsights(client, crane);
   const rows = await getCompanyCraneReportHistory(client, crane);
   const highSeverityCount = countHighSeverityFindings(rows);
   const health = calculateCraneHealth(client, crane, maintenance, { highSeverityCount });
@@ -564,11 +563,6 @@ async function renderCompanyCraneHealthTab(client, crane) {
         <span>Mantenimiento</span>
         <strong>${escapeHtml(maintenance ? formatMaintenanceDaysLabel(maintenance.daysRemaining) : "Sin fecha")}</strong>
         <small>${escapeHtml(maintenance?.nextMaintenance ? `Proximo: ${formatDate(maintenance.nextMaintenance)}` : "Fecha no definida")}</small>
-      </article>
-      <article class="crane-health-card">
-        <span>Reincidencias</span>
-        <strong>${recurrent.repeatedFindings.length}</strong>
-        <small>Hallazgos repetidos 2+ veces</small>
       </article>
     </div>
     ${renderCraneHealthReasons(health)}
@@ -723,135 +717,6 @@ function renderBadChecklistFindingsList(items) {
       `).join("")}
     </div>
   `;
-}
-
-async function renderCompanyCraneRecurrenceTab(client, crane) {
-  const insights = await buildCraneRecurrenceInsights(client, crane);
-  return `
-    <div class="crane-master-mini-summary">
-      <article class="history-stat"><span>Hallazgos repetidos</span><strong>${insights.repeatedFindings.length}</strong></article>
-      <article class="history-stat"><span>Cliente reincidente</span><strong>${escapeHtml(insights.topClient?.label || client || "N/A")}</strong></article>
-      <article class="history-stat"><span>Marca/modelo</span><strong>${escapeHtml(insights.topBrandModel?.label || "N/A")}</strong></article>
-    </div>
-    <div class="recurrence-layout">
-      <section class="recurrence-panel">
-        <p class="eyebrow">Esta grua</p>
-        <h4>Hallazgos recurrentes</h4>
-        ${renderRepeatedFindings(insights.repeatedFindings)}
-      </section>
-      <section class="recurrence-panel">
-        <p class="eyebrow">Global</p>
-        <h4>Clientes con mayor reincidencia</h4>
-        ${renderRecurrenceRanking(insights.clientRanking)}
-      </section>
-      <section class="recurrence-panel">
-        <p class="eyebrow">Global</p>
-        <h4>Marca/modelo con mas fallas</h4>
-        ${renderRecurrenceRanking(insights.brandModelRanking)}
-      </section>
-    </div>
-  `;
-}
-
-function renderRepeatedFindings(items) {
-  if (!items.length) {
-    return '<div class="inline-empty-state compact-empty-state">No hay hallazgos repetidos en esta grua.</div>';
-  }
-  return `
-    <div class="recurrence-list">
-      ${items.map((item) => `
-        <article class="recurrence-item">
-          <strong>${escapeHtml(item.label)}</strong>
-          <span>Este problema se ha repetido ${item.count} veces.</span>
-          <small>${escapeHtml(item.lastDate ? `Ultima vez: ${formatDate(item.lastDate)}` : "Sin fecha")}</small>
-        </article>
-      `).join("")}
-    </div>
-  `;
-}
-
-function renderRecurrenceRanking(items) {
-  if (!items.length) {
-    return '<div class="inline-empty-state compact-empty-state">No hay suficiente historial para calcularlo.</div>';
-  }
-  return `
-    <div class="recurrence-list compact">
-      ${items.slice(0, 6).map((item, index) => `
-        <article class="recurrence-rank">
-          <span>${index + 1}</span>
-          <strong>${escapeHtml(item.label)}</strong>
-          <small>${item.count} hallazgo(s)</small>
-        </article>
-      `).join("")}
-    </div>
-  `;
-}
-
-async function buildCraneRecurrenceInsights(client, crane) {
-  const rows = await getCompanyCraneReportHistory(client, crane);
-  const repeatedFindings = rankRepeatedFindings(rows.flatMap((row) => row.findings || []));
-  const globalRows = await getAllCraneFindingOccurrences();
-  const clientRanking = rankByKey(globalRows, (item) => item.client || "Cliente sin nombre");
-  const brandModelRanking = rankByKey(globalRows, (item) => [item.brand, item.model].filter(Boolean).join(" / ") || "Sin marca/modelo");
-
-  return {
-    repeatedFindings,
-    clientRanking,
-    brandModelRanking,
-    topClient: clientRanking[0] || null,
-    topBrandModel: brandModelRanking[0] || null
-  };
-}
-
-function rankRepeatedFindings(findings) {
-  const groups = new Map();
-  findings.forEach((finding) => {
-    const label = normalizeFindingLabel(finding);
-    if (!label) {
-      return;
-    }
-    const current = groups.get(label) || { label, count: 0, lastDate: "" };
-    current.count += 1;
-    current.lastDate = finding.date && compareDateInput(finding.date, current.lastDate) > 0 ? finding.date : current.lastDate;
-    groups.set(label, current);
-  });
-  return Array.from(groups.values())
-    .filter((item) => item.count >= 2)
-    .sort((a, b) => b.count - a.count || compareDateInput(b.lastDate, a.lastDate));
-}
-
-function rankByKey(items, getKey) {
-  const groups = new Map();
-  items.forEach((item) => {
-    const label = getKey(item);
-    groups.set(label, { label, count: (groups.get(label)?.count || 0) + 1 });
-  });
-  return Array.from(groups.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-}
-
-async function getAllCraneFindingOccurrences() {
-  const records = (await getAllInspections()).map(normalizeInspection);
-  const rows = [];
-  records.forEach((record) => {
-    (record.equipments || []).forEach((equipment) => {
-      (equipment.findings || []).forEach((finding) => {
-        rows.push({
-          ...finding,
-          client: normalizeClientName(record.plantName),
-          brand: equipment.hoistManufacturer || "",
-          model: equipment.hoistModel || "",
-          date: equipment.maintenanceDate || record.inspectionDate || ""
-        });
-      });
-    });
-  });
-  return rows;
-}
-
-function normalizeFindingLabel(finding) {
-  return removeFindingCatalogNumber(
-    finding.incidence || finding.description || finding.category || ""
-  ).trim();
 }
 
 function countHighSeverityFindings(rows) {
