@@ -418,6 +418,12 @@ function openCompanyCraneFindingsModal(craneId, tab = "data") {
   elements.companyCraneFindingsPanel.classList.remove("hidden");
 }
 
+async function openCompanyCraneMasterFromMaintenance(clientName, craneId, tab = "maintenance") {
+  await populateCompanyRegistryClientOptions();
+  selectCompanyRegistryClient(clientName, { render: false });
+  openCompanyCraneFindingsModal(craneId, tab);
+}
+
 function closeCompanyCraneFindingsModal() {
   activeCompanyCraneMaster = { client: "", craneId: "", tab: "data" };
   elements.companyCraneFindingsPanel.classList.add("hidden");
