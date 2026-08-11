@@ -2115,7 +2115,7 @@ function renderCompanyContacts(client) {
   });
 }
 
-function addCompanyContactForCurrentCompany() {
+async function addCompanyContactForCurrentCompany() {
   const client = normalizeClientName(elements.companyRegistryClient.value || elements.companyRegistrySearch.value);
   if (!client) {
     window.alert("Selecciona una empresa antes de agregar contactos.");
@@ -2142,7 +2142,7 @@ function addCompanyContactForCurrentCompany() {
     updatedAt: new Date().toISOString()
   });
   allContacts[client] = companyContacts;
-  writeCompanyContacts(allContacts);
+  await writeCompanyContacts(allContacts);
   clearCompanyContactInputs();
   renderCompanyContacts(client);
   renderCompanyCraneRegistry();
@@ -2165,7 +2165,7 @@ async function deleteCompanyContact(client, contactId) {
   }
   const allContacts = readCompanyContacts();
   allContacts[normalizedClient] = getCompanyContacts(normalizedClient).filter((contact) => contact.id !== contactId);
-  writeCompanyContacts(allContacts);
+  await writeCompanyContacts(allContacts);
   renderCompanyContacts(normalizedClient);
   queueDataSync("contacto de empresa eliminado");
 }

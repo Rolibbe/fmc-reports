@@ -1073,6 +1073,69 @@ async function buildLocalActiveFindingRows() {
   });
 }
 
+function mergeCompanyContactLists(localContacts, cloudContacts, cloudUpdatedAt = "") {
+  const localList = Array.isArray(localContacts) ? localContacts : [];
+  const cloudList = Array.isArray(cloudContacts) ? cloudContacts : [];
+
+  if (!cloudList.length) {
+    const localTime = getComparableTime(getContactsLatestUpdatedAt(localList));
+    const cloudTime = getComparableTime(cloudUpdatedAt);
+    return localList.length && localTime > cloudTime ? localList : cloudList;
+  }
+
+  const merged = new Map();
+  [...localList, ...cloudList].forEach((contact) => {
+    const normalized = normalizeCompanyContactForMerge(contact);
+    if (!normalized) {
+      return;
+    }
+    const key = getCompanyContactMergeKey(normalized);
+    const previous = merged.get(key);
+    if (!previous || getComparableTime(normalized.updatedAt) >= getComparableTime(previous.updatedAt)) {
+      merged.set(key, { ...previous, ...normalized });
+    }
+  });
+
+  return Array.from(merged.values()).sort((a, b) => {
+    const nameA = String(a.name || "").localeCompare(String(b.name || ""));
+    return nameA || String(a.email || "").localeCompare(String(b.email || ""));
+  });
+}
+
+function normalizeCompanyContactForMerge(contact) {
+  if (!contact || typeof contact !== "object") {
+    return null;
+  }
+  const name = String(contact.name || "").trim();
+  const email = String(contact.email || "").trim();
+  const phone = String(contact.phone || "").trim();
+  if (!name && !email && !phone) {
+    return null;
+  }
+  return {
+    id: contact.id || createId(),
+    name,
+    email,
+    phone,
+    createdAt: contact.createdAt || contact.updatedAt || new Date().toISOString(),
+    updatedAt: contact.updatedAt || contact.createdAt || new Date().toISOString()
+  };
+}
+
+function getCompanyContactMergeKey(contact) {
+  return contact.id
+    || contact.email.toLowerCase()
+    || contact.phone.replace(/\D/g, "")
+    || contact.name.toLowerCase();
+}
+
+function getContactsLatestUpdatedAt(contacts) {
+  return (contacts || []).reduce((latest, contact) => {
+    const current = contact?.updatedAt || contact?.createdAt || "";
+    return getComparableTime(current) > getComparableTime(latest) ? current : latest;
+  }, "");
+}
+
 function prepareCraneForCloud(crane) {
   const payload = { ...(crane || {}) };
   if (!payload.id) {
@@ -1152,7 +1215,11 @@ async function mergeCloudCompanyCraneRows(companies, cranes) {
       frequencies[client] = String(company.payload.maintenanceFrequency);
     }
     if (Array.isArray(company.payload?.contacts)) {
-      contactsByCompany[client] = company.payload.contacts;
+      contactsByCompany[client] = mergeCompanyContactLists(
+        contactsByCompany[client],
+        company.payload.contacts,
+        company.updated_at || company.payload?.updatedAt || ""
+      );
     }
   }
 

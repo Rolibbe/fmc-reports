@@ -20,7 +20,7 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.35";
+const APP_VERSION = "1.3.37";
 
 const SERVICE_STEP_DEFINITIONS = [
   { id: "company", title: "Empresa", hint: "Selecciona la empresa y los datos de contacto del servicio." },
@@ -79,7 +79,16 @@ const fallbackClientPlants = [
 
 const fallbackPolipastos = [
   "CM Lodestar",
-  "R&M"
+  "Demag",
+  "Dayton",
+  "Gorbel",
+  "Harrington",
+  "Hitachi",
+  "Yale",
+  "R&M",
+  "Jet",
+  "Coffing",
+  "Stahl"
 ];
 const fallbackCraneTypes = [
   "Puente",
