@@ -14,6 +14,7 @@ async function exportFullBackup(options = {}) {
     const companyCraneRegistry = readCompanyCraneRegistry();
     const portableCompanyCraneRegistry = createPortableCompanyCraneRegistry(companyCraneRegistry, { includePhotos });
     const activeCraneFindings = readActiveCraneFindings();
+    const companyContacts = readCompanyContacts();
     const chunks = [
       '{\n',
       '  "type": "crane-report-full-backup",\n',
@@ -24,6 +25,7 @@ async function exportFullBackup(options = {}) {
         inspections: inspections.length,
         companies: Object.keys(companyCraneRegistry).length,
         cranes: Object.values(companyCraneRegistry).reduce((sum, cranes) => sum + (Array.isArray(cranes) ? cranes.length : 0), 0),
+        contacts: Object.values(companyContacts).reduce((sum, contacts) => sum + (Array.isArray(contacts) ? contacts.length : 0), 0),
         craneFindingGroups: Object.keys(activeCraneFindings).length
       })},\n`,
       '  "data": {\n',
@@ -39,6 +41,7 @@ async function exportFullBackup(options = {}) {
       '\n    ],\n',
       `    "companyCraneRegistry": ${JSON.stringify(portableCompanyCraneRegistry)},\n`,
       `    "companyMaintenanceFrequencies": ${JSON.stringify(readCompanyMaintenanceFrequencies())},\n`,
+      `    "companyContacts": ${JSON.stringify(companyContacts)},\n`,
       `    "activeCraneFindings": ${JSON.stringify(activeCraneFindings)},\n`,
       `    "appSettings": ${JSON.stringify(getAppSettings())}\n`,
       '  }\n',
@@ -377,6 +380,9 @@ function normalizeFullBackup(backup) {
     companyMaintenanceFrequencies: data.companyMaintenanceFrequencies && typeof data.companyMaintenanceFrequencies === "object"
       ? data.companyMaintenanceFrequencies
       : {},
+    companyContacts: data.companyContacts && typeof data.companyContacts === "object"
+      ? data.companyContacts
+      : {},
     activeCraneFindings: data.activeCraneFindings && typeof data.activeCraneFindings === "object"
       ? data.activeCraneFindings
       : {},
@@ -532,6 +538,7 @@ async function replaceDataWithFullBackup(backup) {
   }
   await writeCompanyCraneRegistry(normalizeCompanyCraneRegistryKeys(backup.companyCraneRegistry));
   await writeCompanyMaintenanceFrequencies(normalizePlainObjectKeys(backup.companyMaintenanceFrequencies));
+  await writeCompanyContacts(normalizePlainObjectKeys(backup.companyContacts));
   await writeActiveCraneFindings(backup.activeCraneFindings);
   if (backup.appSettings) {
     await writeAppSettings(backup.appSettings);
@@ -554,6 +561,10 @@ async function mergeFullBackup(backup) {
   await writeCompanyMaintenanceFrequencies({
     ...readCompanyMaintenanceFrequencies(),
     ...normalizePlainObjectKeys(backup.companyMaintenanceFrequencies)
+  });
+  await writeCompanyContacts({
+    ...readCompanyContacts(),
+    ...normalizePlainObjectKeys(backup.companyContacts)
   });
   const remappedActiveFindings = remapActiveCraneFindings(backup.activeCraneFindings, registryMerge.craneIdMap);
   await writeActiveCraneFindings({
@@ -604,6 +615,7 @@ async function mergeBackupReports(backup) {
 async function replaceBackupRegistry(backup) {
   await writeCompanyCraneRegistry(normalizeCompanyCraneRegistryKeys(backup.companyCraneRegistry));
   await writeCompanyMaintenanceFrequencies(normalizePlainObjectKeys(backup.companyMaintenanceFrequencies));
+  await writeCompanyContacts(normalizePlainObjectKeys(backup.companyContacts));
   await writeActiveCraneFindings(backup.activeCraneFindings);
   if (backup.appSettings) {
     await writeAppSettings(backup.appSettings);
@@ -623,6 +635,10 @@ async function mergeBackupRegistry(backup) {
   await writeCompanyMaintenanceFrequencies({
     ...readCompanyMaintenanceFrequencies(),
     ...normalizePlainObjectKeys(backup.companyMaintenanceFrequencies)
+  });
+  await writeCompanyContacts({
+    ...readCompanyContacts(),
+    ...normalizePlainObjectKeys(backup.companyContacts)
   });
   const remappedActiveFindings = remapActiveCraneFindings(backup.activeCraneFindings, registryMerge.craneIdMap);
   await writeActiveCraneFindings({

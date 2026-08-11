@@ -6,6 +6,11 @@ const CLOUD_OFFLINE_MODE_KEY = "crane-cloud-offline-mode-v1";
 const CLOUD_LAST_SYNC_KEY = "crane-cloud-last-sync-v1";
 const CLOUD_LAST_ERROR_KEY = "crane-cloud-last-error-v1";
 const CLOUD_EVIDENCE_BUCKET = "report-evidence";
+const CLOUD_PENDING_SYNC_KEY = "crane-cloud-pending-sync-v1";
+const CLOUD_AUTO_SYNC_DELAY_MS = 1400;
+
+let cloudAutoSyncTimer = null;
+let cloudAutoSyncRunning = false;
 
 function getSupabaseConfig() {
   const config = window.SUPABASE_CONFIG || {};
@@ -44,6 +49,7 @@ function hasValidCloudConfig() {
 async function initializeCloudSync() {
   renderCloudStatus();
   renderAuthGate();
+  scheduleStartupCloudDownload();
 }
 
 function renderCloudStatus(message) {
@@ -121,6 +127,7 @@ function getCloudStatusText(message, connected, offlineMode) {
   if (message) {
     return message;
   }
+  const pending = readCloudPendingSync();
   if (!hasValidCloudConfig()) {
     return "Falta configurar Supabase.";
   }
@@ -130,6 +137,9 @@ function getCloudStatusText(message, connected, offlineMode) {
       : "Sin conexion. Puedes seguir usando la app localmente.";
   }
   if (connected) {
+    if (pending.data) {
+      return `Conectado como ${getCloudUserEmail()}. Datos pendientes por sincronizar.`;
+    }
     return `Conectado como ${getCloudUserEmail()}.`;
   }
   if (offlineMode) {
@@ -160,6 +170,94 @@ function isOfflineModeEnabled() {
   return sessionStorage.getItem(CLOUD_OFFLINE_MODE_KEY) === "true";
 }
 
+function hasCloudConnectionReady() {
+  return Boolean(hasValidCloudConfig() && navigator.onLine && getCloudSession()?.access_token);
+}
+
+function readCloudPendingSync() {
+  try {
+    return JSON.parse(localStorage.getItem(CLOUD_PENDING_SYNC_KEY) || "null") || {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function writeCloudPendingSync(pending) {
+  try {
+    localStorage.setItem(CLOUD_PENDING_SYNC_KEY, JSON.stringify(pending || {}));
+  } catch (error) {
+    // No bloquea el guardado local.
+  }
+}
+
+function clearCloudPendingSync() {
+  try {
+    localStorage.removeItem(CLOUD_PENDING_SYNC_KEY);
+  } catch (error) {
+    // No bloquea la operacion principal.
+  }
+}
+
+function markCloudDataPending(reason = "cambio local") {
+  const pending = readCloudPendingSync();
+  writeCloudPendingSync({
+    ...pending,
+    data: true,
+    reason,
+    updatedAt: new Date().toISOString()
+  });
+  renderCloudStatus(navigator.onLine
+    ? "Cambios pendientes de sincronizar."
+    : "Sin conexion. Los cambios se sincronizaran automaticamente al volver internet.");
+}
+
+function requestCloudDataSync(reason = "cambio local", options = {}) {
+  markCloudDataPending(reason);
+  if (!hasCloudConnectionReady()) {
+    return;
+  }
+
+  if (cloudAutoSyncTimer) {
+    clearTimeout(cloudAutoSyncTimer);
+  }
+
+  const delay = options.immediate ? 0 : CLOUD_AUTO_SYNC_DELAY_MS;
+  cloudAutoSyncTimer = setTimeout(() => {
+    processPendingCloudSync({ silent: options.silent !== false });
+  }, delay);
+}
+
+async function processPendingCloudSync(options = {}) {
+  const pending = readCloudPendingSync();
+  if (!pending.data || !hasCloudConnectionReady() || cloudAutoSyncRunning) {
+    return;
+  }
+
+  cloudAutoSyncRunning = true;
+  try {
+    await syncCloudDataOnly({ silent: options.silent !== false, source: pending.reason || "auto" });
+    clearCloudPendingSync();
+  } catch (error) {
+    markCloudDataPending(pending.reason || "sincronizacion pendiente");
+  } finally {
+    cloudAutoSyncRunning = false;
+  }
+}
+
+function scheduleStartupCloudDownload() {
+  if (!hasCloudConnectionReady()) {
+    return;
+  }
+  setTimeout(() => {
+    syncCloudDataOnly({ silent: true, source: "arranque" }).catch(() => {
+      markCloudDataPending("sincronizacion de arranque pendiente");
+    });
+  }, 900);
+}
+
+window.requestCloudDataSync = requestCloudDataSync;
+window.processPendingCloudSync = processPendingCloudSync;
+
 async function cloudSignInFromForm() {
   const email = String(elements.cloudEmail?.value || "").trim();
   const password = String(elements.cloudPassword?.value || "");
@@ -180,6 +278,7 @@ async function cloudSignInFromForm() {
     sessionStorage.removeItem(CLOUD_OFFLINE_MODE_KEY);
     renderCloudStatus();
     renderAuthGate();
+    requestCloudDataSync("inicio de sesion", { immediate: true, silent: true });
     await showAppDialog({
       title: "Nube conectada",
       message: "La app ya puede sincronizar empresas, gruas, hallazgos activos y reportes con Supabase.",
@@ -342,6 +441,7 @@ async function cloudStorageFetch(path, options = {}) {
 
 async function syncCompaniesAndCranesToCloud(options = {}) {
   const syncEvidence = options && options.syncEvidence === false ? false : true;
+  const silent = Boolean(options.silent);
   try {
     renderCloudStatus("Descargando datos de otros dispositivos...");
     const initialCloudCompanies = await fetchCloudRows("companies", { includeDeleted: true });
@@ -399,16 +499,22 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
       : "\n\nEvidencias: no se subieron en esta sincronizacion.";
     writeCloudSyncMeta({ success: true });
     await renderSyncCenterIfOpen();
-    await showAppDialog({
-      title: "Sincronizacion completa",
-      message: `Se combinaron ${visibleCompanies} empresa(s), ${visibleCranes} grua(s), ${cloudFindings.filter((row) => !row.deleted_at).length} grupo(s) de hallazgos y ${visibleReports} reporte(s) con este dispositivo.${evidenceText}`,
-      details: localReportRows.evidence?.warnings?.slice(0, 8).join("\n") || "",
-      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
-    });
+    if (!silent) {
+      await showAppDialog({
+        title: "Sincronizacion completa",
+        message: `Se combinaron ${visibleCompanies} empresa(s), ${visibleCranes} grua(s), ${cloudFindings.filter((row) => !row.deleted_at).length} grupo(s) de hallazgos y ${visibleReports} reporte(s) con este dispositivo.${evidenceText}`,
+        details: localReportRows.evidence?.warnings?.slice(0, 8).join("\n") || "",
+        actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+      });
+    }
   } catch (error) {
     writeCloudSyncMeta({ success: false, error });
     renderCloudStatus();
     await renderSyncCenterIfOpen();
+    if (silent) {
+      markCloudDataPending(options.source || "sincronizacion pendiente");
+      throw error;
+    }
     await showAppDialog({
       title: "No se pudo sincronizar",
       message: "La app sigue funcionando localmente. Revisa sesion, internet o permisos de Supabase.",
@@ -418,8 +524,8 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
   }
 }
 
-async function syncCloudDataOnly() {
-  await syncCompaniesAndCranesToCloud({ syncEvidence: false });
+async function syncCloudDataOnly(options = {}) {
+  await syncCompaniesAndCranesToCloud({ ...options, syncEvidence: false });
 }
 
 async function syncEvidenceOnlyToCloud() {
@@ -501,12 +607,13 @@ async function renderSyncCenter() {
 async function buildSyncCenterSummary() {
   const inspections = (await getAllInspections()).map(normalizeInspection);
   const evidence = collectEvidenceRecords(inspections);
+  const pendingCloudSync = readCloudPendingSync();
   const deletedReports = Object.keys(readDeletedInspections() || {}).length;
   const deletedCranes = Object.keys(readDeletedCompanyCranes() || {}).length;
   const deletedCompanies = Object.keys(readDeletedCompanies() || {}).length;
   const pendingData = inspections.filter((inspection) => (
     !inspection.cloudSyncedAt || getComparableTime(inspection.updatedAt) > getComparableTime(inspection.cloudSyncedAt)
-  )).length + deletedReports + deletedCranes + deletedCompanies;
+  )).length + deletedReports + deletedCranes + deletedCompanies + (pendingCloudSync.data ? 1 : 0);
   let cloudReports = null;
 
   if (getCloudSession()?.access_token && navigator.onLine) {
@@ -525,6 +632,8 @@ async function buildSyncCenterSummary() {
     reportsLocal: inspections.length,
     reportsCloud: cloudReports,
     pendingData,
+    pendingReason: pendingCloudSync.reason || "",
+    pendingUpdatedAt: pendingCloudSync.updatedAt || "",
     evidence,
     connected: Boolean(getCloudSession()?.access_token),
     online: navigator.onLine
@@ -618,6 +727,7 @@ function renderSyncCenterSummary(summary) {
     <article class="sync-stat">
       <span>Datos pendientes</span>
       <strong>${summary.pendingData}</strong>
+      ${summary.pendingReason ? `<small>${escapeHtml(summary.pendingReason)}</small>` : ""}
     </article>
     <article class="sync-stat">
       <span>Evidencias pendientes</span>
@@ -789,6 +899,7 @@ async function markReportsCloudSynced(reportIds) {
 async function buildLocalCompanyCraneRows() {
   const registry = readCompanyCraneRegistry();
   const frequencies = readCompanyMaintenanceFrequencies();
+  const contactsByCompany = readCompanyContacts();
   const deletedCranes = readDeletedCompanyCranes();
   const deletedCompanies = readDeletedCompanies();
   const deletedCraneClients = Object.values(deletedCranes || {}).map((entry) => normalizeClientName(entry.client || entry.crane?.client));
@@ -801,6 +912,7 @@ async function buildLocalCompanyCraneRows() {
     ...fileClients,
     ...Object.keys(registry),
     ...Object.keys(frequencies),
+    ...Object.keys(contactsByCompany),
     ...deletedCraneClients,
     ...activeFindingClients,
     ...reportClients
@@ -812,6 +924,7 @@ async function buildLocalCompanyCraneRows() {
     payload: {
       name: client,
       maintenanceFrequency: frequencies[client] || "",
+      contacts: Array.isArray(contactsByCompany[client]) ? contactsByCompany[client] : [],
       syncVersion: 1
     },
     updated_at: now,
@@ -1009,6 +1122,7 @@ async function fetchCloudRows(table, options = {}) {
 async function mergeCloudCompanyCraneRows(companies, cranes) {
   const registry = { ...readCompanyCraneRegistry() };
   const frequencies = { ...readCompanyMaintenanceFrequencies() };
+  const contactsByCompany = { ...readCompanyContacts() };
   const companyById = new Map();
 
   for (const company of companies || []) {
@@ -1024,6 +1138,7 @@ async function mergeCloudCompanyCraneRows(companies, cranes) {
       await deleteCompanyLocalData(client);
       delete registry[client];
       delete frequencies[client];
+      delete contactsByCompany[client];
       continue;
     }
     if (isDeletedCompanyName(client)) {
@@ -1035,6 +1150,9 @@ async function mergeCloudCompanyCraneRows(companies, cranes) {
     }
     if (company.payload?.maintenanceFrequency) {
       frequencies[client] = String(company.payload.maintenanceFrequency);
+    }
+    if (Array.isArray(company.payload?.contacts)) {
+      contactsByCompany[client] = company.payload.contacts;
     }
   }
 
@@ -1087,6 +1205,7 @@ async function mergeCloudCompanyCraneRows(companies, cranes) {
     });
 
   writeCompanyMaintenanceFrequencies(frequencies);
+  writeCompanyContacts(contactsByCompany);
   writeCompanyCraneRegistry(registry);
 }
 

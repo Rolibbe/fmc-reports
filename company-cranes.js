@@ -1,4 +1,4 @@
-// company-cranes.js
+﻿// company-cranes.js
 // Funciones separadas desde app.js para mantener la PWA mas facil de mantener.
 
 let activeCompanyCraneMaster = {
@@ -42,15 +42,19 @@ async function renderCompanyCraneRegistry() {
   await renderCompanyRegistryClientCards();
   renderCompanyRegistrySummary(client, cranes);
   renderCompanyCraneList(client, cranes, maintenanceLookup, severityLookup);
+  renderCompanyContacts(client);
+  await renderCompanyServiceOverview(client, cranes);
 }
 
 async function getCompanyRegistryClientNames() {
   const fileClients = await readClientPlantsFromFile();
   const registry = readCompanyCraneRegistry();
+  const contacts = readCompanyContacts();
   const records = (await getAllInspections()).map(normalizeInspection);
   return normalizeClientNames([
     ...fileClients,
     ...Object.keys(registry),
+    ...Object.keys(contacts),
     ...records.map((record) => record.plantName)
   ]).filter((client) => !isDeletedCompanyName(client));
 }
@@ -81,8 +85,8 @@ async function renderCompanyRegistryClientCards() {
     return `
       <button class="company-selector-card ${selectedClient === client ? "is-selected" : ""}" type="button" data-company-registry-card="${escapeHtml(client)}">
         <strong>${escapeHtml(client)}</strong>
-        <span>${cranes.length} grua(s) registrada(s)</span>
-        <small>${clientReports.length} reporte(s) | Ultima visita: ${escapeHtml(latestReport ? formatDate(latestReport.inspectionDate) : "Sin reportes")}</small>
+        <span>${cranes.length} equipo(s) registrado(s)</span>
+        <small>${clientReports.length} servicio(s) | Ultima visita: ${escapeHtml(latestReport ? formatDate(latestReport.inspectionDate) : "Sin servicios")}</small>
       </button>
     `;
   }).join("");
@@ -105,6 +109,9 @@ function selectCompanyRegistryClient(clientName, options = {}) {
 }
 
 function renderCompanyRegistrySummary(client, cranes) {
+  if (elements.companyRegistryActiveName) {
+    elements.companyRegistryActiveName.textContent = client || "Selecciona una empresa";
+  }
   const frequency = getCompanyMaintenanceFrequency(client);
   elements.companyRegistrySummary.innerHTML = `
     <article class="history-stat">
@@ -112,7 +119,7 @@ function renderCompanyRegistrySummary(client, cranes) {
       <strong>${escapeHtml(client || "Selecciona una")}</strong>
     </article>
     <article class="history-stat">
-      <span>Gruas registradas</span>
+      <span>Equipos registrados</span>
       <strong>${cranes.length}</strong>
     </article>
     <article class="history-stat">
@@ -126,6 +133,63 @@ function renderCompanyRegistrySummary(client, cranes) {
     <article class="history-stat">
       <span>Frecuencia</span>
       <strong>${escapeHtml(formatMaintenanceFrequency(frequency))}</strong>
+    </article>
+  `;
+}
+
+async function renderCompanyServiceOverview(client, cranes = []) {
+  if (!elements.companyServiceOverview) {
+    return;
+  }
+  if (!client) {
+    elements.companyServiceOverview.innerHTML = '<div class="inline-empty-state compact-empty-state">Selecciona una empresa para ver sus servicios, equipos, reportes PDF y hallazgos.</div>';
+    return;
+  }
+
+  const records = (await getAllInspections())
+    .map(normalizeInspection)
+    .filter((record) => normalizeClientName(record.plantName) === client)
+    .sort((a, b) => new Date(b.inspectionDate || b.updatedAt || 0) - new Date(a.inspectionDate || a.updatedAt || 0));
+  const findingsCount = records.reduce((sum, record) => (
+    sum + (record.equipments || []).reduce((equipmentSum, equipment) => equipmentSum + (equipment.findings || []).length, 0)
+  ), 0);
+  const latest = records[0] || null;
+
+  elements.companyServiceOverview.innerHTML = `
+    <section class="company-service-panel">
+      <div class="company-service-panel-head">
+        <div>
+          <p class="eyebrow">Base de datos por empresa</p>
+          <h3>${escapeHtml(client)}</h3>
+          <p>${escapeHtml(records.length ? `Ultimo servicio: ${formatDate(latest.inspectionDate || latest.updatedAt)}` : "Todavia no hay servicios guardados para esta empresa.")}</p>
+        </div>
+      </div>
+      <div class="company-service-metrics">
+        <article><span>Servicios</span><strong>${records.length}</strong></article>
+        <article><span>Equipos base</span><strong>${cranes.length}</strong></article>
+        <article><span>Reportes PDF</span><strong>${records.filter((record) => record.reportNumber).length}</strong></article>
+        <article><span>Hallazgos</span><strong>${findingsCount}</strong></article>
+      </div>
+      ${records.length ? `
+        <div class="company-service-recent">
+          ${records.slice(0, 4).map(renderCompanyServiceRecentItem).join("")}
+        </div>
+      ` : ""}
+    </section>
+  `;
+
+  return;
+}
+
+function renderCompanyServiceRecentItem(record) {
+  const findingsCount = (record.equipments || []).reduce((sum, equipment) => sum + (equipment.findings || []).length, 0);
+  return `
+    <article class="company-service-recent-item">
+      <div>
+        <strong>${escapeHtml(record.reportNumber || "Sin folio")}</strong>
+        <span>${escapeHtml(formatDate(record.inspectionDate) || "Sin fecha")} | ${escapeHtml(getAssetTypeLabel(record.assetType))} | ${escapeHtml(getServiceModeLabel(record.serviceMode))}</span>
+      </div>
+      <small>${(record.equipments || []).length} equipo(s) | ${findingsCount} hallazgo(s)</small>
     </article>
   `;
 }
@@ -253,7 +317,7 @@ function renderCompanyCraneMaintenanceStatus(maintenance) {
       <div class="maintenance-track" title="${escapeHtml(status.label)}">
         <span class="maintenance-fill ${escapeHtml(status.className)}" style="width: ${status.percent}%"></span>
       </div>
-      ${maintenance.reportNumber ? `<p class="maintenance-source">Ultimo reporte: ${escapeHtml(maintenance.reportNumber)}</p>` : ""}
+      ${maintenance.reportNumber ? `<p class="maintenance-source">Ultimo reporte PDF: ${escapeHtml(maintenance.reportNumber)}</p>` : ""}
     </div>
   `;
 }
@@ -299,14 +363,29 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map(), s
   elements.companyCraneList.innerHTML = "";
 
   if (!client) {
-    elements.companyCraneList.innerHTML = '<div class="inline-empty-state">Selecciona una empresa para ver o registrar sus gruas.</div>';
+    elements.companyCraneList.innerHTML = '<div class="inline-empty-state">Selecciona una empresa para ver o registrar sus equipos.</div>';
     return;
   }
 
   if (!cranes.length) {
-    elements.companyCraneList.innerHTML = '<div class="inline-empty-state">Esta empresa todavia no tiene gruas en el catalogo. Usa Agregar grua para crear la primera.</div>';
+    elements.companyCraneList.innerHTML = '<div class="inline-empty-state">Esta empresa todavia no tiene equipos en el catalogo. Usa Agregar equipo para crear el primero.</div>';
     return;
   }
+
+  elements.companyCraneList.innerHTML = `
+    <div class="company-crane-carousel-head">
+      <div>
+        <p class="eyebrow">Equipos registrados</p>
+        <h3>${escapeHtml(cranes.length)} equipo(s) de ${escapeHtml(client)}</h3>
+      </div>
+      <div class="company-crane-carousel-actions">
+        <button class="ghost-button icon-button" type="button" data-crane-carousel="-1" aria-label="Ver equipos anteriores">‹</button>
+        <button class="ghost-button icon-button" type="button" data-crane-carousel="1" aria-label="Ver mas equipos">›</button>
+      </div>
+    </div>
+    <div class="company-crane-carousel-track" data-company-crane-track></div>
+  `;
+  const track = elements.companyCraneList.querySelector("[data-company-crane-track]");
 
   cranes.forEach((crane) => {
     const maintenance = maintenanceLookup.get(crane.id) || null;
@@ -354,7 +433,7 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map(), s
         <button class="ghost-button" type="button" data-delete-company-crane-id="${escapeHtml(crane.id)}">Quitar</button>
       </div>
     `;
-    elements.companyCraneList.appendChild(card);
+    track.appendChild(card);
   });
 
   elements.companyCraneList.querySelectorAll("[data-edit-company-crane-id]").forEach((button) => {
@@ -363,6 +442,23 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map(), s
 
   elements.companyCraneList.querySelectorAll("[data-delete-company-crane-id]").forEach((button) => {
     button.addEventListener("click", () => deleteCompanyCrane(button.dataset.deleteCompanyCraneId));
+  });
+
+  wireCompanyCraneCarousel();
+}
+
+function wireCompanyCraneCarousel() {
+  const track = elements.companyCraneList.querySelector("[data-company-crane-track]");
+  if (!track) {
+    return;
+  }
+
+  elements.companyCraneList.querySelectorAll("[data-crane-carousel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const direction = Number(button.dataset.craneCarousel) || 1;
+      const distance = Math.max(280, Math.floor(track.clientWidth * 0.86));
+      track.scrollBy({ left: distance * direction, behavior: "smooth" });
+    });
   });
 }
 
@@ -473,7 +569,7 @@ function renderCompanyCraneMasterTabs(activeTab) {
     { key: "maintenance", label: "Mantenimiento" },
     { key: "findings", label: "Hallazgos" },
     { key: "checklist", label: "Checklist" },
-    { key: "history", label: "Historial de reportes" },
+    { key: "history", label: "Historial de servicios" },
     { key: "files", label: "Fotos/documentos" }
   ];
 
@@ -563,7 +659,7 @@ async function renderCompanyCraneHealthTab(client, crane) {
       <article class="crane-health-card">
         <span>Hallazgos criticos</span>
         <strong>${highSeverityCount}</strong>
-        <small>Detectados en reportes relacionados</small>
+        <small>Detectados en servicios relacionados</small>
       </article>
       <article class="crane-health-card">
         <span>Mantenimiento</span>
@@ -611,7 +707,7 @@ function calculateCraneHealth(client, crane, maintenance = null, options = {}) {
     reasons.push(`${criticalChecklist.length} hallazgo(s) critico(s) en checklist`);
   }
   if (highSeverityCount) {
-    reasons.push(`${highSeverityCount} hallazgo(s) critico(s) en reportes`);
+    reasons.push(`${highSeverityCount} hallazgo(s) critico(s) en servicios`);
   }
   if (badChecklistItems.length) {
     reasons.push(`${badChecklistItems.length} punto(s) marcados como Mal`);
@@ -670,7 +766,7 @@ function renderCraneHealthPill(health) {
 
 function isCriticalChecklistItem(item) {
   const text = [item.category, item.title, item.measure, item.clause].join(" ").toLowerCase();
-  return /(freno|cable|cadena|gancho|limite|limitador|estructura|deformacion|grieta|seguridad|emergencia|sobrecarga|electrico|eléctrico)/i.test(text);
+  return /(freno|cable|cadena|gancho|limite|limitador|estructura|deformacion|grieta|seguridad|emergencia|sobrecarga|electrico|elÃ©ctrico)/i.test(text);
 }
 
 async function renderCompanyCraneMaintenanceTab(client, crane) {
@@ -819,7 +915,7 @@ function renderCraneChecklistItem(item, status) {
       <div class="crane-checklist-options" role="radiogroup" aria-label="${escapeHtml(label)}">
         <label class="checklist-option checklist-option-good">
           <input type="radio" name="${escapeHtml(name)}" data-crane-checklist-id="${escapeHtml(item.id)}" value="good" ${status === "good" ? "checked" : ""}>
-          <span>✓</span> Bien
+          <span>âœ“</span> Bien
         </label>
         <label class="checklist-option checklist-option-na">
           <input type="radio" name="${escapeHtml(name)}" data-crane-checklist-id="${escapeHtml(item.id)}" value="na" ${status === "na" ? "checked" : ""}>
@@ -827,7 +923,7 @@ function renderCraneChecklistItem(item, status) {
         </label>
         <label class="checklist-option checklist-option-bad">
           <input type="radio" name="${escapeHtml(name)}" data-crane-checklist-id="${escapeHtml(item.id)}" value="bad" ${status === "bad" ? "checked" : ""}>
-          <span>✕</span> Mal
+          <span>âœ•</span> Mal
         </label>
       </div>
     </article>
@@ -946,7 +1042,7 @@ function renderCraneChecklistCompactOptions(item, status) {
     <div class="crane-checklist-compact-options" role="radiogroup" aria-label="${escapeHtml(label)}">
       <label title="Bien">
         <input type="radio" name="${escapeHtml(name)}" data-crane-checklist-id="${escapeHtml(item.id)}" value="good" ${status === "good" ? "checked" : ""}>
-        <span>✓</span>
+        <span>âœ“</span>
       </label>
       <label title="No aplica">
         <input type="radio" name="${escapeHtml(name)}" data-crane-checklist-id="${escapeHtml(item.id)}" value="na" ${status === "na" ? "checked" : ""}>
@@ -973,6 +1069,7 @@ function wireCompanyCraneChecklistChecks(client, crane) {
       findings[key] = findings[key] || {};
       findings[key][input.dataset.craneChecklistId] = input.value;
       writeActiveCraneFindings(findings);
+      queueDataSync("checklist maestro actualizado");
       activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
       renderCompanyCraneMasterModal();
     });
@@ -987,6 +1084,7 @@ function wireCompanyCraneChecklistChecks(client, crane) {
       const findings = readActiveCraneFindings();
       delete findings[buildCraneChecklistKey(client, crane.id)];
       writeActiveCraneFindings(findings);
+      queueDataSync("checklist maestro limpiado");
       activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
       renderCompanyCraneMasterModal();
     });
@@ -996,7 +1094,7 @@ function wireCompanyCraneChecklistChecks(client, crane) {
 async function renderCompanyCraneHistoryTab(client, crane) {
   const rows = await getCompanyCraneReportHistory(client, crane);
   if (!rows.length) {
-    return '<div class="inline-empty-state">Todavia no hay reportes guardados para esta grua.</div>';
+    return '<div class="inline-empty-state">Todavia no hay servicios guardados para esta grua.</div>';
   }
 
   return `
@@ -1041,7 +1139,7 @@ async function renderCompanyCraneFilesTab(client, crane) {
       <article class="history-stat"><span>Fotos de hallazgos</span><strong>${totals.findingPhotos}</strong></article>
       <article class="history-stat"><span>Checklists</span><strong>${totals.checklistImages}</strong></article>
     </div>
-    <div class="inline-empty-state">Esta pestaña resume fotos y documentos encontrados en reportes guardados. Los archivos maestros independientes todavia no estan habilitados.</div>
+    <div class="inline-empty-state">Esta pestaÃ±a resume fotos y documentos encontrados en servicios guardados. Los archivos maestros independientes todavia no estan habilitados.</div>
   `;
 }
 
@@ -1392,6 +1490,7 @@ function wireActiveCraneFindingChecks(client, crane) {
         delete findings[key][input.dataset.activeFindingValue];
       }
       writeActiveCraneFindings(findings);
+      queueDataSync("hallazgos activos actualizados");
       activeCompanyCraneMaster = { client, craneId: crane.id, tab: "findings" };
       renderCompanyCraneMasterModal();
     });
@@ -1436,7 +1535,7 @@ function openCompanyCraneForm(craneId) {
 
   const client = normalizeClientName(elements.companyRegistryClient.value);
   if (!client) {
-    window.alert("Selecciona una empresa antes de agregar una grua.");
+    window.alert("Selecciona una empresa antes de agregar un equipo.");
     return;
   }
 
@@ -1444,7 +1543,7 @@ function openCompanyCraneForm(craneId) {
   const crane = craneId ? (registry[client] || []).find((item) => item.id === craneId) : null;
   elements.companyCraneForm.reset();
   elements.editingCompanyCraneId.value = crane ? crane.id : "";
-  elements.companyCraneFormTitle.textContent = crane ? "Editar grua" : "Nueva grua";
+  elements.companyCraneFormTitle.textContent = crane ? "Editar equipo" : "Nuevo equipo";
   elements.registryCraneId.value = crane ? crane.craneId : "";
   elements.registryCraneArea.value = crane ? crane.area : "";
   elements.registryCraneType.value = crane ? crane.type : "";
@@ -1534,7 +1633,7 @@ function saveCompanyCraneFromForm() {
   if (!canCurrentUser("editCatalog")) {
     showAppDialog({
       title: "Acceso restringido",
-      message: "Tu rol actual no permite guardar cambios en gruas maestras.",
+      message: "Tu rol actual no permite guardar cambios en equipos maestros.",
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
     return;
@@ -1542,7 +1641,7 @@ function saveCompanyCraneFromForm() {
 
   const client = normalizeClientName(elements.companyRegistryClient.value);
   if (!client) {
-    window.alert("Selecciona una empresa antes de guardar la grua.");
+    window.alert("Selecciona una empresa antes de guardar el equipo.");
     return;
   }
 
@@ -1588,13 +1687,14 @@ function saveCompanyCraneFromForm() {
   });
   closeCompanyCraneForm();
   renderCompanyCraneRegistry();
+  queueDataSync("equipo maestro guardado");
 }
 
-function deleteCompanyCrane(craneId) {
+async function deleteCompanyCrane(craneId) {
   if (!canCurrentUser("delete")) {
-    showAppDialog({
+    await showAppDialog({
       title: "Acceso restringido",
-      message: "Tu rol actual no permite eliminar gruas.",
+      message: "Tu rol actual no permite eliminar equipos.",
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
     return;
@@ -1604,11 +1704,23 @@ function deleteCompanyCrane(craneId) {
   const registry = readCompanyCraneRegistry();
   const cranes = registry[client] || [];
   const deletedCrane = cranes.find((crane) => crane.id === craneId);
+  const result = await showAppDialog({
+    title: "Eliminar equipo maestro",
+    message: `Se eliminara ${deletedCrane?.craneId || deletedCrane?.type || "este equipo"} del catalogo de ${client || "la empresa"} y, al sincronizar, tambien se eliminara de todos los dispositivos.`,
+    details: "Tambien se quitaran sus hallazgos activos/checklist local de esta ficha. Los reportes historicos ya guardados conservan su informacion.",
+    actions: [
+      { id: "cancel", label: "Cancelar", variant: "ghost" },
+      { id: "delete", label: "Eliminar de todo", variant: "danger" }
+    ]
+  });
+  if (result !== "delete") {
+    return;
+  }
   addAuditLogEntry({
     action: "deleted",
     entityType: "crane",
     entityId: craneId,
-    title: `Elimino grua ${deletedCrane?.craneId || deletedCrane?.type || craneId}`,
+    title: `Elimino equipo ${deletedCrane?.craneId || deletedCrane?.type || craneId}`,
     client,
     before: deletedCrane || { id: craneId },
     after: null
@@ -1622,6 +1734,7 @@ function deleteCompanyCrane(craneId) {
   writeActiveCraneFindings(activeFindings);
   closeCompanyCraneForm();
   renderCompanyCraneRegistry();
+  queueDataSync("equipo maestro eliminado");
 }
 
 async function deleteCurrentCompanyRegistry() {
@@ -1642,7 +1755,8 @@ async function deleteCurrentCompanyRegistry() {
 
   const result = await showAppDialog({
     title: "Eliminar empresa",
-    message: `Se eliminara ${client}, sus gruas registradas y sus reportes locales. Al sincronizar, tambien se ocultara en la nube.`,
+    message: `Se eliminara ${client}, sus equipos registrados, contactos, hallazgos activos y servicios locales. Al sincronizar, tambien se eliminara de todos los dispositivos conectados.`,
+    details: "Esta accion queda registrada como baja para que la empresa no regrese al sincronizar.",
     actions: [
       { id: "cancel", label: "Cancelar", variant: "ghost" },
       { id: "delete", label: "Eliminar", variant: "danger" }
@@ -1673,6 +1787,7 @@ async function deleteCurrentCompanyRegistry() {
   await loadClientPlantOptions();
   await renderSavedReports();
   await renderCompanyCraneRegistry();
+  queueDataSync("empresa eliminada");
 }
 
 async function deleteCompanyLocalData(client) {
@@ -1690,6 +1805,10 @@ async function deleteCompanyLocalData(client) {
   delete frequencies[normalizedClient];
   writeCompanyMaintenanceFrequencies(frequencies);
 
+  const contacts = readCompanyContacts();
+  delete contacts[normalizedClient];
+  writeCompanyContacts(contacts);
+
   const activeFindings = readActiveCraneFindings();
   Object.keys(activeFindings).forEach((key) => {
     if (splitActiveCraneFindingKey(key)[0] === normalizedClient) {
@@ -1706,6 +1825,30 @@ async function deleteCompanyLocalData(client) {
       await deleteInspection(normalized.id);
     }
   }
+}
+
+function startServiceForSelectedCompany() {
+  const client = normalizeClientName(elements.companyRegistryClient.value || elements.companyRegistrySearch.value);
+  if (!client) {
+    showAppDialog({
+      title: "Selecciona una empresa",
+      message: "Elige una empresa del directorio o escribe una nueva antes de iniciar el servicio.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    return;
+  }
+
+  selectCompanyRegistryClient(client, { render: false });
+  resetForm();
+  setClientPlantValue(client);
+  if (elements.assetType) {
+    elements.assetType.value = "cranes";
+  }
+  if (elements.serviceMode) {
+    elements.serviceMode.value = "preventive";
+  }
+  updateNextInspectionFromMaintenanceDate();
+  showView("inspection");
 }
 
 function handleCompanyCraneDragStart(event, craneId) {
@@ -1825,7 +1968,8 @@ async function syncCompanyRegistryFromReports() {
   const added = await seedCompanyRegistryFromReports(true);
   await populateCompanyRegistryClientOptions();
   renderCompanyCraneRegistry();
-  window.alert(`Catalogo actualizado. Se agregaron ${added} grua(s) nuevas desde reportes guardados.`);
+  queueDataSync("catalogo actualizado desde servicios");
+  window.alert(`Catalogo actualizado. Se agregaron ${added} equipo(s) nuevo(s) desde servicios guardados.`);
 }
 
 async function seedCompanyRegistryFromReports(forceAlert) {
@@ -1935,6 +2079,121 @@ function saveCompanyMaintenanceFrequency() {
   frequencies[client] = elements.companyMaintenanceFrequency.value;
   writeCompanyMaintenanceFrequencies(frequencies);
   renderCompanyCraneRegistry();
+  queueDataSync("frecuencia de mantenimiento actualizada");
+}
+
+function renderCompanyContacts(client) {
+  if (!elements.companyContactsList) {
+    return;
+  }
+
+  if (!client) {
+    elements.companyContactsList.innerHTML = '<div class="inline-empty-state compact-empty-state">Selecciona una empresa para registrar contactos.</div>';
+    clearCompanyContactInputs();
+    return;
+  }
+
+  const contacts = getCompanyContacts(client);
+  if (!contacts.length) {
+    elements.companyContactsList.innerHTML = '<div class="inline-empty-state compact-empty-state">Todavia no hay contactos guardados para esta empresa.</div>';
+    return;
+  }
+
+  elements.companyContactsList.innerHTML = contacts.map((contact) => `
+    <article class="company-contact-card">
+      <div>
+        <strong>${escapeHtml(contact.name || "Sin nombre")}</strong>
+        <span>${escapeHtml(contact.email || "Sin correo")}</span>
+        <small>${escapeHtml(contact.phone || "Sin telefono")}</small>
+      </div>
+      <button class="ghost-button icon-button" type="button" data-delete-company-contact="${escapeHtml(contact.id)}" aria-label="Eliminar contacto">x</button>
+    </article>
+  `).join("");
+
+  elements.companyContactsList.querySelectorAll("[data-delete-company-contact]").forEach((button) => {
+    button.addEventListener("click", () => deleteCompanyContact(client, button.dataset.deleteCompanyContact));
+  });
+}
+
+function addCompanyContactForCurrentCompany() {
+  const client = normalizeClientName(elements.companyRegistryClient.value || elements.companyRegistrySearch.value);
+  if (!client) {
+    window.alert("Selecciona una empresa antes de agregar contactos.");
+    return;
+  }
+
+  const name = (elements.companyContactName.value || "").trim();
+  const email = (elements.companyContactEmail.value || "").trim();
+  const phone = (elements.companyContactPhone.value || "").trim();
+  if (!name && !email && !phone) {
+    window.alert("Escribe al menos un dato del contacto.");
+    return;
+  }
+
+  selectCompanyRegistryClient(client, { render: false });
+  const allContacts = readCompanyContacts();
+  const companyContacts = Array.isArray(allContacts[client]) ? allContacts[client] : [];
+  companyContacts.push({
+    id: createId(),
+    name,
+    email,
+    phone,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+  allContacts[client] = companyContacts;
+  writeCompanyContacts(allContacts);
+  clearCompanyContactInputs();
+  renderCompanyContacts(client);
+  renderCompanyCraneRegistry();
+  queueDataSync("contacto de empresa guardado");
+}
+
+async function deleteCompanyContact(client, contactId) {
+  const normalizedClient = normalizeClientName(client);
+  const contact = getCompanyContacts(normalizedClient).find((item) => item.id === contactId);
+  const result = await showAppDialog({
+    title: "Eliminar contacto",
+    message: `Se eliminara ${contact?.name || "este contacto"} de ${normalizedClient}. Al sincronizar, tambien se quitara de los demas dispositivos.`,
+    actions: [
+      { id: "cancel", label: "Cancelar", variant: "ghost" },
+      { id: "delete", label: "Eliminar", variant: "danger" }
+    ]
+  });
+  if (result !== "delete") {
+    return;
+  }
+  const allContacts = readCompanyContacts();
+  allContacts[normalizedClient] = getCompanyContacts(normalizedClient).filter((contact) => contact.id !== contactId);
+  writeCompanyContacts(allContacts);
+  renderCompanyContacts(normalizedClient);
+  queueDataSync("contacto de empresa eliminado");
+}
+
+function clearCompanyContactInputs() {
+  if (elements.companyContactName) {
+    elements.companyContactName.value = "";
+  }
+  if (elements.companyContactEmail) {
+    elements.companyContactEmail.value = "";
+  }
+  if (elements.companyContactPhone) {
+    elements.companyContactPhone.value = "";
+  }
+}
+
+function getCompanyContacts(client) {
+  const normalizedClient = normalizeClientName(client);
+  const contacts = readCompanyContacts()[normalizedClient];
+  return Array.isArray(contacts) ? contacts : [];
+}
+
+function readCompanyContacts() {
+  return getCachedMasterData("companyContacts");
+}
+
+function writeCompanyContacts(contacts) {
+  return setCachedMasterData("companyContacts", COMPANY_CONTACTS_KEY, contacts || {});
 }
 
 function getCompanyMaintenanceFrequency(client) {
@@ -2007,23 +2266,23 @@ function populateCompanyCraneSelector(selectedCatalogCraneId = "") {
   const cranes = client ? registry[client] || [] : [];
 
   if (!client) {
-    elements.companyCraneSelector.innerHTML = '<option value="__new__">Nueva grua</option>';
+    elements.companyCraneSelector.innerHTML = '<option value="__new__">Nuevo equipo</option>';
     elements.companyCraneSelector.disabled = true;
-    elements.companyCraneSelectorStatus.textContent = "Selecciona un cliente para ver sus gruas registradas.";
+    elements.companyCraneSelectorStatus.textContent = "Selecciona una empresa para ver sus equipos registrados.";
     return;
   }
 
   elements.companyCraneSelector.disabled = false;
   elements.companyCraneSelector.innerHTML = [
-    '<option value="__new__">Nueva grua para esta empresa</option>',
+    '<option value="__new__">Nuevo equipo para esta empresa</option>',
     ...cranes.map((crane) => `<option value="${escapeHtml(crane.id)}">${escapeHtml(formatCatalogCraneOption(crane))}</option>`)
   ].join("");
   elements.companyCraneSelector.value = selectedCatalogCraneId && cranes.some((crane) => crane.id === selectedCatalogCraneId)
     ? selectedCatalogCraneId
     : "__new__";
   elements.companyCraneSelectorStatus.textContent = cranes.length
-    ? `${cranes.length} grua(s) registradas para ${client}.`
-    : "Esta empresa no tiene gruas registradas todavia. Captura una nueva y se guardara en el catalogo.";
+    ? `${cranes.length} equipo(s) registrado(s) para ${client}.`
+    : "Esta empresa no tiene equipos registrados todavia. Captura uno nuevo y se guardara en el catalogo.";
 }
 
 function formatCatalogCraneOption(crane) {
@@ -2187,7 +2446,7 @@ function mapCatalogCraneTypeToOption(type) {
   if (normalized.includes("monorriel")) {
     return "Monorriel";
   }
-  if (normalized.includes("portico") || normalized.includes("pórtico")) {
+  if (normalized.includes("portico") || normalized.includes("pÃ³rtico")) {
     return "Portico";
   }
   if (normalized.includes("polipasto")) {

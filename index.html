@@ -1,13 +1,13 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0f4c5c">
-  <title>Inspecciones de Gruas</title>
+  <title>Servicios FMC</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="logo.png" type="image/png">
-  <link rel="stylesheet" href="styles.css?v=119">
+  <link rel="stylesheet" href="styles.css?v=120">
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -15,8 +15,8 @@
       <div class="login-brand">
         <span class="login-logo">FMC</span>
         <div>
-          <p class="eyebrow">Sistema de reportes</p>
-          <h1>Inspecciones de gruas</h1>
+          <p class="eyebrow">Sistema de servicios</p>
+          <h1>Servicios FMC</h1>
         </div>
       </div>
       <div class="login-hero-icons" aria-hidden="true">
@@ -24,7 +24,7 @@
         <span>PDF</span>
         <span>SYNC</span>
       </div>
-      <p class="login-copy">Ingresa para sincronizar empresas, gruas y reportes entre dispositivos.</p>
+      <p class="login-copy">Ingresa para sincronizar empresas, equipos y servicios entre dispositivos.</p>
       <div class="login-form">
         <label>
           Correo
@@ -51,9 +51,9 @@
       </div>
       <div>
         <p class="eyebrow">Modo offline</p>
-        <h1>Inspecciones de Gruas</h1>
+        <h1>Servicios FMC</h1>
         <p class="intro">
-          Genera reportes de supervision en sitio con multiples equipos, evidencia y salida lista para PDF.
+          Registra servicios en sitio con multiples equipos, evidencia y salida lista para PDF.
         </p>
       </div>
 
@@ -61,7 +61,7 @@
         <div class="section-header">
           <div>
             <p class="eyebrow">Archivo local</p>
-            <h2>Reportes guardados</h2>
+            <h2>Servicios guardados</h2>
           </div>
           <button id="refreshReportsButton" class="ghost-button" type="button">Actualizar</button>
         </div>
@@ -74,7 +74,7 @@
       <div class="app-brand">
         <span class="brand-mark">FMC</span>
         <div>
-          <strong>Reportes de gruas</strong>
+          <strong>Servicios FMC</strong>
           <small>Operacion y mantenimiento</small>
         </div>
       </div>
@@ -82,12 +82,12 @@
       <div class="nav-group">
         <p class="nav-label">Menu principal</p>
         <button id="openHomeButton" class="nav-action nav-action-strong" type="button">Panel principal</button>
-        <button id="newInspectionButton" class="nav-link" type="button">Nuevo reporte</button>
+        <button id="newInspectionButton" class="nav-link" type="button">Nuevo servicio</button>
         <div class="nav-history-anchor">
-          <button id="openSidebarButton" class="nav-link" type="button">Reportes</button>
+          <button id="openSidebarButton" class="nav-link" type="button">Servicios</button>
           <div id="historyCascadePanel" class="history-cascade hidden" aria-label="Historial por empresa"></div>
         </div>
-        <button id="openCompanyCraneRegistryButton" class="nav-link" type="button">Empresas y gruas</button>
+        <button id="openCompanyCraneRegistryButton" class="nav-link" type="button">Empresas y equipos</button>
         <button id="openMaintenancePanelButton" class="nav-link" type="button">Mantenimiento</button>
         <button id="openDashboardButton" class="nav-link" type="button">Dashboard</button>
         <button id="openSettingsButton" class="nav-link" type="button">Configuracion</button>
@@ -112,11 +112,11 @@
       <div class="mobile-brand">
         <span>FMC</span>
         <div>
-          <strong>Reportes</strong>
+          <strong>Servicios</strong>
           <small id="mobileCloudStatus">Nube sin sesion</small>
         </div>
       </div>
-      <button id="mobileSyncButton" class="mobile-icon-button" type="button" aria-label="Sincronizar">SYNC</button>
+      <button id="mobileSyncButton" class="mobile-icon-button" type="button" aria-label="Sincronizar datos">SYNC</button>
     </header>
 
     <section id="mobileMorePanel" class="mobile-more-panel hidden" aria-label="Mas opciones">
@@ -151,9 +151,9 @@
         <h2 id="contextTitle">Panel principal</h2>
       </div>
       <div id="contextActions" class="context-actions">
-        <button id="saveInspectionButton" class="secondary-button context-report-action" type="button">Guardar</button>
+        <button id="saveInspectionButton" class="secondary-button context-report-action" type="button">Guardar servicio</button>
         <button id="generatePdfButton" class="primary-button context-report-action" type="button">Generar PDF</button>
-        <button id="navSyncCloudButton" class="ghost-button context-data-action nav-sync-button" type="button">Sincronizar</button>
+        <button id="navSyncCloudButton" class="ghost-button context-data-action nav-sync-button" type="button">Sincronizar datos</button>
         <button id="openSyncCenterButton" class="ghost-button context-data-action" type="button">Centro sync</button>
         <div class="context-tools-wrap context-data-action">
           <button id="toolsMenuButton" class="ghost-button nav-link-with-menu" type="button" aria-label="Abrir opciones de datos" aria-expanded="false" aria-controls="toolsMenuList">
@@ -168,8 +168,8 @@
               </div>
               <button type="button" aria-label="Cerrar herramientas">Cerrar</button>
             </div>
-            <button id="importInspectionButton" type="button">Importar reporte</button>
-            <button id="exportInspectionButton" type="button">Exportar reporte</button>
+            <button id="importInspectionButton" type="button">Importar servicio</button>
+            <button id="exportInspectionButton" type="button">Exportar servicio</button>
             <button id="importFullBackupButton" type="button">Importar respaldo completo</button>
             <button id="exportFullBackupButton" type="button">Exportar respaldo sin fotos</button>
             <button id="exportFullBackupWithPhotosButton" type="button">Exportar respaldo con fotos</button>
@@ -185,10 +185,10 @@
           <div>
             <p class="eyebrow">Centro de operacion</p>
             <h2>Panel principal</h2>
-            <p class="page-subtitle">Accesos claros para captura, mantenimiento, reportes, clientes, sincronizacion y analisis general.</p>
+            <p class="page-subtitle">Accesos claros para servicios, mantenimiento, empresas, sincronizacion y analisis general.</p>
           </div>
           <div class="system-home-actions">
-            <button id="homeNewReportButton" class="primary-button" type="button">Nuevo reporte</button>
+            <button id="homeNewReportButton" class="primary-button" type="button">Nuevo servicio</button>
             <button id="homeFieldModeButton" class="secondary-button" type="button">Modo campo</button>
           </div>
         </div>
@@ -203,13 +203,13 @@
           </button>
           <button id="homeClientsButton" class="home-module-card" type="button">
             <span>02</span>
-            <strong>Clientes y gruas</strong>
-            <small>Catalogo maestro, fichas tecnicas y checklist.</small>
+            <strong>Empresas y equipos</strong>
+            <small>Base de datos por empresa, fichas tecnicas y checklist.</small>
           </button>
           <button id="homeReportsButton" class="home-module-card" type="button">
             <span>03</span>
-            <strong>Reportes</strong>
-            <small>Historial guardado por empresa y folio.</small>
+            <strong>Servicios</strong>
+            <small>Historial por empresa, servicio y reporte PDF.</small>
           </button>
           <button id="homeMaintenanceButton" class="home-module-card" type="button">
             <span>04</span>
@@ -250,7 +250,7 @@
           <div>
             <p class="eyebrow">Vista ejecutiva</p>
             <h2>Dashboard general</h2>
-            <p class="page-subtitle">Indicadores, tendencias y riesgos calculados desde reportes, empresas, gruas, polipastos y checklist.</p>
+            <p class="page-subtitle">Indicadores, tendencias y riesgos calculados desde servicios, empresas, equipos, polipastos y checklist.</p>
           </div>
           <div class="toolbar">
             <button id="refreshDashboardButton" class="secondary-button" type="button">Actualizar</button>
@@ -296,8 +296,8 @@
         <div class="field-step-grid">
           <button id="fieldNewButton" class="field-step-card" type="button">
             <span>1</span>
-            <strong>Iniciar reporte</strong>
-            <small>Folio, servicio, fecha y tecnico.</small>
+            <strong>Iniciar servicio</strong>
+            <small>Folio PDF, linea, modalidad, fecha y tecnico.</small>
           </button>
           <button id="fieldClientButton" class="field-step-card" type="button">
             <span>2</span>
@@ -311,12 +311,12 @@
           </button>
           <button id="fieldCameraButton" class="field-step-card" type="button">
             <span>4</span>
-            <strong>CÃ¡mara</strong>
+            <strong>Cámara</strong>
             <small>Captura evidencias del equipo.</small>
           </button>
           <button id="fieldSaveButton" class="field-step-card is-accent" type="button">
             <span>5</span>
-            <strong>Guardar rÃ¡pido</strong>
+            <strong>Guardar rápido</strong>
             <small>Respalda el avance localmente.</small>
           </button>
           <button id="fieldPdfButton" class="field-step-card is-dark" type="button">
@@ -331,8 +331,8 @@
         <div class="page-hero">
           <div>
             <p class="eyebrow">Captura en campo</p>
-            <h2>Nuevo reporte</h2>
-            <p class="page-subtitle">Registra cliente, equipos inspeccionados, hallazgos, evidencias y genera el PDF final desde un solo flujo.</p>
+            <h2>Nuevo servicio</h2>
+            <p class="page-subtitle">Registra empresa, tipo de equipo, modalidad, hallazgos, evidencias y genera el reporte PDF como salida final.</p>
           </div>
           <div class="page-hero-badge">
             <span>Offline</span>
@@ -349,11 +349,26 @@
 
           <div class="grid two-column">
             <label>
-              Folio del reporte
+              Folio del reporte PDF
               <input id="reportNumber" name="reportNumber" type="text" placeholder="Ej. 26-140">
             </label>
             <label>
-              Tipo de servicio
+              Linea de servicio
+              <select id="assetType" name="assetType">
+                <option value="cranes">Gruas</option>
+                <option value="racks">Racks</option>
+                <option value="other">Otro / futuro modulo</option>
+              </select>
+            </label>
+            <label>
+              Modalidad
+              <select id="serviceMode" name="serviceMode">
+                <option value="preventive">Preventivo</option>
+                <option value="corrective">Correctivo</option>
+              </select>
+            </label>
+            <label>
+              Descripcion del servicio
               <select id="serviceType" name="serviceType">
                 <option value="Inspeccion de grua">Inspeccion de grua</option>
                 <option value="Mantenimiento correctivo">Mantenimiento correctivo</option>
@@ -393,7 +408,7 @@
             <div class="section-header">
               <div>
                 <p class="eyebrow">Equipos inspeccionados</p>
-                <h3>Lista de equipos incluidos en el reporte</h3>
+                <h3>Lista de equipos incluidos en el servicio</h3>
               </div>
               <button id="addEquipmentButton" class="secondary-button" type="button">Anadir Equipo</button>
             </div>
@@ -422,16 +437,16 @@
             <div class="section-header">
               <div>
                 <p class="eyebrow">Catalogo de empresa</p>
-                <h3>Gruas registradas del cliente</h3>
+                <h3>Equipos registrados de la empresa</h3>
               </div>
             </div>
 
             <div class="grid two-column">
               <label>
-                Seleccionar grua existente
+                Seleccionar equipo existente
                 <select id="companyCraneSelector"></select>
               </label>
-              <div id="companyCraneSelectorStatus" class="inline-empty-state compact-empty-state">Selecciona un cliente para ver sus gruas registradas.</div>
+              <div id="companyCraneSelectorStatus" class="inline-empty-state compact-empty-state">Selecciona una empresa para ver sus equipos registrados.</div>
             </div>
           </section>
 
@@ -698,7 +713,7 @@
         <div class="section-header">
           <div>
             <p class="eyebrow">Mantenimiento</p>
-            <h2>Panel de seguimiento de gruas</h2>
+            <h2>Panel de seguimiento de equipos</h2>
           </div>
           <div class="toolbar">
             <button id="refreshMaintenancePanelButton" class="secondary-button" type="button">Actualizar</button>
@@ -715,7 +730,7 @@
           <div>
             <p class="eyebrow">Operacion en campo</p>
             <h2>Agenda y ordenes de trabajo</h2>
-            <p class="page-subtitle">Programa servicios, asigna tecnico, selecciona gruas y convierte la orden en un reporte listo para capturar.</p>
+            <p class="page-subtitle">Programa servicios, asigna tecnico, selecciona equipos y convierte la orden en una captura lista para reporte PDF.</p>
           </div>
           <div class="toolbar">
             <button id="newWorkOrderButton" class="secondary-button" type="button">Nueva orden</button>
@@ -803,7 +818,7 @@
             Tipo
             <select id="auditLogFilter">
               <option value="">Todo</option>
-              <option value="report">Reportes</option>
+              <option value="report">Servicios / reportes PDF</option>
               <option value="crane">Gruas</option>
               <option value="company">Empresas</option>
               <option value="work_order">Ordenes</option>
@@ -877,9 +892,9 @@
             <div class="toolbar cloud-toolbar">
               <button id="cloudSignInButton" class="primary-button" type="button">Iniciar sesion</button>
               <button id="cloudSignOutButton" class="ghost-button" type="button">Cerrar sesion</button>
-              <button id="syncCompaniesCranesButton" class="secondary-button" type="button">Sincronizar todo</button>
+              <button id="syncCompaniesCranesButton" class="secondary-button" type="button">Sincronizar datos</button>
             </div>
-            <small class="cloud-helper">Este modulo mantiene la app offline y sincroniza reportes sin fotos pesadas para evitar errores de memoria.</small>
+            <small class="cloud-helper">Este modulo mantiene la app offline y sincroniza servicios sin fotos pesadas para evitar errores de memoria.</small>
           </section>
 
           <section class="subpanel">
@@ -989,10 +1004,11 @@
         <div class="section-header">
           <div>
             <p class="eyebrow">Catalogo maestro</p>
-            <h2>Empresas y gruas</h2>
+            <h2>Empresas y equipos</h2>
           </div>
           <div class="toolbar">
-            <button id="newCompanyCraneButton" class="secondary-button" type="button">Agregar grua</button>
+            <button id="startCompanyServiceButton" class="primary-button" type="button">Nuevo servicio</button>
+            <button id="newCompanyCraneButton" class="secondary-button" type="button">Agregar equipo</button>
             <button id="refreshCompanyCraneRegistryButton" class="secondary-button" type="button">Actualizar</button>
             <button id="closeCompanyCraneRegistryButton" class="ghost-button" type="button">Volver</button>
           </div>
@@ -1002,54 +1018,87 @@
           <div class="company-selector-layout">
             <div class="company-selector-panel">
               <label>
-                Buscar empresa
-                <input id="companyRegistrySearch" type="text" placeholder="Escribe para filtrar empresas">
+                Directorio de empresas
+                <input id="companyRegistrySearch" type="text" placeholder="Buscar o escribir empresa">
               </label>
               <input id="companyRegistryClient" type="hidden">
               <datalist id="companyRegistryClientOptions"></datalist>
               <div class="company-selector-actions">
-                <button id="selectCompanyRegistrySearchButton" class="secondary-button" type="button">Usar empresa escrita</button>
+                <button id="selectCompanyRegistrySearchButton" class="secondary-button" type="button">Crear / usar empresa</button>
               </div>
               <div id="companyRegistryCards" class="company-selector-cards"></div>
             </div>
-            <label>
-              Frecuencia de mantenimiento
-              <select id="companyMaintenanceFrequency">
-                <option value="">Selecciona frecuencia</option>
-                <option value="1">Cada 1 mes</option>
-                <option value="2">Cada 2 meses</option>
-                <option value="3">Cada 3 meses</option>
-                <option value="4">Cada 4 meses</option>
-                <option value="5">Cada 5 meses</option>
-                <option value="6">Cada 6 meses</option>
-                <option value="7">Cada 7 meses</option>
-                <option value="8">Cada 8 meses</option>
-                <option value="9">Cada 9 meses</option>
-                <option value="10">Cada 10 meses</option>
-                <option value="11">Cada 11 meses</option>
-                <option value="12">Cada 12 meses</option>
-              </select>
-            </label>
-            <div class="history-actions">
-              <button id="syncCompanyRegistryButton" class="ghost-button" type="button">Tomar datos de reportes guardados</button>
-              <button id="deleteCompanyRegistryButton" class="ghost-button" type="button">Eliminar empresa</button>
+            <div class="company-control-panel">
+              <div class="company-control-head">
+                <div>
+                  <p class="eyebrow">Empresa activa</p>
+                  <h3 id="companyRegistryActiveName">Selecciona una empresa</h3>
+                </div>
+                <button id="deleteCompanyRegistryButton" class="ghost-button" type="button">Eliminar empresa</button>
+              </div>
+              <div class="company-control-grid">
+                <label>
+                  Frecuencia de mantenimiento
+                  <select id="companyMaintenanceFrequency">
+                    <option value="">Selecciona frecuencia</option>
+                    <option value="1">Cada 1 mes</option>
+                    <option value="2">Cada 2 meses</option>
+                    <option value="3">Cada 3 meses</option>
+                    <option value="4">Cada 4 meses</option>
+                    <option value="5">Cada 5 meses</option>
+                    <option value="6">Cada 6 meses</option>
+                    <option value="7">Cada 7 meses</option>
+                    <option value="8">Cada 8 meses</option>
+                    <option value="9">Cada 9 meses</option>
+                    <option value="10">Cada 10 meses</option>
+                    <option value="11">Cada 11 meses</option>
+                    <option value="12">Cada 12 meses</option>
+                  </select>
+                </label>
+                <button id="syncCompanyRegistryButton" class="ghost-button" type="button">Tomar datos de servicios guardados</button>
+              </div>
+              <div class="company-contacts-panel">
+                <div class="company-contacts-head">
+                  <div>
+                    <p class="eyebrow">Contactos</p>
+                    <h4>Personas de la empresa</h4>
+                  </div>
+                  <button id="addCompanyContactButton" class="secondary-button" type="button">Agregar contacto</button>
+                </div>
+                <div class="company-contact-form">
+                  <label>
+                    Nombre
+                    <input id="companyContactName" type="text" placeholder="Nombre del contacto">
+                  </label>
+                  <label>
+                    Correo
+                    <input id="companyContactEmail" type="email" placeholder="correo@empresa.com">
+                  </label>
+                  <label>
+                    Telefono
+                    <input id="companyContactPhone" type="tel" placeholder="Numero telefonico">
+                  </label>
+                </div>
+                <div id="companyContactsList" class="company-contacts-list"></div>
+              </div>
             </div>
           </div>
         </div>
 
         <div id="companyRegistrySummary" class="history-summary"></div>
         <div id="companyCraneList" class="company-crane-list"></div>
+        <div id="companyServiceOverview" class="company-service-overview"></div>
 
         <section id="companyCraneFormPanel" class="modal-backdrop hidden">
           <div class="subpanel modal-panel">
             <div class="section-header">
               <div>
-                <p class="eyebrow">Grua</p>
-                <h3 id="companyCraneFormTitle">Nueva grua</h3>
+                <p class="eyebrow">Equipo</p>
+                <h3 id="companyCraneFormTitle">Nuevo equipo</h3>
               </div>
               <div class="toolbar">
                 <button id="cancelCompanyCraneButton" class="ghost-button" type="button">Cancelar</button>
-                <button id="saveCompanyCraneButton" class="primary-button" type="button">Guardar grua</button>
+                <button id="saveCompanyCraneButton" class="primary-button" type="button">Guardar equipo</button>
               </div>
             </div>
 
@@ -1057,7 +1106,7 @@
               <input id="editingCompanyCraneId" type="hidden">
               <div class="grid three-column">
                 <label>
-                  ID / tag de grua
+                  ID / tag de equipo
                   <input id="registryCraneId" type="text" placeholder="Ej. GR-001">
                 </label>
                 <label>
@@ -1161,8 +1210,8 @@
             <fieldset>
               <legend>Que quieres importar</legend>
               <label><input type="radio" name="backupImportScope" value="all" checked> Todo el respaldo</label>
-              <label><input type="radio" name="backupImportScope" value="reports"> Solo reportes</label>
-              <label><input type="radio" name="backupImportScope" value="registry"> Solo empresas y gruas</label>
+              <label><input type="radio" name="backupImportScope" value="reports"> Solo servicios</label>
+              <label><input type="radio" name="backupImportScope" value="registry"> Solo empresas y equipos</label>
             </fieldset>
             <fieldset>
               <legend>Como aplicarlo</legend>
@@ -1191,28 +1240,28 @@
 
   <nav class="mobile-bottom-nav" aria-label="Navegacion movil">
     <button id="mobileNewButton" type="button"><span>+</span>Nuevo</button>
-    <button id="mobileHistoryButton" type="button"><span>RP</span>Reportes</button>
-    <button id="mobileCompaniesButton" type="button"><span>GR</span>Gruas</button>
+    <button id="mobileHistoryButton" type="button"><span>SV</span>Servicios</button>
+    <button id="mobileCompaniesButton" type="button"><span>EQ</span>Equipos</button>
     <button id="mobilePdfButton" type="button"><span>PDF</span>PDF</button>
     <button id="mobileMoreButton" type="button"><span>...</span>Mas</button>
   </nav>
 
-  <script src="report-template-config.js?v=119"></script>
-  <script src="finding-catalog-config.js?v=119"></script>
-  <script src="checklist-config.js?v=119"></script>
-  <script src="findings.js?v=119"></script>
-  <script src="company-cranes.js?v=119"></script>
-  <script src="equipment.js?v=119"></script>
-  <script src="pdf-actions.js?v=119"></script>
-  <script src="backup.js?v=119"></script>
-  <script src="storage.js?v=119"></script>
-  <script src="settings.js?v=119"></script>
-  <script src="operations.js?v=119"></script>
-  <script src="maintenance-panel.js?v=119"></script>
-  <script src="dashboard.js?v=119"></script>
-  <script src="report-generator.js?v=119"></script>
-  <script src="supabase-config.js?v=119"></script>
-  <script src="cloud-sync.js?v=119"></script>
-  <script src="app.js?v=119"></script>
+  <script src="report-template-config.js?v=123"></script>
+  <script src="finding-catalog-config.js?v=123"></script>
+  <script src="checklist-config.js?v=123"></script>
+  <script src="findings.js?v=123"></script>
+  <script src="company-cranes.js?v=123"></script>
+  <script src="equipment.js?v=123"></script>
+  <script src="pdf-actions.js?v=123"></script>
+  <script src="backup.js?v=123"></script>
+  <script src="storage.js?v=123"></script>
+  <script src="settings.js?v=123"></script>
+  <script src="operations.js?v=123"></script>
+  <script src="maintenance-panel.js?v=123"></script>
+  <script src="dashboard.js?v=123"></script>
+  <script src="report-generator.js?v=123"></script>
+  <script src="supabase-config.js?v=123"></script>
+  <script src="cloud-sync.js?v=123"></script>
+  <script src="app.js?v=123"></script>
 </body>
 </html>

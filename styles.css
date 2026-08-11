@@ -1396,7 +1396,7 @@ textarea[readonly] {
 
 .company-selector-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 1.2fr) minmax(220px, 0.55fr) auto;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -1404,6 +1404,10 @@ textarea[readonly] {
 .company-selector-panel {
   display: grid;
   gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(8, 50, 71, 0.12);
+  border-radius: 18px;
+  background: #fff;
 }
 
 .company-selector-actions {
@@ -1413,21 +1417,21 @@ textarea[readonly] {
 
 .company-selector-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 10px;
-  max-height: 360px;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  max-height: 420px;
   overflow-y: auto;
   padding-right: 4px;
 }
 
 .company-selector-card {
   display: grid;
-  gap: 5px;
-  min-height: 112px;
-  padding: 13px;
+  gap: 4px;
+  min-height: auto;
+  padding: 11px 12px;
   border: 1px solid var(--line);
-  border-left: 5px solid var(--brand-soft);
-  border-radius: 12px;
+  border-left: 4px solid transparent;
+  border-radius: 14px;
   background: #fff;
   color: var(--ink);
   text-align: left;
@@ -1465,11 +1469,187 @@ textarea[readonly] {
 
 .company-crane-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 320px));
+  grid-template-columns: 1fr;
   gap: 16px;
-  justify-content: start;
   margin-top: 16px;
-  align-items: stretch;
+  min-width: 0;
+}
+
+.company-control-panel {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(8, 50, 71, 0.12);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, rgba(238, 247, 250, 0.72) 100%);
+}
+
+.company-control-head,
+.company-contacts-head,
+.company-crane-carousel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.company-control-head h3,
+.company-contacts-head h4,
+.company-crane-carousel-head h3 {
+  margin: 3px 0 0;
+}
+
+.company-control-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.company-contacts-panel {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(8, 50, 71, 0.1);
+}
+
+.company-contact-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.company-contacts-list {
+  display: grid;
+  gap: 8px;
+}
+
+.company-contact-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(8, 50, 71, 0.1);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.company-contact-card strong,
+.company-contact-card span,
+.company-contact-card small {
+  display: block;
+}
+
+.company-contact-card span,
+.company-contact-card small {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.company-crane-carousel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.company-crane-carousel-track {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  padding: 3px 2px 14px;
+  scrollbar-color: rgba(15, 76, 92, 0.5) rgba(8, 47, 73, 0.08);
+}
+
+.company-crane-carousel-track .company-crane-card {
+  flex: 0 0 278px;
+  scroll-snap-align: start;
+}
+
+.company-service-overview {
+  margin: 14px 0;
+}
+
+.company-service-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(8, 50, 71, 0.14);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(237, 246, 248, 0.72));
+}
+
+.company-service-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.company-service-panel-head h3 {
+  margin: 4px 0;
+  color: var(--ink);
+}
+
+.company-service-panel-head p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.company-service-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.company-service-metrics article {
+  padding: 12px;
+  border: 1px solid rgba(8, 50, 71, 0.1);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.company-service-metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.company-service-metrics strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--brand);
+  font-size: 1.45rem;
+}
+
+.company-service-recent {
+  display: grid;
+  gap: 8px;
+}
+
+.company-service-recent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(8, 50, 71, 0.1);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.company-service-recent-item strong,
+.company-service-recent-item span {
+  display: block;
+}
+
+.company-service-recent-item span,
+.company-service-recent-item small {
+  color: var(--muted);
 }
 
 .company-crane-card {
@@ -1478,7 +1658,7 @@ textarea[readonly] {
   flex-direction: column;
   padding: 10px;
   border: 1px solid rgba(216, 224, 231, 0.96);
-  border-radius: 24px;
+  border-radius: 20px;
   background: #ffffff;
   box-shadow: 0 14px 28px rgba(8, 47, 73, 0.1);
   cursor: grab;
@@ -1556,7 +1736,7 @@ textarea[readonly] {
   display: grid;
   place-items: center;
   width: 100%;
-  aspect-ratio: 4 / 3;
+  height: 150px;
   margin-bottom: 10px;
   overflow: hidden;
   border: 2px solid rgba(15, 76, 92, 0.14);
@@ -1684,7 +1864,7 @@ textarea[readonly] {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 7px 10px;
+  padding: 6px 9px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -1701,7 +1881,7 @@ textarea[readonly] {
   display: grid;
   gap: 8px;
   margin-top: 10px;
-  padding: 10px;
+  padding: 9px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #fff;
@@ -1713,7 +1893,7 @@ textarea[readonly] {
   gap: 8px;
   align-items: center;
   margin-top: 10px;
-  padding: 9px 10px;
+  padding: 8px 9px;
   border: 1px solid rgba(17, 17, 17, 0.08);
   border-radius: 12px;
   background: #fff;
@@ -2403,6 +2583,7 @@ textarea[readonly] {
 }
 
 .company-crane-open-hint {
+  display: none;
   margin: 10px 0 0;
   color: var(--brand);
   font-size: 0.86rem;
@@ -4760,6 +4941,30 @@ textarea[readonly] {
 
   .company-selector-cards {
     max-height: 260px;
+  }
+
+  .company-control-head,
+  .company-contacts-head,
+  .company-crane-carousel-head,
+  .company-control-grid,
+  .company-contact-form {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .company-crane-carousel-track .company-crane-card {
+    flex-basis: min(82vw, 318px);
+  }
+
+  .company-service-panel-head,
+  .company-service-recent-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .company-service-metrics {
+    grid-template-columns: 1fr 1fr;
   }
 
   .company-crane-card {

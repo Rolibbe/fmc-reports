@@ -341,6 +341,20 @@ async function saveSettingsFromForm() {
   const previousClients = normalizeClientNames(await readClientPlantsFromFile());
   const nextClients = normalizeClientNames(parseClientPlants(elements.settingsClientPlants.value));
   const removedClients = previousClients.filter((client) => !nextClients.includes(client));
+  if (removedClients.length) {
+    const result = await showAppDialog({
+      title: "Eliminar empresas de configuracion",
+      message: `Quitaste ${removedClients.length} cliente(s) de la lista. Si continuas, esas empresas tambien se eliminaran localmente y, al sincronizar, se eliminaran de todos los dispositivos.`,
+      details: removedClients.slice(0, 12).join("\n"),
+      actions: [
+        { id: "cancel", label: "Cancelar", variant: "ghost" },
+        { id: "delete", label: "Eliminar de todo", variant: "danger" }
+      ]
+    });
+    if (result !== "delete") {
+      return;
+    }
+  }
   for (const client of removedClients) {
     markCompanyDeleted(client, { source: "settings-client-list" });
     if (typeof deleteCompanyLocalData === "function") {
@@ -371,6 +385,7 @@ async function saveSettingsFromForm() {
   };
 
   await writeAppSettings(settings);
+  queueDataSync("configuracion guardada");
   applyRoleRestrictions();
   populateClientPlantOptions(settings.clientPlants, elements.plantName.value);
   populatePolipastoOptions(settings.polipastos);
@@ -440,6 +455,7 @@ async function resetSettingsToDefaults() {
     return;
   }
   await writeAppSettings(DEFAULT_APP_SETTINGS);
+  queueDataSync("configuracion restaurada");
   await populateSettingsForm();
   await loadClientPlantOptions();
   await loadPolipastoOptions();

@@ -9,6 +9,7 @@ const CONSOLIDATED_EXPORT_TEMPLATE_FILE = "concentrado-general.csv";
 const CONSOLIDATED_EXPORT_DELIMITER = ";";
 const COMPANY_CRANE_REGISTRY_KEY = "company-crane-registry-v1";
 const COMPANY_MAINTENANCE_FREQUENCY_KEY = "company-maintenance-frequency-v1";
+const COMPANY_CONTACTS_KEY = "company-contacts-v1";
 const ACTIVE_CRANE_FINDINGS_KEY = "active-crane-findings-v1";
 const DELETED_COMPANY_CRANES_KEY = "deleted-company-cranes-v1";
 const DELETED_INSPECTIONS_KEY = "deleted-inspections-v1";
@@ -19,7 +20,15 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.26";
+const APP_VERSION = "1.3.29";
+
+function queueDataSync(reason) {
+  if (typeof requestCloudDataSync === "function") {
+    requestCloudDataSync(reason, { silent: true });
+  }
+}
+
+window.queueDataSync = queueDataSync;
 
 const fallbackFindingCatalog = {
   "General": ["Hallazgo general"]
@@ -168,6 +177,8 @@ const elements = {
   inspectionId: document.getElementById("inspectionId"),
   polipastoOptions: document.getElementById("polipastoOptions"),
   reportNumber: document.getElementById("reportNumber"),
+  assetType: document.getElementById("assetType"),
+  serviceMode: document.getElementById("serviceMode"),
   serviceType: document.getElementById("serviceType"),
   inspectionDate: document.getElementById("inspectionDate"),
   technicianName: document.getElementById("technicianName"),
@@ -290,14 +301,22 @@ const elements = {
   refreshCompanyCraneRegistryButton: document.getElementById("refreshCompanyCraneRegistryButton"),
   syncCompanyRegistryButton: document.getElementById("syncCompanyRegistryButton"),
   deleteCompanyRegistryButton: document.getElementById("deleteCompanyRegistryButton"),
+  startCompanyServiceButton: document.getElementById("startCompanyServiceButton"),
   newCompanyCraneButton: document.getElementById("newCompanyCraneButton"),
   companyRegistrySearch: document.getElementById("companyRegistrySearch"),
   selectCompanyRegistrySearchButton: document.getElementById("selectCompanyRegistrySearchButton"),
   companyRegistryClient: document.getElementById("companyRegistryClient"),
   companyRegistryClientOptions: document.getElementById("companyRegistryClientOptions"),
   companyRegistryCards: document.getElementById("companyRegistryCards"),
+  companyRegistryActiveName: document.getElementById("companyRegistryActiveName"),
   companyMaintenanceFrequency: document.getElementById("companyMaintenanceFrequency"),
+  companyContactName: document.getElementById("companyContactName"),
+  companyContactEmail: document.getElementById("companyContactEmail"),
+  companyContactPhone: document.getElementById("companyContactPhone"),
+  addCompanyContactButton: document.getElementById("addCompanyContactButton"),
+  companyContactsList: document.getElementById("companyContactsList"),
   companyRegistrySummary: document.getElementById("companyRegistrySummary"),
+  companyServiceOverview: document.getElementById("companyServiceOverview"),
   companyCraneList: document.getElementById("companyCraneList"),
   companyCraneFormPanel: document.getElementById("companyCraneFormPanel"),
   companyCraneFormTitle: document.getElementById("companyCraneFormTitle"),
@@ -505,6 +524,7 @@ function setupAppActions() {
   elements.importFullBackupButton.addEventListener("click", () => elements.importFullBackupInput.click());
   elements.importFullBackupInput.addEventListener("change", handleFullBackupImport);
   elements.companyCraneSelector.addEventListener("change", handleCompanyCraneSelection);
+  elements.serviceType.addEventListener("change", syncServiceModeFromServiceType);
   elements.maintenanceDate.addEventListener("change", updateNextInspectionFromMaintenanceDate);
   elements.serviceTaskCleaning.addEventListener("change", syncServiceSummaryFromTasks);
   elements.serviceTaskLubrication.addEventListener("change", syncServiceSummaryFromTasks);
@@ -542,7 +562,7 @@ function setupAppActions() {
   elements.exportFullBackupButton.addEventListener("click", () => exportFullBackup({ includePhotos: false }));
   elements.exportFullBackupWithPhotosButton.addEventListener("click", () => exportFullBackup({ includePhotos: true }));
   elements.purgeStoredPhotosButton.addEventListener("click", purgeStoredHeavyPhotos);
-  elements.navSyncCloudButton.addEventListener("click", syncCompaniesAndCranesToCloud);
+  elements.navSyncCloudButton.addEventListener("click", syncCloudDataOnly);
   on(elements.openSyncCenterButton, "click", openSyncCenter);
   elements.generatePdfButton.addEventListener("click", generatePdfReport);
   elements.newInspectionButton.addEventListener("click", () => {
@@ -593,13 +613,14 @@ function setupAppActions() {
   elements.addSettingsCraneTypeButton.addEventListener("click", addCraneTypeToSettingsList);
   elements.cloudSignInButton.addEventListener("click", cloudSignInFromForm);
   elements.cloudSignOutButton.addEventListener("click", cloudSignOutFromForm);
-  elements.syncCompaniesCranesButton.addEventListener("click", syncCompaniesAndCranesToCloud);
+  elements.syncCompaniesCranesButton.addEventListener("click", syncCloudDataOnly);
   elements.closeMaintenancePanelButton.addEventListener("click", openSystemHome);
   elements.refreshMaintenancePanelButton.addEventListener("click", renderMaintenancePanel);
   elements.closeCompanyCraneRegistryButton.addEventListener("click", openSystemHome);
   elements.refreshCompanyCraneRegistryButton.addEventListener("click", renderCompanyCraneRegistry);
   elements.syncCompanyRegistryButton.addEventListener("click", syncCompanyRegistryFromReports);
   elements.deleteCompanyRegistryButton.addEventListener("click", deleteCurrentCompanyRegistry);
+  elements.startCompanyServiceButton.addEventListener("click", startServiceForSelectedCompany);
   elements.newCompanyCraneButton.addEventListener("click", () => openCompanyCraneForm());
   elements.cancelCompanyCraneButton.addEventListener("click", closeCompanyCraneForm);
   elements.saveCompanyCraneButton.addEventListener("click", saveCompanyCraneFromForm);
@@ -633,6 +654,7 @@ function setupAppActions() {
   elements.registryLastMaintenance.addEventListener("change", updateRegistryNextMaintenanceFromLast);
   elements.companyRegistrySearch.addEventListener("input", renderCompanyRegistryClientCards);
   elements.selectCompanyRegistrySearchButton.addEventListener("click", () => selectCompanyRegistryClient(elements.companyRegistrySearch.value));
+  elements.addCompanyContactButton.addEventListener("click", addCompanyContactForCurrentCompany);
   elements.companyRegistryClient.addEventListener("change", () => {
     closeCompanyCraneForm();
     loadCompanyMaintenanceFrequency();
@@ -654,7 +676,12 @@ function setupAppActions() {
 
   window.addEventListener("online", updateConnectivityStatus);
   window.addEventListener("offline", updateConnectivityStatus);
-  window.addEventListener("online", renderCloudStatus);
+  window.addEventListener("online", () => {
+    renderCloudStatus();
+    if (typeof processPendingCloudSync === "function") {
+      processPendingCloudSync({ silent: true });
+    }
+  });
   window.addEventListener("offline", renderCloudStatus);
   document.addEventListener("click", (event) => {
     if (
@@ -804,7 +831,7 @@ function setupMobileNavigation() {
   });
   elements.mobileMoreButton.addEventListener("click", toggleMobileMorePanel);
   elements.mobileCloseMoreButton.addEventListener("click", closeMobileMorePanel);
-  elements.mobileSyncButton.addEventListener("click", syncCompaniesAndCranesToCloud);
+  elements.mobileSyncButton.addEventListener("click", syncCloudDataOnly);
   elements.mobileSaveButton.addEventListener("click", async () => {
     closeMobileMorePanel();
     await persistInspection();
@@ -882,8 +909,8 @@ async function renderSystemHome() {
     const compliance = calculateDashboardMaintenanceCompliance(metrics.maintenance);
     elements.homeStatsGrid.innerHTML = [
       renderHomeStat("Clientes", metrics.clients, "Activos en catalogo"),
-      renderHomeStat("Gruas", metrics.cranes, "Identidades registradas"),
-      renderHomeStat("Servicios mes", metrics.reportsThisMonth, "Reportes capturados"),
+      renderHomeStat("Equipos", metrics.cranes, "Identidades registradas"),
+      renderHomeStat("Servicios mes", metrics.reportsThisMonth, "Servicios capturados"),
       renderHomeStat("Riesgo", maintenanceRisk, `${metrics.maintenance.overdue} vencidas`),
       renderHomeStat("Hallazgo comun", getTopEntryValue(metrics.topFindings), getTopEntryLabel(metrics.topFindings) || "Sin datos"),
       renderHomeStat("Cumplimiento", `${compliance}%`, "Mantenimiento al dia")
@@ -928,7 +955,7 @@ function renderHomePriorityList(metrics) {
     {
       title: "Proximo servicio",
       value: metrics.maintenance.next.length ? formatDate(metrics.maintenance.next[0].date) : "Sin fecha",
-      text: metrics.maintenance.next.length ? metrics.maintenance.next[0].label : "Completar fechas en Empresas y gruas",
+      text: metrics.maintenance.next.length ? metrics.maintenance.next[0].label : "Completar fechas en Empresas y equipos",
       tone: metrics.maintenance.next.length && metrics.maintenance.next[0].days <= 30 ? "warning" : "ok"
     }
   ];
@@ -1036,7 +1063,7 @@ function updateContextToolbar(view) {
 
   const contextMap = {
     home: { eyebrow: "Inicio", title: "Panel principal", report: false },
-    inspection: { eyebrow: "Captura", title: "Nuevo reporte", report: true },
+    inspection: { eyebrow: "Servicio", title: "Nuevo servicio", report: true },
     equipment: { eyebrow: "Captura", title: "Editar equipo", report: true },
     finding: { eyebrow: "Captura", title: "Editar hallazgo", report: true },
     dashboard: { eyebrow: "Analisis", title: "Dashboard ejecutivo", report: false },
@@ -1047,7 +1074,7 @@ function updateContextToolbar(view) {
     maintenancePanel: { eyebrow: "Mantenimiento", title: "Panel de mantenimiento", report: false },
     syncCenter: { eyebrow: "Datos", title: "Centro de sincronizacion", report: false },
     settings: { eyebrow: "Sistema", title: "Configuracion", report: false },
-    companyCraneRegistry: { eyebrow: "Catalogo", title: "Empresas y gruas", report: false }
+    companyCraneRegistry: { eyebrow: "Base de datos", title: "Empresas y equipos", report: false }
   };
   const context = contextMap[view] || contextMap.home;
 
@@ -1212,29 +1239,43 @@ function isDeletedCompanyName(client) {
 function collectInspectionData() {
   const equipments = currentEquipments.map((equipment) => normalizeEquipment(equipment));
   const craneIds = getInspectionCraneIds({ equipments });
+  const id = elements.inspectionId.value || createId();
+  const plantName = elements.plantName.value.trim();
+  const reportNumber = elements.reportNumber.value.trim() || createReportNumber(elements.inspectionDate.value, id);
+  const userEmail = typeof getCloudUserEmail === "function" ? getCloudUserEmail() : "";
 
-  return {
-    id: elements.inspectionId.value || createId(),
-    reportNumber: elements.reportNumber.value.trim() || createReportNumber(elements.inspectionDate.value, elements.inspectionId.value),
+  return normalizeInspection({
+    id,
+    serviceId: id,
+    reportId: createReportEntityId(reportNumber, id),
+    companyId: createCompanyEntityId(plantName),
+    reportNumber,
+    assetType: elements.assetType.value || "cranes",
+    serviceMode: elements.serviceMode.value || "preventive",
     serviceType: elements.serviceType.value,
     inspectionDate: elements.inspectionDate.value,
+    serviceDate: elements.inspectionDate.value,
     technicianName: elements.technicianName.value.trim(),
-    plantName: elements.plantName.value.trim(),
+    plantName,
     plantLocation: elements.plantLocation.value.trim(),
     siteContact: elements.siteContact.value.trim(),
     siteContactInfo: elements.siteContactInfo.value.trim(),
     craneId: craneIds[0] || "",
     craneIds,
     equipments,
+    status: "active",
+    deletedAt: "",
+    createdBy: userEmail,
+    updatedBy: userEmail,
     updatedAt: new Date().toISOString()
-  };
+  });
 }
 
 async function persistInspection() {
   if (!canCurrentUser("editReports")) {
     await showAppDialog({
       title: "Acceso restringido",
-      message: "Tu rol actual no permite guardar reportes.",
+      message: "Tu rol actual no permite guardar servicios.",
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
     return null;
@@ -1246,7 +1287,7 @@ async function persistInspection() {
   }
 
   if (!currentEquipments.length) {
-    window.alert("Agrega al menos un equipo antes de guardar o generar el reporte.");
+    window.alert("Agrega al menos un equipo antes de guardar el servicio o generar el reporte PDF.");
     return null;
   }
 
@@ -1257,14 +1298,15 @@ async function persistInspection() {
   await putInspection(inspection);
   addAuditLogEntry({
     action: previousInspection ? "updated" : "created",
-    entityType: "report",
+    entityType: "service",
     entityId: inspection.id,
-    title: `${previousInspection ? "Edito" : "Creo"} reporte ${inspection.reportNumber || "sin folio"}`,
+    title: `${previousInspection ? "Edito" : "Creo"} servicio ${inspection.reportNumber || "sin folio"}`,
     client: inspection.plantName,
     before: previousInspection ? normalizeInspection(previousInspection) : null,
     after: inspection
   });
   await renderSavedReports();
+  queueDataSync("servicio guardado");
   return inspection;
 }
 
@@ -1292,7 +1334,7 @@ async function renderSavedReports() {
   elements.savedReportsSummary.innerHTML = "";
 
   if (!records.length) {
-    elements.savedReports.innerHTML = '<div class="empty-state">Todavia no hay reportes guardados en este dispositivo.</div>';
+    elements.savedReports.innerHTML = '<div class="empty-state">Todavia no hay servicios guardados en este dispositivo.</div>';
     return;
   }
 
@@ -1314,7 +1356,7 @@ function renderSavedReportsBrowser(records) {
   return `
     <div class="saved-report-browser">
       <section class="saved-browser-column saved-browser-main">
-        <p class="eyebrow">Empresas</p>
+        <p class="eyebrow">Base por empresa</p>
         <div class="saved-company-list">
           ${grouped.map((group, index) => renderSavedCompanyButton(group, index === 0)).join("")}
         </div>
@@ -1353,7 +1395,7 @@ function renderSavedCompanyButton(group, isActive = false) {
   return `
     <button class="saved-company-button ${isActive ? "is-active" : ""}" type="button" data-saved-client="${escapeHtml(group.client)}">
       <strong>${escapeHtml(group.client)}</strong>
-      <span>${group.records.length} reporte(s) - ${findingsCount} hallazgo(s)</span>
+      <span>${group.records.length} servicio(s) - ${findingsCount} hallazgo(s)</span>
       <small>Ultimo: ${escapeHtml(formatDate(lastDate) || "Sin fecha")}</small>
     </button>
   `;
@@ -1361,11 +1403,11 @@ function renderSavedCompanyButton(group, isActive = false) {
 
 function renderSavedCompanyReports(client, records, activeReportId = "") {
   if (!client || !records.length) {
-    return '<div class="saved-browser-empty">Pasa el cursor sobre una empresa para ver sus reportes.</div>';
+    return '<div class="saved-browser-empty">Selecciona una empresa para ver sus servicios.</div>';
   }
 
   return `
-    <p class="eyebrow">Reportes</p>
+    <p class="eyebrow">Servicios</p>
     <h3>${escapeHtml(client)}</h3>
     <div class="saved-report-list">
       ${records.map((record, index) => renderSavedReportButton(record, activeReportId ? record.id === activeReportId : index === 0)).join("")}
@@ -1378,30 +1420,33 @@ function renderSavedReportButton(record, isActive = false) {
   return `
     <button class="saved-report-button ${isActive ? "is-active" : ""}" type="button" data-saved-report="${escapeHtml(record.id)}">
       <span class="saved-folio">${escapeHtml(record.reportNumber || "Sin folio")}</span>
-      <strong>${escapeHtml(record.inspectionDate || "Sin fecha")}</strong>
-      <small>${record.equipments.length} equipo(s) - ${findingsCount} hallazgo(s)</small>
+      <strong>${escapeHtml(formatDate(record.inspectionDate) || "Sin fecha")}</strong>
+      <small>${escapeHtml(getAssetTypeLabel(record.assetType))} | ${escapeHtml(getServiceModeLabel(record.serviceMode))} | ${record.equipments.length} equipo(s) | ${findingsCount} hallazgo(s)</small>
     </button>
   `;
 }
 
 function renderSavedReportDetail(record) {
   if (!record) {
-    return '<div class="saved-browser-empty">Selecciona un reporte para ver el detalle.</div>';
+    return '<div class="saved-browser-empty">Selecciona un servicio para ver el detalle.</div>';
   }
 
   const findingsCount = record.equipments.reduce((sum, equipment) => sum + equipment.findings.length, 0);
   const craneIds = getInspectionCraneIds(record);
   return `
-    <p class="eyebrow">Detalle</p>
+    <p class="eyebrow">Servicio</p>
     <h3>${escapeHtml(record.reportNumber || "Sin folio")}</h3>
     <div class="saved-detail-card">
       <dl>
-        <div><dt>Cliente</dt><dd>${escapeHtml(record.plantName || "Sin cliente")}</dd></div>
+        <div><dt>Empresa</dt><dd>${escapeHtml(record.plantName || "Sin empresa")}</dd></div>
         <div><dt>Fecha</dt><dd>${escapeHtml(record.inspectionDate || "Sin fecha")}</dd></div>
-        <div><dt>Servicio</dt><dd>${escapeHtml(record.serviceType || "Servicio")}</dd></div>
+        <div><dt>Linea</dt><dd>${escapeHtml(getAssetTypeLabel(record.assetType))}</dd></div>
+        <div><dt>Modalidad</dt><dd>${escapeHtml(getServiceModeLabel(record.serviceMode))}</dd></div>
+        <div><dt>Descripcion</dt><dd>${escapeHtml(record.serviceType || "Servicio")}</dd></div>
         <div><dt>Equipos</dt><dd>${record.equipments.length}</dd></div>
         <div><dt>Hallazgos</dt><dd>${findingsCount}</dd></div>
-        <div><dt>Gruas</dt><dd>${escapeHtml(craneIds.length ? craneIds.join(" | ") : "Sin nombre/tag capturado")}</dd></div>
+        <div><dt>Equipos ID</dt><dd>${escapeHtml(craneIds.length ? craneIds.join(" | ") : "Sin nombre/tag capturado")}</dd></div>
+        <div><dt>ID servicio</dt><dd>${escapeHtml(record.serviceId || record.id)}</dd></div>
       </dl>
       <div class="saved-actions">
         <button class="secondary-button" type="button" data-open-id="${record.id}">Abrir</button>
@@ -1489,17 +1534,29 @@ function wireSavedReportActionButtons() {
       if (!canCurrentUser("delete")) {
         await showAppDialog({
           title: "Acceso restringido",
-          message: "Tu rol actual no permite eliminar reportes.",
+        message: "Tu rol actual no permite eliminar servicios.",
           actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
         });
         return;
       }
       const record = await getInspection(button.dataset.deleteId);
+      const confirmResult = await showAppDialog({
+        title: "Eliminar servicio",
+        message: `Se eliminara ${record?.reportNumber || "este servicio"} de este dispositivo y, al sincronizar, tambien se eliminara de todos los dispositivos conectados.`,
+        details: "Esta accion marcara el servicio como eliminado en la nube para que no vuelva a aparecer despues de sincronizar.",
+        actions: [
+          { id: "cancel", label: "Cancelar", variant: "ghost" },
+          { id: "delete", label: "Eliminar de todo", variant: "danger" }
+        ]
+      });
+      if (confirmResult !== "delete") {
+        return;
+      }
       addAuditLogEntry({
         action: "deleted",
-        entityType: "report",
+        entityType: "service",
         entityId: button.dataset.deleteId,
-        title: `Elimino reporte ${record?.reportNumber || button.dataset.deleteId}`,
+        title: `Elimino servicio ${record?.reportNumber || button.dataset.deleteId}`,
         client: record?.plantName || "",
         before: record ? normalizeInspection(record) : { id: button.dataset.deleteId },
         after: null
@@ -1510,6 +1567,7 @@ function wireSavedReportActionButtons() {
         resetForm();
       }
       await renderSavedReports();
+      queueDataSync("servicio eliminado");
     });
   });
 
@@ -1540,7 +1598,7 @@ function wireSavedReportActionButtons() {
 async function duplicateInspection(sourceInspectionId) {
   const source = await getInspection(sourceInspectionId);
   if (!source) {
-    window.alert("No se encontro el reporte para duplicar.");
+    window.alert("No se encontro el servicio para duplicar.");
     return;
   }
 
@@ -1548,6 +1606,7 @@ async function duplicateInspection(sourceInspectionId) {
   await putInspection(duplicated);
   loadInspection(duplicated);
   await renderSavedReports();
+  queueDataSync("servicio duplicado");
   closeSidebar();
 }
 
@@ -1560,7 +1619,9 @@ function cloneInspectionForDuplicate(source) {
   return normalizeInspection({
     ...source,
     id: duplicateId,
+    serviceId: duplicateId,
     reportNumber: createReportNumber(source.inspectionDate, duplicateId),
+    reportId: createReportEntityId(createReportNumber(source.inspectionDate, duplicateId), duplicateId),
     craneId: craneIds[0] || "",
     craneIds,
     equipments,
@@ -1596,15 +1657,15 @@ function renderSavedReportsSummary(records) {
 
   elements.savedReportsSummary.innerHTML = `
     <article>
-      <span>Reportes</span>
+      <span>Servicios</span>
       <strong>${records.length}</strong>
     </article>
     <article>
-      <span>Clientes</span>
+      <span>Empresas</span>
       <strong>${clients.length}</strong>
     </article>
     <article>
-      <span>Gruas</span>
+      <span>Equipos</span>
       <strong>${craneIds.length}</strong>
     </article>
     <article>
@@ -1630,7 +1691,7 @@ async function showHistoryCascade() {
   }
 
   if (!records.length) {
-    elements.historyCascadePanel.innerHTML = '<div class="history-cascade-empty">Todavia no hay reportes guardados.</div>';
+    elements.historyCascadePanel.innerHTML = '<div class="history-cascade-empty">Todavia no hay servicios guardados.</div>';
     elements.historyCascadePanel.classList.remove("hidden");
     return true;
   }
@@ -1677,7 +1738,7 @@ function renderHistoryCascadeCompany(group, isActive = false) {
   return `
     <button class="history-cascade-company ${isActive ? "is-active" : ""}" type="button" data-history-client="${escapeHtml(group.client)}">
       <strong>${escapeHtml(group.client)}</strong>
-      <span>${group.records.length} reporte(s)</span>
+      <span>${group.records.length} servicio(s)</span>
       <small>${escapeHtml(formatDate(lastDate) || "Sin fecha")}</small>
     </button>
   `;
@@ -1685,11 +1746,11 @@ function renderHistoryCascadeCompany(group, isActive = false) {
 
 function renderHistoryCascadeReports(group) {
   if (!group || !group.records.length) {
-    return '<div class="history-cascade-empty">Selecciona una empresa para ver sus reportes.</div>';
+    return '<div class="history-cascade-empty">Selecciona una empresa para ver sus servicios.</div>';
   }
 
   return `
-    <p class="eyebrow">Reportes</p>
+    <p class="eyebrow">Servicios</p>
     <h3>${escapeHtml(group.client)}</h3>
     <div class="history-cascade-report-list">
       ${group.records.map(renderHistoryCascadeReport).join("")}
@@ -1704,7 +1765,7 @@ function renderHistoryCascadeReport(record) {
       <button type="button" data-open-id="${escapeHtml(record.id)}">
         <span>${escapeHtml(record.reportNumber || "Sin folio")}</span>
         <strong>${escapeHtml(record.inspectionDate || "Sin fecha")}</strong>
-        <small>${record.equipments.length} equipo(s) - ${findingsCount} hallazgo(s)</small>
+        <small>${escapeHtml(getAssetTypeLabel(record.assetType))} | ${escapeHtml(getServiceModeLabel(record.serviceMode))} | ${record.equipments.length} equipo(s) - ${findingsCount} hallazgo(s)</small>
       </button>
       <div>
         <button type="button" data-duplicate-id="${escapeHtml(record.id)}">Duplicar</button>
@@ -1751,12 +1812,24 @@ function wireHistoryCascadeActionButtons() {
       if (!canCurrentUser("delete")) {
         await showAppDialog({
           title: "Acceso restringido",
-          message: "Tu rol actual no permite eliminar reportes.",
+        message: "Tu rol actual no permite eliminar servicios.",
           actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
         });
         return;
       }
       const record = await getInspection(button.dataset.deleteId);
+      const confirmResult = await showAppDialog({
+        title: "Eliminar reporte",
+        message: `Se eliminara ${record?.reportNumber || "este reporte"} de este dispositivo y, al sincronizar, tambien se eliminara de todos los dispositivos conectados.`,
+        details: "Esta accion quedara registrada como baja para que la nube no lo vuelva a descargar.",
+        actions: [
+          { id: "cancel", label: "Cancelar", variant: "ghost" },
+          { id: "delete", label: "Eliminar de todo", variant: "danger" }
+        ]
+      });
+      if (confirmResult !== "delete") {
+        return;
+      }
       addAuditLogEntry({
         action: "deleted",
         entityType: "report",
@@ -1773,6 +1846,7 @@ function wireHistoryCascadeActionButtons() {
       }
       await renderSavedReports();
       await showHistoryCascade();
+      queueDataSync("reporte eliminado");
     });
   });
 
@@ -1918,7 +1992,7 @@ function renderConsolidatedHistorySummary(rows) {
 
 function renderConsolidatedHistoryTable(rows) {
   if (!rows.length) {
-    elements.consolidatedHistoryTable.innerHTML = '<div class="inline-empty-state">Todavia no hay reportes guardados para crear el concentrado.</div>';
+    elements.consolidatedHistoryTable.innerHTML = '<div class="inline-empty-state">Todavia no hay servicios guardados para crear el concentrado.</div>';
     return;
   }
 
@@ -2123,6 +2197,7 @@ async function updateConsolidatedComment(inspectionId, equipmentId, value) {
   };
   record.updatedAt = new Date().toISOString();
   await putInspection(record);
+  queueDataSync("comentario actualizado");
 }
 
 function calculateDaysUntil(dateValue) {
@@ -2205,6 +2280,8 @@ function loadInspection(record) {
 
   elements.inspectionId.value = normalized.id || "";
   elements.reportNumber.value = normalized.reportNumber;
+  elements.assetType.value = normalized.assetType || "cranes";
+  elements.serviceMode.value = normalized.serviceMode || "preventive";
   elements.serviceType.value = normalized.serviceType || "Inspeccion de grua";
   elements.inspectionDate.value = normalized.inspectionDate || "";
   elements.technicianName.value = normalized.technicianName || "";
@@ -2224,10 +2301,19 @@ function resetForm() {
   currentEquipments = [];
   setDefaultDates();
   assignNewReportNumber(true);
+  elements.assetType.value = "cranes";
+  elements.serviceMode.value = "preventive";
   elements.serviceType.value = "Inspeccion de grua";
   resetEquipmentEditorState();
   renderEquipmentList();
   showView("inspection");
+}
+
+function syncServiceModeFromServiceType() {
+  const inferredMode = inferServiceMode({ serviceType: elements.serviceType.value });
+  if (elements.serviceMode && inferredMode) {
+    elements.serviceMode.value = inferredMode;
+  }
 }
 
 async function handleInspectionImport(event) {

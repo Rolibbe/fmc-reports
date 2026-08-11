@@ -651,6 +651,63 @@ function buildEquipmentCardSummary(equipment) {
   return pieces.length ? pieces.join(" | ") : "Sin detalle adicional capturado.";
 }
 
+function createEntitySlug(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function createCompanyEntityId(companyName) {
+  const slug = createEntitySlug(normalizeClientName(companyName));
+  return slug ? `company-${slug}` : "company-pending";
+}
+
+function createReportEntityId(reportNumber, fallbackId = "") {
+  const slug = createEntitySlug(reportNumber || fallbackId);
+  return slug ? `report-${slug}` : `report-${createId()}`;
+}
+
+function inferAssetType(source = {}) {
+  const text = [
+    source.assetType,
+    source.serviceLine,
+    source.serviceType,
+    ...(Array.isArray(source.equipments) ? source.equipments.map((equipment) => equipment.assetType || equipment.equipmentType || equipment.craneType || "") : [])
+  ].join(" ").toLowerCase();
+  if (/rack|racks|estanter/.test(text)) {
+    return "racks";
+  }
+  if (/otro|other/.test(text)) {
+    return "other";
+  }
+  return "cranes";
+}
+
+function inferServiceMode(source = {}) {
+  const text = [source.serviceMode, source.serviceType, source.typeOfService].join(" ").toLowerCase();
+  if (/correctiv/.test(text)) {
+    return "corrective";
+  }
+  return "preventive";
+}
+
+function getAssetTypeLabel(assetType) {
+  if (assetType === "racks") {
+    return "Racks";
+  }
+  if (assetType === "other") {
+    return "Otro";
+  }
+  return "Gruas";
+}
+
+function getServiceModeLabel(serviceMode) {
+  return serviceMode === "corrective" ? "Correctivo" : "Preventivo";
+}
+
 function normalizeInspection(record) {
   const source = record || {};
   const equipments = Array.isArray(source.equipments) && source.equipments.length
@@ -661,14 +718,29 @@ function normalizeInspection(record) {
   const craneIds = Array.isArray(source.craneIds) && source.craneIds.length
     ? normalizeCraneIds(source.craneIds)
     : getInspectionCraneIds({ ...source, equipments });
+  const assetType = source.assetType || inferAssetType({ ...source, equipments });
+  const serviceMode = source.serviceMode || inferServiceMode(source);
+  const id = source.id || source.serviceId || createId();
+  const plantName = normalizeClientName(source.plantName || source.companyName || "");
+  const reportNumber = source.reportNumber || createReportNumber(source.inspectionDate || source.serviceDate, id);
 
   return {
     ...source,
-    reportNumber: source.reportNumber || createReportNumber(source.inspectionDate, source.id),
+    id,
+    serviceId: source.serviceId || id,
+    reportId: source.reportId || createReportEntityId(reportNumber, id),
+    companyId: source.companyId || createCompanyEntityId(plantName),
+    reportNumber,
+    assetType,
+    serviceMode,
+    serviceDate: source.serviceDate || source.inspectionDate || "",
+    plantName,
     serviceType: source.serviceType || "Inspeccion de grua",
     craneId: source.craneId || craneIds[0] || "",
     craneIds,
-    equipments
+    equipments,
+    status: source.status || "active",
+    deletedAt: source.deletedAt || ""
   };
 }
 
@@ -739,6 +811,7 @@ function normalizeEquipment(equipment) {
     ...source,
     id: source.id || createId(),
     includeInReport,
+    assetType: source.assetType || source.equipmentType || "cranes",
     catalogCraneId: source.catalogCraneId || "",
     craneId: fallbackCraneId,
     equipmentName: source.equipmentName || "",
