@@ -1,4 +1,4 @@
-﻿
+
 const DB_NAME = "crane-inspections-db";
 const DB_VERSION = 2;
 const STORE_NAME = "inspections";
@@ -20,7 +20,21 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.29";
+const APP_VERSION = "1.3.35";
+
+const SERVICE_STEP_DEFINITIONS = [
+  { id: "company", title: "Empresa", hint: "Selecciona la empresa y los datos de contacto del servicio." },
+  { id: "asset", title: "Tipo de equipo", hint: "Define si el servicio sera de gruas, racks u otro modulo." },
+  { id: "service", title: "Tipo de servicio", hint: "Captura folio PDF, modalidad, fecha y tecnico responsable." },
+  { id: "equipment", title: "Equipos incluidos", hint: "Agrega, ordena y selecciona los equipos que entraran al PDF." },
+  { id: "checklist", title: "Checklist", hint: "Abre cada equipo para revisar o adjuntar su checklist." },
+  { id: "findings", title: "Hallazgos", hint: "Registra las no conformidades detectadas por equipo." },
+  { id: "evidence", title: "Evidencias", hint: "Agrega fotos del servicio, hallazgos y checklist escaneado." },
+  { id: "summary", title: "Resumen", hint: "Cierra condicion, mantenimiento, resumen y recomendaciones." },
+  { id: "pdf", title: "PDF", hint: "Guarda el servicio y genera el reporte final." }
+];
+
+let activeServiceStep = "company";
 
 function queueDataSync(reason) {
   if (typeof requestCloudDataSync === "function") {
@@ -137,6 +151,13 @@ const elements = {
   closeSidebarButton: document.getElementById("closeSidebarButton"),
   toolsMenuButton: document.getElementById("toolsMenuButton"),
   toolsMenuList: document.getElementById("toolsMenuList"),
+  notificationsButton: document.getElementById("notificationsButton"),
+  notificationsBadge: document.getElementById("notificationsBadge"),
+  notificationsPanel: document.getElementById("notificationsPanel"),
+  notificationsContent: document.getElementById("notificationsContent"),
+  profileButton: document.getElementById("profileButton"),
+  profilePanel: document.getElementById("profilePanel"),
+  profileContent: document.getElementById("profileContent"),
   contextToolbar: document.getElementById("contextToolbar"),
   contextEyebrow: document.getElementById("contextEyebrow"),
   contextTitle: document.getElementById("contextTitle"),
@@ -175,6 +196,19 @@ const elements = {
   companyCraneRegistryView: document.getElementById("companyCraneRegistryView"),
   form: document.getElementById("inspectionForm"),
   inspectionId: document.getElementById("inspectionId"),
+  serviceStepTitle: document.getElementById("serviceStepTitle"),
+  serviceStepHint: document.getElementById("serviceStepHint"),
+  serviceStepCounter: document.getElementById("serviceStepCounter"),
+  serviceStepProgressBar: document.getElementById("serviceStepProgressBar"),
+  serviceStepNav: document.getElementById("serviceStepNav"),
+  serviceStepBody: document.getElementById("serviceStepBody"),
+  serviceStepPrevButton: document.getElementById("serviceStepPrevButton"),
+  serviceStepNextButton: document.getElementById("serviceStepNextButton"),
+  serviceChecklistStepContent: document.getElementById("serviceChecklistStepContent"),
+  serviceFindingsStepContent: document.getElementById("serviceFindingsStepContent"),
+  serviceEvidenceStepContent: document.getElementById("serviceEvidenceStepContent"),
+  serviceSummaryStepContent: document.getElementById("serviceSummaryStepContent"),
+  servicePdfStepContent: document.getElementById("servicePdfStepContent"),
   polipastoOptions: document.getElementById("polipastoOptions"),
   reportNumber: document.getElementById("reportNumber"),
   assetType: document.getElementById("assetType"),
@@ -492,12 +526,11 @@ function setupAppActions() {
   on(elements.closeFieldModeButton, "click", openSystemHome);
   on(elements.fieldNewButton, "click", () => {
     resetForm();
-    showView("inspection");
+    openInspectionStep("service");
   });
-  on(elements.fieldClientButton, "click", () => focusInspectionField(elements.plantName));
+  on(elements.fieldClientButton, "click", () => openInspectionStep("company"));
   on(elements.fieldEquipmentButton, "click", () => {
-    showView("inspection");
-    openEquipmentEditor();
+    openInspectionStep("equipment");
   });
   on(elements.fieldCameraButton, "click", openFieldCameraCapture);
   on(elements.fieldSaveButton, "click", async () => {
@@ -518,6 +551,12 @@ function setupAppActions() {
   elements.closeSidebarButton.addEventListener("click", closeSidebar);
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
   elements.toolsMenuButton.addEventListener("click", toggleToolsMenu);
+  elements.notificationsButton.addEventListener("click", toggleNotificationsPanel);
+  elements.profileButton.addEventListener("click", toggleProfilePanel);
+  document.querySelectorAll("[data-close-top-popover]").forEach((button) => {
+    button.addEventListener("click", closeTopPopovers);
+  });
+  setupServiceStepFlow();
   elements.addEquipmentButton.addEventListener("click", () => openEquipmentEditor());
   elements.importInspectionButton.addEventListener("click", () => elements.importInspectionInput.click());
   elements.importInspectionInput.addEventListener("change", handleInspectionImport);
@@ -691,6 +730,16 @@ function setupAppActions() {
       closeToolsMenu();
     }
     if (
+      elements.notificationsPanel
+      && elements.profilePanel
+      && !elements.notificationsButton.contains(event.target)
+      && !elements.profileButton.contains(event.target)
+      && !elements.notificationsPanel.contains(event.target)
+      && !elements.profilePanel.contains(event.target)
+    ) {
+      closeTopPopovers();
+    }
+    if (
       elements.historyCascadePanel
       && elements.openSidebarButton
       && !elements.openSidebarButton.contains(event.target)
@@ -798,6 +847,113 @@ function toggleToolsMenu(event) {
 function closeToolsMenu() {
   elements.toolsMenuList.classList.add("hidden");
   elements.toolsMenuButton.setAttribute("aria-expanded", "false");
+}
+
+function toggleNotificationsPanel(event) {
+  event.stopPropagation();
+  const willOpen = elements.notificationsPanel.classList.contains("hidden");
+  closeTopPopovers();
+  if (willOpen) {
+    renderNotificationsPanel();
+    elements.notificationsPanel.classList.remove("hidden");
+    elements.notificationsButton.setAttribute("aria-expanded", "true");
+  }
+}
+
+function toggleProfilePanel(event) {
+  event.stopPropagation();
+  const willOpen = elements.profilePanel.classList.contains("hidden");
+  closeTopPopovers();
+  if (willOpen) {
+    renderProfilePanel();
+    elements.profilePanel.classList.remove("hidden");
+    elements.profileButton.setAttribute("aria-expanded", "true");
+  }
+}
+
+function closeTopPopovers() {
+  elements.notificationsPanel?.classList.add("hidden");
+  elements.profilePanel?.classList.add("hidden");
+  elements.notificationsButton?.setAttribute("aria-expanded", "false");
+  elements.profileButton?.setAttribute("aria-expanded", "false");
+}
+
+function renderNotificationsPanel() {
+  if (!elements.notificationsContent) {
+    return;
+  }
+  const pendingSync = typeof readCloudPendingSync === "function" ? readCloudPendingSync() : {};
+  const lastError = typeof readCloudLastError === "function" ? readCloudLastError() : "";
+  const notices = [];
+  if (pendingSync.data) {
+    notices.push({
+      title: "Datos pendientes",
+      text: pendingSync.reason || "Hay cambios locales esperando sincronizacion.",
+      tone: "warning"
+    });
+  }
+  if (lastError) {
+    notices.push({
+      title: "Error de sincronizacion",
+      text: lastError,
+      tone: "danger"
+    });
+  }
+  if (!navigator.onLine) {
+    notices.push({
+      title: "Sin conexion",
+      text: "Puedes seguir trabajando. La app sincronizara los datos cuando vuelva internet.",
+      tone: "warning"
+    });
+  }
+  if (!notices.length) {
+    notices.push({
+      title: "Todo al dia",
+      text: "No hay avisos importantes por ahora.",
+      tone: "ok"
+    });
+  }
+
+  elements.notificationsContent.innerHTML = notices.map((notice) => `
+    <article class="top-notice is-${notice.tone}">
+      <strong>${escapeHtml(notice.title)}</strong>
+      <span>${escapeHtml(notice.text)}</span>
+    </article>
+  `).join("");
+  updateNotificationsBadge(notices);
+}
+
+function renderProfilePanel() {
+  if (!elements.profileContent) {
+    return;
+  }
+  const email = typeof getCloudUserEmail === "function" ? getCloudUserEmail() : "";
+  const role = typeof getCurrentUserRole === "function" ? getCurrentUserRole() : "admin";
+  const roleLabel = typeof formatUserRoleLabel === "function" ? formatUserRoleLabel(role) : role;
+  const connected = Boolean(email);
+  elements.profileContent.innerHTML = `
+    <article class="profile-card-mini">
+      <div class="profile-avatar" aria-hidden="true">??</div>
+      <div>
+        <strong>${escapeHtml(email || "Modo offline")}</strong>
+        <span>${escapeHtml(connected ? "Sesion conectada" : "Trabajando localmente")}</span>
+      </div>
+    </article>
+    <div class="profile-info-list">
+      <div><span>Rol</span><strong>${escapeHtml(roleLabel)}</strong></div>
+      <div><span>Estado</span><strong>${escapeHtml(navigator.onLine ? "Con conexion" : "Sin conexion")}</strong></div>
+      <div><span>Version</span><strong>${escapeHtml(APP_VERSION)}</strong></div>
+    </div>
+  `;
+}
+
+function updateNotificationsBadge(notices) {
+  if (!elements.notificationsBadge) {
+    return;
+  }
+  const count = (notices || []).filter((notice) => notice.tone !== "ok").length;
+  elements.notificationsBadge.textContent = String(count);
+  elements.notificationsBadge.classList.toggle("is-empty", count === 0);
 }
 
 function setupMobileNavigation() {
@@ -996,6 +1152,209 @@ function renderFieldSummaryPill(label, value) {
   `;
 }
 
+function setupServiceStepFlow() {
+  if (!elements.serviceStepNav) {
+    return;
+  }
+
+  elements.serviceStepNav.querySelectorAll("[data-service-step]").forEach((button) => {
+    button.addEventListener("click", () => setServiceStep(button.dataset.serviceStep));
+  });
+
+  if (elements.serviceStepPrevButton) {
+    elements.serviceStepPrevButton.addEventListener("click", () => moveServiceStep(-1));
+  }
+  if (elements.serviceStepNextButton) {
+    elements.serviceStepNextButton.addEventListener("click", () => moveServiceStep(1));
+  }
+
+  setServiceStep(activeServiceStep, { scroll: false });
+}
+
+function openInspectionStep(stepId) {
+  showView("inspection");
+  setServiceStep(stepId);
+}
+
+function moveServiceStep(direction) {
+  const currentIndex = SERVICE_STEP_DEFINITIONS.findIndex((step) => step.id === activeServiceStep);
+  const nextIndex = Math.max(0, Math.min(SERVICE_STEP_DEFINITIONS.length - 1, currentIndex + direction));
+  setServiceStep(SERVICE_STEP_DEFINITIONS[nextIndex].id);
+}
+
+function setServiceStep(stepId, options = {}) {
+  const stepIndex = SERVICE_STEP_DEFINITIONS.findIndex((step) => step.id === stepId);
+  const safeIndex = stepIndex >= 0 ? stepIndex : 0;
+  const step = SERVICE_STEP_DEFINITIONS[safeIndex];
+  activeServiceStep = step.id;
+
+  if (elements.serviceStepTitle) {
+    elements.serviceStepTitle.textContent = step.title;
+  }
+  if (elements.serviceStepHint) {
+    elements.serviceStepHint.textContent = step.hint;
+  }
+  if (elements.serviceStepCounter) {
+    elements.serviceStepCounter.textContent = `${safeIndex + 1}/${SERVICE_STEP_DEFINITIONS.length}`;
+  }
+  if (elements.serviceStepProgressBar) {
+    elements.serviceStepProgressBar.style.width = `${((safeIndex + 1) / SERVICE_STEP_DEFINITIONS.length) * 100}%`;
+  }
+
+  elements.serviceStepNav?.querySelectorAll("[data-service-step]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.serviceStep === step.id);
+  });
+  elements.serviceStepBody?.querySelectorAll("[data-service-step-panel]").forEach((panel) => {
+    panel.classList.toggle("hidden", panel.dataset.serviceStepPanel !== step.id);
+  });
+
+  if (elements.serviceStepPrevButton) {
+    elements.serviceStepPrevButton.disabled = safeIndex === 0;
+  }
+  if (elements.serviceStepNextButton) {
+    elements.serviceStepNextButton.textContent = safeIndex === SERVICE_STEP_DEFINITIONS.length - 1 ? "Listo" : "Siguiente";
+    elements.serviceStepNextButton.disabled = safeIndex === SERVICE_STEP_DEFINITIONS.length - 1;
+  }
+
+  renderServiceStepContent();
+
+  if (options.scroll !== false) {
+    elements.serviceStepBody?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function renderServiceStepContent() {
+  renderServiceChecklistStep();
+  renderServiceFindingsStep();
+  renderServiceEvidenceStep();
+  renderServiceSummaryStep();
+  renderServicePdfStep();
+  wireServiceStepDynamicActions();
+}
+
+function renderServiceChecklistStep() {
+  if (!elements.serviceChecklistStepContent) {
+    return;
+  }
+  elements.serviceChecklistStepContent.innerHTML = renderEquipmentStepCards({
+    emptyText: "Agrega un equipo para capturar o revisar su checklist.",
+    buttonLabel: "Abrir checklist",
+    targetStep: "checklist",
+    metric: (equipment) => equipment.checklistImage ? "Checklist adjunto" : "Sin imagen adjunta"
+  });
+}
+
+function renderServiceFindingsStep() {
+  if (!elements.serviceFindingsStepContent) {
+    return;
+  }
+  elements.serviceFindingsStepContent.innerHTML = renderEquipmentStepCards({
+    emptyText: "Agrega un equipo para registrar hallazgos.",
+    buttonLabel: "Abrir hallazgos",
+    targetStep: "findings",
+    metric: (equipment) => `${(equipment.findings || []).length} hallazgo(s)`
+  });
+}
+
+function renderServiceEvidenceStep() {
+  if (!elements.serviceEvidenceStepContent) {
+    return;
+  }
+  elements.serviceEvidenceStepContent.innerHTML = renderEquipmentStepCards({
+    emptyText: "Agrega un equipo para capturar evidencias fotograficas.",
+    buttonLabel: "Abrir evidencias",
+    targetStep: "evidence",
+    metric: (equipment) => {
+      const findingPhotos = (equipment.findings || []).reduce((sum, finding) => sum + (finding.photos || []).length, 0);
+      return `${(equipment.servicePhotos || []).length + findingPhotos + (equipment.checklistImage ? 1 : 0)} evidencia(s)`;
+    }
+  });
+}
+
+function renderServiceSummaryStep() {
+  if (!elements.serviceSummaryStepContent) {
+    return;
+  }
+  elements.serviceSummaryStepContent.innerHTML = renderEquipmentStepCards({
+    emptyText: "Agrega un equipo para cerrar condicion, mantenimiento y recomendaciones.",
+    buttonLabel: "Abrir resumen",
+    targetStep: "summary",
+    metric: (equipment) => equipment.overallCondition || "Sin condicion"
+  });
+}
+
+function renderServicePdfStep() {
+  if (!elements.servicePdfStepContent) {
+    return;
+  }
+  const included = currentEquipments.filter((equipment) => normalizeEquipment(equipment).includeInReport !== false).length;
+  const findings = currentEquipments.reduce((sum, equipment) => sum + ((equipment.findings || []).length), 0);
+  const photos = currentEquipments.reduce((sum, equipment) => {
+    const findingPhotos = (equipment.findings || []).reduce((photoSum, finding) => photoSum + (finding.photos || []).length, 0);
+    return sum + (equipment.servicePhotos || []).length + findingPhotos + (equipment.checklistImage ? 1 : 0);
+  }, 0);
+  elements.servicePdfStepContent.innerHTML = `
+    <div class="service-pdf-summary">
+      <article><span>Empresa</span><strong>${escapeHtml(elements.plantName.value || "Sin seleccionar")}</strong></article>
+      <article><span>Folio PDF</span><strong>${escapeHtml(elements.reportNumber.value || "Sin folio")}</strong></article>
+      <article><span>Equipos al PDF</span><strong>${included}/${currentEquipments.length}</strong></article>
+      <article><span>Hallazgos</span><strong>${findings}</strong></article>
+      <article><span>Evidencias</span><strong>${photos}</strong></article>
+    </div>
+    <div class="service-pdf-actions">
+      <button class="secondary-button" type="button" data-service-save>Guardar servicio</button>
+      <button class="primary-button" type="button" data-service-pdf>Generar PDF</button>
+    </div>
+  `;
+  elements.servicePdfStepContent.querySelector("[data-service-save]")?.addEventListener("click", persistInspection);
+  elements.servicePdfStepContent.querySelector("[data-service-pdf]")?.addEventListener("click", generatePdfReport);
+}
+
+function renderEquipmentStepCards(options) {
+  if (!currentEquipments.length) {
+    return `
+      <div class="inline-empty-state">
+        ${escapeHtml(options.emptyText)}
+        <div class="service-empty-action">
+          <button class="secondary-button" type="button" data-service-add-equipment>Agregar equipo</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return currentEquipments.map((equipment, index) => {
+    const normalized = normalizeEquipment(equipment);
+    return `
+      <article class="service-step-card">
+        <div>
+          <span>Equipo ${index + 1}</span>
+          <strong>${escapeHtml(normalized.equipmentName || normalized.craneType || "Equipo sin nombre")}</strong>
+          <small>${escapeHtml(normalized.craneType || "Tipo no capturado")} | ${escapeHtml(options.metric(normalized))}</small>
+        </div>
+        <button class="secondary-button" type="button" data-open-equipment-step="${escapeHtml(options.targetStep)}" data-equipment-id="${escapeHtml(normalized.id)}">${escapeHtml(options.buttonLabel)}</button>
+      </article>
+    `;
+  }).join("");
+}
+
+function wireServiceStepDynamicActions() {
+  document.querySelectorAll("[data-service-add-equipment]").forEach((button) => {
+    if (button.dataset.wired) {
+      return;
+    }
+    button.dataset.wired = "true";
+    button.addEventListener("click", () => openEquipmentEditor());
+  });
+
+  document.querySelectorAll("[data-open-equipment-step]").forEach((button) => {
+    if (button.dataset.wired) {
+      return;
+    }
+    button.dataset.wired = "true";
+    button.addEventListener("click", () => openEquipmentEditor(button.dataset.equipmentId, { section: button.dataset.openEquipmentStep }));
+  });
+}
+
 function focusInspectionField(field) {
   showView("inspection");
   setTimeout(() => {
@@ -1007,9 +1366,9 @@ function focusInspectionField(field) {
 }
 
 function openFieldCameraCapture() {
-  showView("inspection");
+  openInspectionStep("evidence");
   const targetEquipmentId = currentEquipments[0] && currentEquipments[0].id;
-  openEquipmentEditor(targetEquipmentId);
+  openEquipmentEditor(targetEquipmentId, { section: "evidence" });
   setTimeout(() => {
     if (elements.servicePhotoCameraButton) {
       elements.servicePhotoCameraButton.click();
@@ -1054,6 +1413,9 @@ function showView(view) {
   }
   elements.settingsView.classList.toggle("hidden", view !== "settings");
   elements.companyCraneRegistryView.classList.toggle("hidden", view !== "companyCraneRegistry");
+  if (view === "inspection") {
+    renderServiceStepContent();
+  }
 }
 
 function updateContextToolbar(view) {
@@ -1169,6 +1531,7 @@ function updateConnectivityStatus(message) {
   elements.connectionStatus.textContent = message || (navigator.onLine
     ? "Con conexion. Los datos siguen guardandose localmente."
     : "Sin conexion. Puedes seguir trabajando offline.");
+  renderNotificationsPanel();
 }
 
 function readDeletedInspections() {
@@ -1281,13 +1644,7 @@ async function persistInspection() {
     return null;
   }
 
-  if (!elements.form.reportValidity()) {
-    elements.form.reportValidity();
-    return null;
-  }
-
-  if (!currentEquipments.length) {
-    window.alert("Agrega al menos un equipo antes de guardar el servicio o generar el reporte PDF.");
+  if (!(await validateInspectionBeforePersist())) {
     return null;
   }
 
@@ -1308,6 +1665,61 @@ async function persistInspection() {
   await renderSavedReports();
   queueDataSync("servicio guardado");
   return inspection;
+}
+
+async function validateInspectionBeforePersist() {
+  const validations = [
+    {
+      element: elements.plantName,
+      step: "company",
+      title: "Selecciona una empresa",
+      message: "Antes de guardar o generar el PDF, selecciona el Cliente / Planta."
+    },
+    {
+      element: elements.plantLocation,
+      step: "company",
+      title: "Captura la ubicacion",
+      message: "Antes de guardar o generar el PDF, captura la ubicacion del servicio."
+    },
+    {
+      element: elements.inspectionDate,
+      step: "service",
+      title: "Captura la fecha",
+      message: "Antes de guardar o generar el PDF, captura la fecha del servicio."
+    },
+    {
+      element: elements.technicianName,
+      step: "service",
+      title: "Captura el tecnico",
+      message: "Antes de guardar o generar el PDF, captura el tecnico responsable."
+    }
+  ];
+
+  const missing = validations.find((item) => !item.element || !item.element.value.trim());
+  if (missing) {
+    if (missing.step) {
+      setServiceStep(missing.step);
+    }
+    await showAppDialog({
+      title: missing.title,
+      message: missing.message,
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    missing.element?.focus();
+    return false;
+  }
+
+  if (!currentEquipments.length) {
+    setServiceStep("equipment");
+    await showAppDialog({
+      title: "Agrega al menos un equipo",
+      message: "Necesitas agregar un equipo antes de guardar el servicio o generar el reporte PDF.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    return false;
+  }
+
+  return true;
 }
 
 async function exportCurrentInspection() {
@@ -2270,7 +2682,7 @@ function isHighSeverityFinding(finding) {
     finding.recommendation
   ].join(" ").toLowerCase();
 
-  return /\b(alta|alto|critico|critica|crÃ­tico|crÃ­tica|grave|urgente|riesgo alto)\b/.test(severityText);
+  return /\b(alta|alto|critico|critica|crítico|crítica|grave|urgente|riesgo alto)\b/.test(severityText);
 }
 
 function loadInspection(record) {
@@ -2293,6 +2705,7 @@ function loadInspection(record) {
   renderEquipmentList();
 
   showView("inspection");
+  setServiceStep("equipment", { scroll: false });
 }
 
 function resetForm() {
@@ -2307,6 +2720,7 @@ function resetForm() {
   resetEquipmentEditorState();
   renderEquipmentList();
   showView("inspection");
+  setServiceStep("company", { scroll: false });
 }
 
 function syncServiceModeFromServiceType() {

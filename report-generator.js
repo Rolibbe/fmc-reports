@@ -47,10 +47,16 @@ const REPORT_STYLE = `
   .muted { color: #666; font-style: italic; }
   .footer { position: absolute; bottom: 5mm; left: 8mm; right: 8mm; display: flex; justify-content: space-between; font-size: 7.5pt; color: #444; }
   .page-number::after { content: counter(page); }
+  .report-print-toolbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 216mm; margin: 0 auto 4mm; padding: 10px 12px; background: #102f43; color: #fff; box-shadow: 0 8px 24px rgba(16,47,67,0.18); }
+  .report-print-toolbar strong { font-size: 10pt; }
+  .report-print-toolbar div { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .report-print-toolbar button { border: 1px solid rgba(255,255,255,0.35); border-radius: 999px; padding: 8px 12px; background: #fff; color: #102f43; font-weight: 700; cursor: pointer; }
+  .report-print-toolbar button.primary { border-color: #f97316; background: #f97316; color: #fff; }
   @media print {
     body { background: white; }
     .report-shell { width: auto; padding: 0; }
     .page { margin: 0; box-shadow: none; }
+    .report-print-toolbar { display: none; }
   }
 `;
 
@@ -74,6 +80,13 @@ async function openReportPdfWindow(inspection, existingPopup) {
   <style>:root { --accent-color: ${escapeHtml(reportData.template.accentColor)}; --header-color: ${escapeHtml(reportData.template.headerColor)}; } ${REPORT_STYLE}</style>
 </head>
 <body>
+  <div class="report-print-toolbar">
+    <strong>${escapeHtml(reportData.reportNumber)} - Reporte listo</strong>
+    <div>
+      <button type="button" onclick="window.close()">Cerrar</button>
+      <button class="primary" type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
+    </div>
+  </div>
   <div class="report-shell">
     ${renderCoverPage(reportData)}
     ${reportData.equipments.map((equipment, index) => renderEquipmentSection(reportData, equipment, index)).join("")}

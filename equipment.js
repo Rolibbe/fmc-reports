@@ -26,7 +26,7 @@ function addMonthsToDateInput(dateValue, months) {
   return target.toISOString().slice(0, 10);
 }
 
-function openEquipmentEditor(equipmentId) {
+function openEquipmentEditor(equipmentId, options = {}) {
   const equipment = currentEquipments.find((item) => item.id === equipmentId);
   const normalized = equipment ? normalizeEquipment(equipment) : createEmptyEquipment();
 
@@ -34,6 +34,19 @@ function openEquipmentEditor(equipmentId) {
   elements.editingEquipmentId.value = equipment ? equipment.id : "";
   loadEquipmentIntoEditor(normalized);
   showView("equipment");
+  focusEquipmentEditorSection(options.section);
+}
+
+function focusEquipmentEditorSection(section) {
+  if (!section) {
+    return;
+  }
+  setTimeout(() => {
+    const target = document.querySelector(`[data-editor-section="${section}"]`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, 120);
 }
 
 function loadEquipmentIntoEditor(equipment) {
@@ -459,6 +472,9 @@ function renderEquipmentList() {
 
   if (!currentEquipments.length) {
     elements.equipmentList.innerHTML = '<div class="inline-empty-state">Todavia no hay equipos en este reporte. Usa el boton de Anadir Equipo para registrar el primero.</div>';
+    if (typeof renderServiceStepContent === "function") {
+      renderServiceStepContent();
+    }
     return;
   }
 
@@ -519,6 +535,10 @@ function renderEquipmentList() {
     shell.appendChild(deleteButton);
     elements.equipmentList.appendChild(shell);
   });
+
+  if (typeof renderServiceStepContent === "function") {
+    renderServiceStepContent();
+  }
 }
 
 function updateEquipmentReportInclusion(equipmentId, includeInReport) {
@@ -532,6 +552,9 @@ function updateEquipmentReportInclusion(equipmentId, includeInReport) {
       includeInReport
     };
   });
+  if (typeof renderServiceStepContent === "function") {
+    renderServiceStepContent();
+  }
 }
 
 function handleEquipmentDragStart(event, equipmentId) {

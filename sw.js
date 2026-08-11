@@ -1,4 +1,4 @@
-const CACHE_NAME = "crane-inspection-cache-v123";
+const CACHE_NAME = "crane-inspection-cache-v129";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -59,6 +59,26 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") {
     return;
   }
+  const url = new URL(event.request.url);
+  const isLocalAsset = url.origin === self.location.origin;
+  const shouldRefreshFirst = isLocalAsset && (
+    url.pathname.endsWith("/") ||
+    /\.(html|js|css|json|txt|csv)$/i.test(url.pathname)
+  );
+
+  if (shouldRefreshFirst) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request, { ignoreSearch: true }))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request, { ignoreSearch: true }).then((cached) => cached || fetch(event.request))
   );

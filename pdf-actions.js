@@ -27,8 +27,19 @@ async function generatePdfReport() {
   try {
     await openReportPdfWindow(selectedInspection, popup);
   } catch (error) {
+    console.error("Error al generar PDF", error);
     popup.close();
-    window.alert("No se pudo generar el reporte PDF completo.");
+    const detail = error && error.message ? error.message : String(error || "Error desconocido");
+    if (typeof showAppDialog === "function") {
+      await showAppDialog({
+        title: "No se pudo generar el PDF",
+        message: "La app no pudo construir la vista imprimible del reporte.",
+        details: detail,
+        actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+      });
+    } else {
+      window.alert(`No se pudo generar el reporte PDF completo. Detalle: ${detail}`);
+    }
   }
 }
 

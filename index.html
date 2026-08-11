@@ -7,7 +7,7 @@
   <title>Servicios FMC</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="logo.png" type="image/png">
-  <link rel="stylesheet" href="styles.css?v=120">
+  <link rel="stylesheet" href="styles.css?v=129">
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -150,7 +150,36 @@
         <p id="contextEyebrow" class="eyebrow">Operacion</p>
         <h2 id="contextTitle">Panel principal</h2>
       </div>
-      <div id="contextActions" class="context-actions">
+      <div class="top-icon-actions" aria-label="Notificaciones y perfil">
+        <button id="notificationsButton" class="top-icon-button" type="button" aria-label="Abrir notificaciones" aria-expanded="false" aria-controls="notificationsPanel">
+          <span aria-hidden="true">&#128276;</span>
+          <strong id="notificationsBadge">0</strong>
+        </button>
+        <button id="profileButton" class="top-icon-button" type="button" aria-label="Abrir perfil" aria-expanded="false" aria-controls="profilePanel">
+          <span aria-hidden="true">&#128100;</span>
+        </button>
+        <div id="notificationsPanel" class="top-popover hidden">
+          <div class="top-popover-header">
+            <div>
+              <p class="eyebrow">Notificaciones</p>
+              <strong>Centro de avisos</strong>
+            </div>
+            <button type="button" data-close-top-popover>Cerrar</button>
+          </div>
+          <div id="notificationsContent" class="top-popover-content"></div>
+        </div>
+        <div id="profilePanel" class="top-popover hidden">
+          <div class="top-popover-header">
+            <div>
+              <p class="eyebrow">Perfil</p>
+              <strong>Mi informacion</strong>
+            </div>
+            <button type="button" data-close-top-popover>Cerrar</button>
+          </div>
+          <div id="profileContent" class="top-popover-content"></div>
+        </div>
+      </div>
+      <div id="contextActions" class="context-actions context-actions-drawer hidden">
         <button id="saveInspectionButton" class="secondary-button context-report-action" type="button">Guardar servicio</button>
         <button id="generatePdfButton" class="primary-button context-report-action" type="button">Generar PDF</button>
         <button id="navSyncCloudButton" class="ghost-button context-data-action nav-sync-button" type="button">Sincronizar datos</button>
@@ -347,72 +376,189 @@
           <datalist id="polipastoOptions"></datalist>
           <datalist id="craneTypeOptions"></datalist>
 
-          <div class="grid two-column">
-            <label>
-              Folio del reporte PDF
-              <input id="reportNumber" name="reportNumber" type="text" placeholder="Ej. 26-140">
-            </label>
-            <label>
-              Linea de servicio
-              <select id="assetType" name="assetType">
-                <option value="cranes">Gruas</option>
-                <option value="racks">Racks</option>
-                <option value="other">Otro / futuro modulo</option>
-              </select>
-            </label>
-            <label>
-              Modalidad
-              <select id="serviceMode" name="serviceMode">
-                <option value="preventive">Preventivo</option>
-                <option value="corrective">Correctivo</option>
-              </select>
-            </label>
-            <label>
-              Descripcion del servicio
-              <select id="serviceType" name="serviceType">
-                <option value="Inspeccion de grua">Inspeccion de grua</option>
-                <option value="Mantenimiento correctivo">Mantenimiento correctivo</option>
-                <option value="Mantenimiento preventivo">Mantenimiento preventivo</option>
-                <option value="Supervision tecnica">Supervision tecnica</option>
-              </select>
-            </label>
-            <label>
-              Fecha
-              <input id="inspectionDate" name="inspectionDate" type="date" required>
-            </label>
-            <label>
-              Tecnico responsable
-              <input id="technicianName" name="technicianName" type="text" placeholder="Nombre del tecnico" required>
-            </label>
-            <label>
-              Cliente / planta
-              <select id="plantName" name="plantName" required>
-                <option value="">Cargando clientes...</option>
-              </select>
-            </label>
-            <label>
-              Ubicacion
-              <input id="plantLocation" name="plantLocation" type="text" placeholder="Ciudad, estado, area" required>
-            </label>
-            <label>
-              Encargado en sitio
-              <input id="siteContact" name="siteContact" type="text" placeholder="Responsable que firma">
-            </label>
-            <label>
-              Correo / telefono
-              <input id="siteContactInfo" name="siteContactInfo" type="text" placeholder="Datos de contacto">
-            </label>
-          </div>
-
-          <section class="subpanel">
-            <div class="section-header">
+          <section class="service-flow">
+            <div class="service-flow-head">
               <div>
-                <p class="eyebrow">Equipos inspeccionados</p>
-                <h3>Lista de equipos incluidos en el servicio</h3>
+                <p class="eyebrow">Flujo de captura</p>
+                <h3 id="serviceStepTitle">Empresa</h3>
+                <p id="serviceStepHint">Selecciona la empresa y los datos de contacto del servicio.</p>
               </div>
-              <button id="addEquipmentButton" class="secondary-button" type="button">Anadir Equipo</button>
+              <div class="service-flow-progress">
+                <span id="serviceStepCounter">1/9</span>
+                <strong id="serviceStepProgressBar"></strong>
+              </div>
             </div>
-            <div id="equipmentList" class="findings-list"></div>
+
+            <div id="serviceStepNav" class="service-step-nav" aria-label="Pasos del servicio">
+              <button type="button" data-service-step="company">Empresa</button>
+              <button type="button" data-service-step="asset">Tipo de equipo</button>
+              <button type="button" data-service-step="service">Tipo de servicio</button>
+              <button type="button" data-service-step="equipment">Equipos</button>
+              <button type="button" data-service-step="checklist">Checklist</button>
+              <button type="button" data-service-step="findings">Hallazgos</button>
+              <button type="button" data-service-step="evidence">Evidencias</button>
+              <button type="button" data-service-step="summary">Resumen</button>
+              <button type="button" data-service-step="pdf">PDF</button>
+            </div>
+
+            <div id="serviceStepBody" class="service-step-body">
+              <section class="subpanel service-step-panel" data-service-step-panel="company">
+                <div class="section-header">
+                  <div>
+                    <p class="eyebrow">Empresa</p>
+                    <h3>Cliente y contacto</h3>
+                  </div>
+                </div>
+                <div class="grid two-column">
+                  <label>
+                    Cliente / planta
+                    <select id="plantName" name="plantName" required>
+                      <option value="">Cargando clientes...</option>
+                    </select>
+                  </label>
+                  <label>
+                    Ubicacion
+                    <input id="plantLocation" name="plantLocation" type="text" placeholder="Ciudad, estado, area" required>
+                  </label>
+                  <label>
+                    Encargado en sitio
+                    <input id="siteContact" name="siteContact" type="text" placeholder="Responsable que firma">
+                  </label>
+                  <label>
+                    Correo / telefono
+                    <input id="siteContactInfo" name="siteContactInfo" type="text" placeholder="Datos de contacto">
+                  </label>
+                </div>
+              </section>
+
+              <section class="subpanel service-step-panel" data-service-step-panel="asset">
+                <div class="section-header">
+                  <div>
+                    <p class="eyebrow">Tipo de equipo</p>
+                    <h3>Linea del servicio</h3>
+                  </div>
+                </div>
+                <div class="grid two-column">
+                  <label>
+                    Linea de servicio
+                    <select id="assetType" name="assetType">
+                      <option value="cranes">Gruas</option>
+                      <option value="racks">Racks</option>
+                      <option value="other">Otro / futuro modulo</option>
+                    </select>
+                  </label>
+                  <div class="service-step-note">
+                    <strong>Base del flujo</strong>
+                    <span>Esta seleccion define si el servicio se captura como gruas, racks o un modulo futuro.</span>
+                  </div>
+                </div>
+              </section>
+
+              <section class="subpanel service-step-panel" data-service-step-panel="service">
+                <div class="section-header">
+                  <div>
+                    <p class="eyebrow">Tipo de servicio</p>
+                    <h3>Folio, modalidad y tecnico</h3>
+                  </div>
+                </div>
+                <div class="grid two-column">
+                  <label>
+                    Folio del reporte PDF
+                    <input id="reportNumber" name="reportNumber" type="text" placeholder="Ej. 26-140">
+                  </label>
+                  <label>
+                    Modalidad
+                    <select id="serviceMode" name="serviceMode">
+                      <option value="preventive">Preventivo</option>
+                      <option value="corrective">Correctivo</option>
+                    </select>
+                  </label>
+                  <label>
+                    Descripcion del servicio
+                    <select id="serviceType" name="serviceType">
+                      <option value="Inspeccion de grua">Inspeccion de grua</option>
+                      <option value="Mantenimiento correctivo">Mantenimiento correctivo</option>
+                      <option value="Mantenimiento preventivo">Mantenimiento preventivo</option>
+                      <option value="Supervision tecnica">Supervision tecnica</option>
+                    </select>
+                  </label>
+                  <label>
+                    Fecha
+                    <input id="inspectionDate" name="inspectionDate" type="date" required>
+                  </label>
+                  <label>
+                    Tecnico responsable
+                    <input id="technicianName" name="technicianName" type="text" placeholder="Nombre del tecnico" required>
+                  </label>
+                </div>
+              </section>
+
+              <section class="subpanel service-step-panel" data-service-step-panel="equipment">
+                <div class="section-header">
+                  <div>
+                    <p class="eyebrow">Equipos incluidos</p>
+                    <h3>Lista de equipos incluidos en el servicio</h3>
+                  </div>
+                  <button id="addEquipmentButton" class="secondary-button" type="button">Anadir Equipo</button>
+                </div>
+                <div id="equipmentList" class="findings-list"></div>
+              </section>
+
+              <section class="subpanel service-step-panel" data-service-step-panel="checklist">
+                <div class="section-header">
+                  <div>
+                    <p class="eyebrow">Checklist</p>
+                    <h3>Revision por equipo</h3>
+                  </div>
+                </div>
+                <div id="serviceChecklistStepContent" class="service-step-cards"></div>
+              </section>
+
+              <section class="subpanel service-step-panel" data-service-step-panel="findings">
+                <div class="section-header">
+                  <div>
+                    <p class="eyebrow">Hallazgos</p>
+                    <h3>No conformidades detectadas</h3>
+                  </div>
+                </div>
+                <div id="serviceFindingsStepContent" class="service-step-cards"></div>
+              </section>
+
+              <section class="subpanel service-step-panel" data-service-step-panel="evidence">
+                <div class="section-header">
+                  <div>
+                    <p class="eyebrow">Evidencias</p>
+                    <h3>Fotos y checklist escaneado</h3>
+                  </div>
+                </div>
+                <div id="serviceEvidenceStepContent" class="service-step-cards"></div>
+              </section>
+
+              <section class="subpanel service-step-panel" data-service-step-panel="summary">
+                <div class="section-header">
+                  <div>
+                    <p class="eyebrow">Resumen</p>
+                    <h3>Condicion general y recomendaciones</h3>
+                  </div>
+                </div>
+                <div id="serviceSummaryStepContent" class="service-step-cards"></div>
+              </section>
+
+              <section class="subpanel service-step-panel" data-service-step-panel="pdf">
+                <div class="section-header">
+                  <div>
+                    <p class="eyebrow">PDF</p>
+                    <h3>Cierre del servicio</h3>
+                  </div>
+                </div>
+                <div id="servicePdfStepContent" class="service-pdf-panel"></div>
+              </section>
+            </div>
+
+            <div class="service-step-actions">
+              <button id="serviceStepPrevButton" class="ghost-button" type="button">Anterior</button>
+              <button id="serviceStepNextButton" class="secondary-button" type="button">Siguiente</button>
+            </div>
           </section>
 
         </form>
@@ -433,7 +579,7 @@
         <form id="equipmentEditorForm">
           <input id="editingEquipmentId" type="hidden">
 
-          <section class="subpanel editor-subpanel">
+          <section class="subpanel editor-subpanel" data-editor-section="equipment">
             <div class="section-header">
               <div>
                 <p class="eyebrow">Catalogo de empresa</p>
@@ -450,7 +596,7 @@
             </div>
           </section>
 
-          <section class="subpanel editor-subpanel">
+          <section class="subpanel editor-subpanel" data-editor-section="equipment">
             <div class="section-header">
               <div>
                 <p class="eyebrow">Datos del equipo</p>
@@ -489,7 +635,7 @@
             </div>
           </section>
 
-          <section class="subpanel editor-subpanel">
+          <section class="subpanel editor-subpanel" data-editor-section="equipment">
             <div class="section-header">
               <div>
                 <p class="eyebrow">Datos del polipasto</p>
@@ -529,7 +675,7 @@
             </div>
           </section>
 
-          <section class="subpanel editor-subpanel">
+          <section class="subpanel editor-subpanel" data-editor-section="findings">
             <div class="section-header">
               <div>
                 <p class="eyebrow">Hallazgos</p>
@@ -548,7 +694,7 @@
             <div id="findingsList" class="findings-list"></div>
           </section>
 
-          <section class="subpanel editor-subpanel">
+          <section class="subpanel editor-subpanel" data-editor-section="summary">
             <div class="section-header">
               <div>
                 <p class="eyebrow">Resumen</p>
@@ -596,7 +742,7 @@
             </label>
           </section>
 
-          <section class="subpanel editor-subpanel">
+          <section class="subpanel editor-subpanel" data-editor-section="evidence">
             <div class="section-header">
               <div>
                 <p class="eyebrow">Evidencia del servicio</p>
@@ -614,7 +760,7 @@
             <div id="servicePhotoPreview" class="photo-preview large-preview image-drop-zone" data-empty-label="Arrastra fotos aqui o usa los botones de arriba"></div>
           </section>
 
-          <section class="subpanel editor-subpanel">
+          <section class="subpanel editor-subpanel" data-editor-section="checklist">
             <div class="section-header">
               <div>
                 <p class="eyebrow">Checklist escaneado</p>
@@ -1246,22 +1392,22 @@
     <button id="mobileMoreButton" type="button"><span>...</span>Mas</button>
   </nav>
 
-  <script src="report-template-config.js?v=123"></script>
-  <script src="finding-catalog-config.js?v=123"></script>
-  <script src="checklist-config.js?v=123"></script>
-  <script src="findings.js?v=123"></script>
-  <script src="company-cranes.js?v=123"></script>
-  <script src="equipment.js?v=123"></script>
-  <script src="pdf-actions.js?v=123"></script>
-  <script src="backup.js?v=123"></script>
-  <script src="storage.js?v=123"></script>
-  <script src="settings.js?v=123"></script>
-  <script src="operations.js?v=123"></script>
-  <script src="maintenance-panel.js?v=123"></script>
-  <script src="dashboard.js?v=123"></script>
-  <script src="report-generator.js?v=123"></script>
-  <script src="supabase-config.js?v=123"></script>
-  <script src="cloud-sync.js?v=123"></script>
-  <script src="app.js?v=123"></script>
+  <script src="report-template-config.js?v=129"></script>
+  <script src="finding-catalog-config.js?v=129"></script>
+  <script src="checklist-config.js?v=129"></script>
+  <script src="findings.js?v=129"></script>
+  <script src="company-cranes.js?v=129"></script>
+  <script src="equipment.js?v=129"></script>
+  <script src="pdf-actions.js?v=129"></script>
+  <script src="backup.js?v=129"></script>
+  <script src="storage.js?v=129"></script>
+  <script src="settings.js?v=129"></script>
+  <script src="operations.js?v=129"></script>
+  <script src="maintenance-panel.js?v=129"></script>
+  <script src="dashboard.js?v=129"></script>
+  <script src="report-generator.js?v=129"></script>
+  <script src="supabase-config.js?v=129"></script>
+  <script src="cloud-sync.js?v=129"></script>
+  <script src="app.js?v=129"></script>
 </body>
 </html>
