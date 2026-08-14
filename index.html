@@ -7,7 +7,7 @@
   <title>Servicios FMC</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="logo.png" type="image/png">
-  <link rel="stylesheet" href="styles.css?v=131">
+  <link rel="stylesheet" href="styles.css?v=144">
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -35,7 +35,7 @@
           <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Contrasena">
         </label>
         <button id="loginButton" class="primary-button login-submit" type="button">Ingresar</button>
-        <button id="loginOfflineButton" class="ghost-button login-offline" type="button">Entrar en modo offline</button>
+        <button id="loginOfflineButton" class="ghost-button login-offline hidden" type="button">Entrar en modo offline</button>
       </div>
       <p id="loginStatus" class="login-status">Conecta con tu cuenta de Supabase para iniciar.</p>
     </div>
@@ -50,7 +50,7 @@
         <button id="closeSidebarButton" class="ghost-button sidebar-close-button" type="button">Cerrar</button>
       </div>
       <div>
-        <p class="eyebrow">Modo offline</p>
+        <p class="eyebrow">Archivo local</p>
         <h1>Servicios FMC</h1>
         <p class="intro">
           Registra servicios en sitio con multiples equipos, evidencia y salida lista para PDF.
@@ -81,22 +81,31 @@
 
       <div class="nav-group">
         <p class="nav-label">Menu principal</p>
-        <button id="openHomeButton" class="nav-action nav-action-strong" type="button">Panel principal</button>
-        <button id="newInspectionButton" class="nav-link" type="button">Nuevo servicio</button>
-        <div class="nav-history-anchor">
-          <button id="openSidebarButton" class="nav-link" type="button">Servicios</button>
-          <div id="historyCascadePanel" class="history-cascade hidden" aria-label="Historial por empresa"></div>
-        </div>
+        <button id="openHomeButton" class="nav-action nav-action-strong" type="button">Inicio</button>
+        <button id="newInspectionButton" class="nav-link" type="button">Servicios</button>
         <button id="openCompanyCraneRegistryButton" class="nav-link" type="button">Empresas y equipos</button>
         <button id="openMaintenancePanelButton" class="nav-link" type="button">Mantenimiento</button>
-        <button id="openDashboardButton" class="nav-link" type="button">Dashboard</button>
-        <button id="openSettingsButton" class="nav-link" type="button">Configuracion</button>
+        <button id="openWorkOrdersButton" class="nav-link" type="button">Agenda</button>
+        <div class="nav-history-anchor">
+          <button id="openSidebarButton" class="nav-link" type="button">Reportes</button>
+          <div id="historyCascadePanel" class="history-cascade hidden" aria-label="Historial por empresa"></div>
+        </div>
       </div>
 
+      <details class="nav-group nav-tools-group nav-settings-group">
+        <summary>Configuracion</summary>
+        <button id="openSettingsButton" class="nav-link" type="button" data-open-settings-section="general">General</button>
+        <button class="nav-link" type="button" data-open-settings-section="users">Usuarios y roles</button>
+        <button class="nav-link" type="button" data-open-settings-section="sync">Sincronizacion</button>
+        <button class="nav-link" type="button" data-open-settings-section="backup">Respaldos</button>
+        <button class="nav-link" type="button" data-open-settings-section="audit">Bitacora</button>
+        <button class="nav-link" type="button" data-open-settings-section="catalogs">Catalogos</button>
+      </details>
+
       <details class="nav-group nav-tools-group">
-        <summary>Mas herramientas</summary>
+        <summary>Proximamente</summary>
         <button id="openFieldModeButton" class="nav-link" type="button">Modo campo</button>
-        <button id="openWorkOrdersButton" class="nav-link" type="button">Agenda</button>
+        <button id="openDashboardButton" class="nav-link" type="button">Dashboard</button>
         <button id="openConsolidatedHistoryButton" class="nav-link" type="button">Concentrado</button>
         <button id="openAuditLogButton" class="nav-link" type="button">Bitacora</button>
       </details>
@@ -130,17 +139,17 @@
         </div>
         <div class="mobile-more-grid">
           <button id="mobileHomeButton" type="button">Inicio</button>
-          <button id="mobileFieldModeButton" type="button">Modo campo</button>
-          <button id="mobileSaveButton" type="button">Guardar</button>
-          <button id="mobileDashboardButton" type="button">Dashboard</button>
           <button id="mobileWorkOrdersButton" type="button">Agenda</button>
-          <button id="mobileAuditLogButton" type="button">Bitacora</button>
           <button id="mobileMaintenanceButton" type="button">Mantenimiento</button>
-          <button id="mobileConsolidatedButton" type="button">Concentrado</button>
           <button id="mobileSettingsButton" type="button">Configuracion</button>
+          <button id="mobileDashboardButton" type="button">Dashboard</button>
+          <button id="mobileFieldModeButton" type="button">Modo campo</button>
+          <button id="mobileAuditLogButton" type="button">Bitacora</button>
+          <button id="mobileConsolidatedButton" type="button">Concentrado</button>
           <button id="mobileSyncCenterButton" type="button">Centro sync</button>
           <button id="mobileBackupButton" type="button">Importar respaldo</button>
-          <button id="mobileOfflineButton" type="button">Modo offline</button>
+          <button id="mobileSaveButton" type="button">Guardar</button>
+          <button id="mobileOfflineButton" class="hidden" type="button">Modo offline</button>
         </div>
       </div>
     </section>
@@ -326,7 +335,7 @@
           <button id="fieldNewButton" class="field-step-card" type="button">
             <span>1</span>
             <strong>Iniciar servicio</strong>
-            <small>Folio PDF, linea, modalidad, fecha y tecnico.</small>
+            <small>Folio PDF, linea, fecha y tecnico.</small>
           </button>
           <button id="fieldClientButton" class="field-step-card" type="button">
             <span>2</span>
@@ -361,7 +370,7 @@
           <div>
             <p class="eyebrow">Captura en campo</p>
             <h2>Nuevo servicio</h2>
-            <p class="page-subtitle">Registra empresa, tipo de equipo, modalidad, hallazgos, evidencias y genera el reporte PDF como salida final.</p>
+            <p class="page-subtitle">Registra empresa, equipos, hallazgos, evidencias y genera el reporte PDF como salida final.</p>
           </div>
           <div class="page-hero-badge">
             <span>Offline</span>
@@ -384,20 +393,18 @@
                 <p id="serviceStepHint">Selecciona la empresa y los datos de contacto del servicio.</p>
               </div>
               <div class="service-flow-progress">
-                <span id="serviceStepCounter">1/9</span>
-                <strong id="serviceStepProgressBar"></strong>
+                <span id="serviceStepCounter">Cumplimiento 25%</span>
+                <div class="service-progress-track" aria-hidden="true">
+                  <strong id="serviceStepProgressBar"></strong>
+                  <span class="service-progress-burst"></span>
+                </div>
               </div>
             </div>
 
             <div id="serviceStepNav" class="service-step-nav" aria-label="Pasos del servicio">
               <button type="button" data-service-step="company">Empresa</button>
-              <button type="button" data-service-step="asset">Tipo de equipo</button>
               <button type="button" data-service-step="service">Tipo de servicio</button>
               <button type="button" data-service-step="equipment">Equipos</button>
-              <button type="button" data-service-step="checklist">Checklist</button>
-              <button type="button" data-service-step="findings">Hallazgos</button>
-              <button type="button" data-service-step="evidence">Evidencias</button>
-              <button type="button" data-service-step="summary">Resumen</button>
               <button type="button" data-service-step="pdf">PDF</button>
             </div>
 
@@ -420,14 +427,8 @@
                     Ubicacion
                     <input id="plantLocation" name="plantLocation" type="text" placeholder="Ciudad, estado, area" required>
                   </label>
-                  <label>
-                    Encargado en sitio
-                    <input id="siteContact" name="siteContact" type="text" placeholder="Responsable que firma">
-                  </label>
-                  <label>
-                    Correo / telefono
-                    <input id="siteContactInfo" name="siteContactInfo" type="text" placeholder="Datos de contacto">
-                  </label>
+                  <input id="siteContact" name="siteContact" type="hidden">
+                  <input id="siteContactInfo" name="siteContactInfo" type="hidden">
                 </div>
               </section>
 
@@ -458,7 +459,7 @@
                 <div class="section-header">
                   <div>
                     <p class="eyebrow">Tipo de servicio</p>
-                    <h3>Folio, modalidad y tecnico</h3>
+                    <h3>Folio, fecha y tecnico</h3>
                   </div>
                 </div>
                 <div class="grid two-column">
@@ -466,13 +467,7 @@
                     Folio del reporte PDF
                     <input id="reportNumber" name="reportNumber" type="text" placeholder="Ej. 26-140">
                   </label>
-                  <label>
-                    Modalidad
-                    <select id="serviceMode" name="serviceMode">
-                      <option value="preventive">Preventivo</option>
-                      <option value="corrective">Correctivo</option>
-                    </select>
-                  </label>
+                  <input id="serviceMode" name="serviceMode" type="hidden" value="preventive">
                   <label>
                     Descripcion del servicio
                     <select id="serviceType" name="serviceType">
@@ -644,10 +639,7 @@
             </div>
 
             <div class="grid two-column">
-              <label>
-                Nombre del polipasto
-                <input id="hoistName" list="polipastoOptions" type="text" placeholder="Ej. CM Lodestar">
-              </label>
+              <input id="hoistName" type="hidden">
               <label>
                 Tipo de polipasto
                 <input id="hoistType" type="text" placeholder="Cable, cadena, manual, electrico">
@@ -1013,7 +1005,7 @@
         </div>
 
         <div class="settings-grid">
-          <section class="subpanel">
+          <section class="subpanel" data-settings-section-panel="catalogs">
             <p class="eyebrow">Clientes</p>
             <label>
               Lista de clientes
@@ -1021,7 +1013,7 @@
             </label>
           </section>
 
-          <section class="subpanel cloud-settings-panel">
+          <section class="subpanel cloud-settings-panel" data-settings-section-panel="sync">
             <p class="eyebrow">Nube / Supabase</p>
             <h3>Sincronizacion entre dispositivos</h3>
             <p id="cloudSyncStatus" class="cloud-sync-status">Sin sesion en la nube.</p>
@@ -1043,7 +1035,7 @@
             <small class="cloud-helper">Este modulo mantiene la app offline y sincroniza servicios sin fotos pesadas para evitar errores de memoria.</small>
           </section>
 
-          <section class="subpanel">
+          <section class="subpanel" data-settings-section-panel="users">
             <p class="eyebrow">Usuarios</p>
             <h3>Roles de acceso</h3>
             <label>
@@ -1053,7 +1045,7 @@
             <small class="cloud-helper">Roles disponibles: admin, supervisor, tecnico y solo_lectura. Si no configuras roles, el usuario conectado conserva acceso de admin.</small>
           </section>
 
-          <section class="subpanel">
+          <section class="subpanel" data-settings-section-panel="general">
             <p class="eyebrow">Mantenimiento y textos</p>
             <div class="grid two-column">
               <label>
@@ -1080,7 +1072,7 @@
             </label>
           </section>
 
-          <section class="subpanel">
+          <section class="subpanel" data-settings-section-panel="catalogs">
             <p class="eyebrow">Polipastos</p>
             <label>
               Agregar polipasto
@@ -1095,7 +1087,7 @@
             </label>
           </section>
 
-          <section class="subpanel">
+          <section class="subpanel" data-settings-section-panel="catalogs">
             <p class="eyebrow">Tipos de grua</p>
             <label>
               Agregar tipo
@@ -1110,7 +1102,7 @@
             </label>
           </section>
 
-          <section class="subpanel">
+          <section class="subpanel" data-settings-section-panel="general">
             <p class="eyebrow">Fotos</p>
             <div class="grid three-column">
               <label>
@@ -1128,7 +1120,7 @@
             </div>
           </section>
 
-          <section class="subpanel">
+          <section class="subpanel" data-settings-section-panel="general">
             <p class="eyebrow">Plantilla PDF</p>
             <div class="grid two-column">
               <label>Empresa <input id="settingsPdfCompanyName" type="text"></label>
@@ -1142,6 +1134,29 @@
               Pie de pagina
               <textarea id="settingsPdfFooter" rows="3"></textarea>
             </label>
+          </section>
+
+          <section class="subpanel" data-settings-section-panel="backup">
+            <p class="eyebrow">Respaldos</p>
+            <h3>Importar y exportar informacion</h3>
+            <div class="settings-action-list">
+              <button id="settingsImportInspectionButton" class="secondary-button" type="button">Importar servicio</button>
+              <button id="settingsExportInspectionButton" class="secondary-button" type="button">Exportar servicio actual</button>
+              <button id="settingsImportFullBackupButton" class="secondary-button" type="button">Importar respaldo completo</button>
+              <button id="settingsExportBackupButton" class="secondary-button" type="button">Exportar respaldo sin fotos</button>
+              <button id="settingsExportBackupWithPhotosButton" class="secondary-button" type="button">Exportar respaldo con fotos</button>
+              <button id="settingsPurgePhotosButton" class="ghost-button" type="button">Borrar fotos pesadas locales</button>
+            </div>
+            <small class="cloud-helper">Usa respaldos con fotos solo cuando necesites mover evidencias completas; pesan mas.</small>
+          </section>
+
+          <section class="subpanel" data-settings-section-panel="audit">
+            <p class="eyebrow">Bitacora</p>
+            <h3>Control de cambios</h3>
+            <p class="cloud-helper">Consulta acciones realizadas, usuarios, fechas y cambios antes/despues.</p>
+            <div class="settings-action-list">
+              <button id="settingsOpenAuditLogButton" class="secondary-button" type="button">Abrir bitacora</button>
+            </div>
           </section>
         </div>
       </section>
@@ -1267,10 +1282,7 @@
                   Capacidad estructura
                   <input id="registryStructureCapacity" type="text" placeholder="Ej. 2 ton">
                 </label>
-                <label>
-                  Nombre del polipasto
-                  <input id="registryHoistName" list="polipastoOptions" type="text" placeholder="Ej. CM Lodestar">
-                </label>
+                <input id="registryHoistName" type="hidden">
                 <label>
                   Capacidad polipasto
                   <input id="registryHoistCapacity" type="text" placeholder="Ej. 2 ton">
@@ -1386,28 +1398,28 @@
 
   <nav class="mobile-bottom-nav" aria-label="Navegacion movil">
     <button id="mobileNewButton" type="button"><span>+</span>Nuevo</button>
-    <button id="mobileHistoryButton" type="button"><span>SV</span>Servicios</button>
+    <button id="mobileHistoryButton" type="button"><span>RP</span>Reportes</button>
     <button id="mobileCompaniesButton" type="button"><span>EQ</span>Equipos</button>
     <button id="mobilePdfButton" type="button"><span>PDF</span>PDF</button>
     <button id="mobileMoreButton" type="button"><span>...</span>Mas</button>
   </nav>
 
-  <script src="report-template-config.js?v=131"></script>
-  <script src="finding-catalog-config.js?v=131"></script>
-  <script src="checklist-config.js?v=131"></script>
-  <script src="findings.js?v=131"></script>
-  <script src="company-cranes.js?v=131"></script>
-  <script src="equipment.js?v=131"></script>
-  <script src="pdf-actions.js?v=131"></script>
-  <script src="backup.js?v=131"></script>
-  <script src="storage.js?v=131"></script>
-  <script src="settings.js?v=131"></script>
-  <script src="operations.js?v=131"></script>
-  <script src="maintenance-panel.js?v=131"></script>
-  <script src="dashboard.js?v=131"></script>
-  <script src="report-generator.js?v=131"></script>
-  <script src="supabase-config.js?v=131"></script>
-  <script src="cloud-sync.js?v=131"></script>
-  <script src="app.js?v=131"></script>
+  <script src="report-template-config.js?v=144"></script>
+  <script src="finding-catalog-config.js?v=144"></script>
+  <script src="checklist-config.js?v=144"></script>
+  <script src="findings.js?v=144"></script>
+  <script src="company-cranes.js?v=144"></script>
+  <script src="equipment.js?v=144"></script>
+  <script src="pdf-actions.js?v=144"></script>
+  <script src="backup.js?v=144"></script>
+  <script src="storage.js?v=144"></script>
+  <script src="settings.js?v=144"></script>
+  <script src="operations.js?v=144"></script>
+  <script src="maintenance-panel.js?v=144"></script>
+  <script src="dashboard.js?v=144"></script>
+  <script src="report-generator.js?v=144"></script>
+  <script src="supabase-config.js?v=144"></script>
+  <script src="cloud-sync.js?v=144"></script>
+  <script src="app.js?v=144"></script>
 </body>
 </html>

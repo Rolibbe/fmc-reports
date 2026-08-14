@@ -59,7 +59,7 @@ function loadEquipmentIntoEditor(equipment) {
   elements.serialNumber.value = equipment.serialNumber;
   elements.checklistFolio.value = equipment.checklistFolio;
   elements.equipmentLocation.value = equipment.equipmentLocation;
-  elements.hoistName.value = equipment.hoistName;
+  elements.hoistName.value = equipment.hoistManufacturer || equipment.hoistName;
   elements.hoistType.value = equipment.hoistType;
   elements.hoistCapacity.value = equipment.hoistCapacity;
   elements.hoistManufacturer.value = equipment.hoistManufacturer;
@@ -437,7 +437,7 @@ function saveEquipmentFromEditor() {
     serialNumber: elements.serialNumber.value.trim(),
     checklistFolio: elements.checklistFolio.value.trim(),
     equipmentLocation: elements.equipmentLocation.value.trim(),
-    hoistName: elements.hoistName.value.trim(),
+    hoistName: elements.hoistManufacturer.value.trim(),
     hoistType: elements.hoistType.value.trim(),
     hoistCapacity: elements.hoistCapacity.value.trim(),
     hoistManufacturer: elements.hoistManufacturer.value.trim(),
@@ -464,6 +464,12 @@ function saveEquipmentFromEditor() {
   }
 
   renderEquipmentList();
+  if (typeof updateServiceCompletionProgress === "function") {
+    updateServiceCompletionProgress();
+  }
+  if (typeof scheduleInspectionAutoSave === "function") {
+    scheduleInspectionAutoSave("equipo guardado");
+  }
   closeEquipmentEditor();
 }
 
@@ -538,6 +544,9 @@ function renderEquipmentList() {
 
   if (typeof renderServiceStepContent === "function") {
     renderServiceStepContent();
+  }
+  if (typeof scheduleInspectionAutoSave === "function") {
+    scheduleInspectionAutoSave("equipo actualizado");
   }
 }
 
@@ -638,6 +647,12 @@ function reorderEquipment(sourceEquipmentId, targetEquipmentId, position) {
   if (insertIndex < 0) {
     currentEquipments.push(movedEquipment);
     renderEquipmentList();
+    if (typeof updateServiceCompletionProgress === "function") {
+      updateServiceCompletionProgress();
+    }
+    if (typeof scheduleInspectionAutoSave === "function") {
+      scheduleInspectionAutoSave("orden de equipos actualizado");
+    }
     return;
   }
 
@@ -647,6 +662,12 @@ function reorderEquipment(sourceEquipmentId, targetEquipmentId, position) {
 
   currentEquipments.splice(insertIndex, 0, movedEquipment);
   renderEquipmentList();
+  if (typeof updateServiceCompletionProgress === "function") {
+    updateServiceCompletionProgress();
+  }
+  if (typeof scheduleInspectionAutoSave === "function") {
+    scheduleInspectionAutoSave("orden de equipos actualizado");
+  }
 }
 
 function deleteFinding(findingId) {
@@ -657,6 +678,12 @@ function deleteFinding(findingId) {
 function deleteEquipment(equipmentId) {
   currentEquipments = currentEquipments.filter((item) => item.id !== equipmentId);
   renderEquipmentList();
+  if (typeof updateServiceCompletionProgress === "function") {
+    updateServiceCompletionProgress();
+  }
+  if (typeof scheduleInspectionAutoSave === "function") {
+    scheduleInspectionAutoSave("equipo eliminado");
+  }
 }
 
 function buildGenericFindingDescription(category, incidence) {
@@ -843,7 +870,7 @@ function normalizeEquipment(equipment) {
     serialNumber: source.serialNumber || "",
     checklistFolio: source.checklistFolio || "",
     equipmentLocation: source.equipmentLocation || "",
-    hoistName: source.hoistName || source.hoist || "",
+    hoistName: source.hoistManufacturer || source.hoistName || source.hoist || "",
     hoistType: source.hoistType || "",
     hoistCapacity: source.hoistCapacity || "",
     hoistManufacturer: source.hoistManufacturer || source.hoistBrandModel || "",

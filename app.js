@@ -20,21 +20,19 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.37";
+const APP_VERSION = "1.3.50";
 
 const SERVICE_STEP_DEFINITIONS = [
   { id: "company", title: "Empresa", hint: "Selecciona la empresa y los datos de contacto del servicio." },
-  { id: "asset", title: "Tipo de equipo", hint: "Define si el servicio sera de gruas, racks u otro modulo." },
-  { id: "service", title: "Tipo de servicio", hint: "Captura folio PDF, modalidad, fecha y tecnico responsable." },
+  { id: "service", title: "Tipo de servicio", hint: "Captura folio PDF, fecha y tecnico responsable." },
   { id: "equipment", title: "Equipos incluidos", hint: "Agrega, ordena y selecciona los equipos que entraran al PDF." },
-  { id: "checklist", title: "Checklist", hint: "Abre cada equipo para revisar o adjuntar su checklist." },
-  { id: "findings", title: "Hallazgos", hint: "Registra las no conformidades detectadas por equipo." },
-  { id: "evidence", title: "Evidencias", hint: "Agrega fotos del servicio, hallazgos y checklist escaneado." },
-  { id: "summary", title: "Resumen", hint: "Cierra condicion, mantenimiento, resumen y recomendaciones." },
   { id: "pdf", title: "PDF", hint: "Guarda el servicio y genera el reporte final." }
 ];
 
 let activeServiceStep = "company";
+let inspectionAutoSaveTimer = null;
+let inspectionAutoSaveRunning = false;
+let lastInspectionAutoSaveSignature = "";
 
 function queueDataSync(reason) {
   if (typeof requestCloudDataSync === "function") {
@@ -487,9 +485,9 @@ async function initializeApp() {
     updateConnectivityStatus();
     registerServiceWorker();
   } catch (error) {
-    updateConnectivityStatus("La app cargo con un detalle. Puedes intentar recargar o entrar en modo offline.");
+    updateConnectivityStatus("La app cargo con un detalle. Puedes intentar recargar o revisar tu conexion/sesion.");
     if (elements.loginStatus) {
-      elements.loginStatus.textContent = "La app no termino de cargar. Recarga la pagina o entra en modo offline.";
+      elements.loginStatus.textContent = "La app no termino de cargar. Recarga la pagina o revisa tu conexion/sesion.";
     }
     console.error("Error al iniciar la app", error);
   }
@@ -517,6 +515,10 @@ function setupAppActions() {
     }
   });
   setupMobileNavigation();
+  if (typeof setupSettingsSectionTabs === "function") {
+    setupSettingsSectionTabs();
+  }
+  setupInspectionAutoSave();
   on(elements.openHomeButton, "click", openSystemHome);
   on(elements.openFieldModeButton, "click", openFieldMode);
   on(elements.homeRefreshButton, "click", renderSystemHome);
@@ -562,6 +564,7 @@ function setupAppActions() {
   elements.toolsMenuButton.addEventListener("click", toggleToolsMenu);
   elements.notificationsButton.addEventListener("click", toggleNotificationsPanel);
   elements.profileButton.addEventListener("click", toggleProfilePanel);
+  elements.profileContent?.addEventListener("click", handleProfilePanelClick);
   document.querySelectorAll("[data-close-top-popover]").forEach((button) => {
     button.addEventListener("click", closeTopPopovers);
   });
@@ -653,7 +656,6 @@ function setupAppActions() {
   on(elements.showPendingEvidenceButton, "click", toggleSyncPendingDetails);
   on(elements.purgeCloudSyncedLocalPhotosButton, "click", purgeCloudSyncedLocalEvidence);
   elements.openConsolidatedHistoryButton.addEventListener("click", openConsolidatedHistory);
-  elements.openSettingsButton.addEventListener("click", openSettingsPanel);
   elements.closeSettingsButton.addEventListener("click", openSystemHome);
   elements.saveSettingsButton.addEventListener("click", saveSettingsFromForm);
   elements.resetSettingsButton.addEventListener("click", resetSettingsToDefaults);
@@ -662,8 +664,22 @@ function setupAppActions() {
   elements.cloudSignInButton.addEventListener("click", cloudSignInFromForm);
   elements.cloudSignOutButton.addEventListener("click", cloudSignOutFromForm);
   elements.syncCompaniesCranesButton.addEventListener("click", syncCloudDataOnly);
+  on(document.getElementById("settingsImportInspectionButton"), "click", () => elements.importInspectionInput.click());
+  on(document.getElementById("settingsExportInspectionButton"), "click", exportCurrentInspection);
+  on(document.getElementById("settingsImportFullBackupButton"), "click", () => elements.importFullBackupInput.click());
+  on(document.getElementById("settingsExportBackupButton"), "click", () => exportFullBackup({ includePhotos: false }));
+  on(document.getElementById("settingsExportBackupWithPhotosButton"), "click", () => exportFullBackup({ includePhotos: true }));
+  on(document.getElementById("settingsPurgePhotosButton"), "click", purgeStoredHeavyPhotos);
+  on(document.getElementById("settingsOpenAuditLogButton"), "click", openAuditLogPanel);
   elements.closeMaintenancePanelButton.addEventListener("click", openSystemHome);
-  elements.refreshMaintenancePanelButton.addEventListener("click", renderMaintenancePanel);
+  elements.refreshMaintenancePanelButton.addEventListener("click", async () => {
+    await renderMaintenancePanel();
+    await showAppDialog({
+      title: "Mantenimiento actualizado",
+      message: "La informacion del panel de mantenimiento se actualizo correctamente.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+  });
   elements.closeCompanyCraneRegistryButton.addEventListener("click", openSystemHome);
   elements.refreshCompanyCraneRegistryButton.addEventListener("click", renderCompanyCraneRegistry);
   elements.syncCompanyRegistryButton.addEventListener("click", syncCompanyRegistryFromReports);
@@ -942,9 +958,9 @@ function renderProfilePanel() {
   const connected = Boolean(email);
   elements.profileContent.innerHTML = `
     <article class="profile-card-mini">
-      <div class="profile-avatar" aria-hidden="true">??</div>
+      <div class="profile-avatar" aria-hidden="true">FMC</div>
       <div>
-        <strong>${escapeHtml(email || "Modo offline")}</strong>
+        <strong>${escapeHtml(email || "Sin sesion")}</strong>
         <span>${escapeHtml(connected ? "Sesion conectada" : "Trabajando localmente")}</span>
       </div>
     </article>
@@ -953,7 +969,31 @@ function renderProfilePanel() {
       <div><span>Estado</span><strong>${escapeHtml(navigator.onLine ? "Con conexion" : "Sin conexion")}</strong></div>
       <div><span>Version</span><strong>${escapeHtml(APP_VERSION)}</strong></div>
     </div>
+    <div class="profile-actions">
+      <button id="profileSignOutButton" class="ghost-button" type="button" ${connected ? "" : "disabled"}>Cerrar sesion</button>
+    </div>
   `;
+}
+
+async function handleProfilePanelClick(event) {
+  if (!event.target.closest("#profileSignOutButton")) {
+    return;
+  }
+  const action = await showAppDialog({
+    title: "Cerrar sesion",
+    message: "Se cerrara tu sesion en este dispositivo. Para volver a entrar necesitaras iniciar sesion nuevamente.",
+    actions: [
+      { id: "cancel", label: "Cancelar", variant: "secondary" },
+      { id: "confirm", label: "Cerrar sesion", variant: "danger" }
+    ]
+  });
+  if (action !== "confirm") {
+    return;
+  }
+  if (typeof cloudSignOutFromForm === "function") {
+    await cloudSignOutFromForm();
+  }
+  closeTopPopovers();
 }
 
 function updateNotificationsBadge(notices) {
@@ -1203,12 +1243,7 @@ function setServiceStep(stepId, options = {}) {
   if (elements.serviceStepHint) {
     elements.serviceStepHint.textContent = step.hint;
   }
-  if (elements.serviceStepCounter) {
-    elements.serviceStepCounter.textContent = `${safeIndex + 1}/${SERVICE_STEP_DEFINITIONS.length}`;
-  }
-  if (elements.serviceStepProgressBar) {
-    elements.serviceStepProgressBar.style.width = `${((safeIndex + 1) / SERVICE_STEP_DEFINITIONS.length) * 100}%`;
-  }
+  updateServiceCompletionProgress();
 
   elements.serviceStepNav?.querySelectorAll("[data-service-step]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.serviceStep === step.id);
@@ -1230,6 +1265,71 @@ function setServiceStep(stepId, options = {}) {
   if (options.scroll !== false) {
     elements.serviceStepBody?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+}
+
+function updateServiceCompletionProgress() {
+  const progress = calculateServiceCompletionProgress();
+  if (elements.serviceStepCounter) {
+    elements.serviceStepCounter.textContent = `Cumplimiento ${progress.percent}%`;
+  }
+  if (elements.serviceStepProgressBar) {
+    elements.serviceStepProgressBar.style.width = `${Math.max(6, progress.percent)}%`;
+    elements.serviceStepProgressBar.closest(".service-flow-progress")?.classList.toggle("is-complete", progress.percent >= 100);
+  }
+}
+
+function calculateServiceCompletionProgress() {
+  const requiredValues = [
+    elements.plantName?.value,
+    elements.plantLocation?.value,
+    elements.reportNumber?.value,
+    elements.serviceType?.value,
+    elements.inspectionDate?.value,
+    elements.technicianName?.value
+  ];
+  const equipmentFieldKeys = [
+    "equipmentName",
+    "craneType",
+    "ratedCapacity",
+    "serialNumber",
+    "checklistFolio",
+    "equipmentLocation",
+    "hoistType",
+    "hoistCapacity",
+    "hoistManufacturer",
+    "hoistModel",
+    "hoistSerialNumber",
+    "hoistVoltage",
+    "overallCondition",
+    "maintenanceDate",
+    "nextInspection",
+    "serviceSummary",
+    "recommendations"
+  ];
+  const equipmentValues = currentEquipments.length
+    ? currentEquipments.flatMap((equipment) => {
+        const normalized = normalizeEquipment(equipment);
+        return equipmentFieldKeys.map((key) => normalized[key]);
+      })
+    : [""];
+  const allValues = requiredValues.concat(equipmentValues);
+  const filled = allValues.filter(isCompletionValueFilled).length;
+  const total = allValues.length || 1;
+  return {
+    filled,
+    total,
+    percent: Math.min(100, Math.round((filled / total) * 100))
+  };
+}
+
+function isCompletionValueFilled(value) {
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (typeof value === "boolean") {
+    return value;
+  }
+  return String(value || "").trim().length > 0;
 }
 
 function renderServiceStepContent() {
@@ -1392,6 +1492,89 @@ function toggleMobileMorePanel() {
 
 function closeMobileMorePanel() {
   elements.mobileMorePanel.classList.add("hidden");
+}
+
+function setupInspectionAutoSave() {
+  if (!elements.form) {
+    return;
+  }
+
+  const schedule = () => scheduleInspectionAutoSave("cambio en servicio");
+  elements.form.addEventListener("input", (event) => {
+    if (event.target && event.target.type === "file") {
+      return;
+    }
+    updateServiceCompletionProgress();
+    schedule();
+  });
+  elements.form.addEventListener("change", (event) => {
+    if (event.target && event.target.type === "file") {
+      return;
+    }
+    updateServiceCompletionProgress();
+    schedule();
+  });
+}
+
+function scheduleInspectionAutoSave(reason = "autoguardado") {
+  if (inspectionAutoSaveTimer) {
+    clearTimeout(inspectionAutoSaveTimer);
+  }
+  inspectionAutoSaveTimer = setTimeout(() => {
+    persistInspectionSilently(reason);
+  }, 1200);
+}
+
+async function persistInspectionSilently(reason = "autoguardado") {
+  if (inspectionAutoSaveRunning || !canCurrentUser("editReports")) {
+    return null;
+  }
+
+  const hasAnyContent = Boolean(
+    elements.inspectionId.value
+    || elements.plantName.value.trim()
+    || elements.reportNumber.value.trim()
+    || elements.plantLocation.value.trim()
+    || elements.technicianName.value.trim()
+    || currentEquipments.length
+  );
+  if (!hasAnyContent) {
+    return null;
+  }
+
+  inspectionAutoSaveRunning = true;
+  try {
+    const inspection = collectInspectionData();
+    const signature = JSON.stringify({
+      id: inspection.id,
+      reportNumber: inspection.reportNumber,
+      assetType: inspection.assetType,
+      serviceMode: inspection.serviceMode,
+      serviceType: inspection.serviceType,
+      inspectionDate: inspection.inspectionDate,
+      technicianName: inspection.technicianName,
+      plantName: inspection.plantName,
+      plantLocation: inspection.plantLocation,
+      siteContact: inspection.siteContact,
+      siteContactInfo: inspection.siteContactInfo,
+      equipments: inspection.equipments
+    });
+    if (signature === lastInspectionAutoSaveSignature) {
+      return inspection;
+    }
+
+    elements.inspectionId.value = inspection.id;
+    elements.reportNumber.value = inspection.reportNumber;
+    await putInspection(inspection);
+    lastInspectionAutoSaveSignature = signature;
+    queueDataSync(reason);
+    return inspection;
+  } catch (error) {
+    console.warn("No se pudo autoguardar el servicio", error);
+    return null;
+  } finally {
+    inspectionAutoSaveRunning = false;
+  }
 }
 
 function showView(view) {
@@ -2626,7 +2809,7 @@ function calculateDaysUntil(dateValue) {
     return "";
   }
 
-  const target = new Date(dateValue);
+  const target = parseDateInputAsLocalDate(dateValue);
   if (Number.isNaN(target.getTime())) {
     return "";
   }
@@ -2635,6 +2818,15 @@ function calculateDaysUntil(dateValue) {
   today.setHours(0, 0, 0, 0);
   target.setHours(0, 0, 0, 0);
   return String(Math.ceil((target - today) / 86400000));
+}
+
+function parseDateInputAsLocalDate(dateValue) {
+  const value = String(dateValue || "").slice(0, 10);
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+  return new Date(dateValue);
 }
 
 function getInspectionCraneIds(record) {
@@ -2715,9 +2907,14 @@ function loadInspection(record) {
 
   showView("inspection");
   setServiceStep("equipment", { scroll: false });
+  updateServiceCompletionProgress();
 }
 
 function resetForm() {
+  if (inspectionAutoSaveTimer) {
+    clearTimeout(inspectionAutoSaveTimer);
+  }
+  lastInspectionAutoSaveSignature = "";
   elements.form.reset();
   elements.inspectionId.value = "";
   currentEquipments = [];
@@ -2730,6 +2927,7 @@ function resetForm() {
   renderEquipmentList();
   showView("inspection");
   setServiceStep("company", { scroll: false });
+  updateServiceCompletionProgress();
 }
 
 function syncServiceModeFromServiceType() {

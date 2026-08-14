@@ -3,6 +3,7 @@
 
 let maintenancePanelFilter = "all";
 let maintenancePanelSearch = "";
+let maintenancePanelClientFilter = "";
 
 async function openMaintenancePanel() {
   showView("maintenancePanel");
@@ -37,7 +38,10 @@ async function buildMaintenancePanelRows() {
         findings: findingSummary,
         nextMaintenance: maintenance.nextMaintenance || "",
         daysRemaining,
-        status: getMaintenancePanelRowStatus(daysRemaining, maintenance.nextMaintenance)
+        status: getMaintenancePanelRowStatus({
+          ...maintenance,
+          daysRemaining
+        })
       });
     });
   });
@@ -47,7 +51,7 @@ async function buildMaintenancePanelRows() {
 
 function resolveCraneMaintenanceFromSources(client, crane, frequencyMonths, inspections) {
   const manualMaintenanceDate = crane.lastMaintenanceDate || "";
-  const manualNextMaintenance = crane.nextMaintenanceDate || (manualMaintenanceDate ? addMonthsToDateInput(manualMaintenanceDate, frequencyMonths) : "");
+  const manualNextMaintenance = getEffectiveNextMaintenanceDate(manualMaintenanceDate, crane.nextMaintenanceDate, frequencyMonths);
   let selected = manualMaintenanceDate || manualNextMaintenance
     ? {
         maintenanceDate: manualMaintenanceDate,
@@ -77,7 +81,7 @@ function resolveCraneMaintenanceFromSources(client, crane, frequencyMonths, insp
 
         selected = {
           maintenanceDate,
-          nextMaintenance: equipment.nextInspection || addMonthsToDateInput(maintenanceDate, frequencyMonths),
+          nextMaintenance: getEffectiveNextMaintenanceDate(maintenanceDate, equipment.nextInspection, frequencyMonths),
           reportNumber: record.reportNumber || "",
           condition: equipment.overallCondition || crane.status || "",
           source: "Reporte"
@@ -94,6 +98,17 @@ function resolveCraneMaintenanceFromSources(client, crane, frequencyMonths, insp
   };
 }
 
+function getEffectiveNextMaintenanceDate(maintenanceDate, savedNextDate, frequencyMonths) {
+  const calculatedNextDate = maintenanceDate ? addMonthsToDateInput(maintenanceDate, frequencyMonths) : "";
+  if (!savedNextDate) {
+    return calculatedNextDate;
+  }
+  if (!calculatedNextDate) {
+    return savedNextDate;
+  }
+  return compareDateInput(savedNextDate, calculatedNextDate) >= 0 ? savedNextDate : calculatedNextDate;
+}
+
 function summarizeActiveCraneFindings(client, craneId, activeFindings) {
   const selected = activeFindings[buildActiveCraneFindingKey(client, craneId)] || {};
   const values = Object.values(selected);
@@ -108,25 +123,12 @@ function summarizeActiveCraneFindings(client, craneId, activeFindings) {
   };
 }
 
-function getMaintenancePanelRowStatus(daysRemaining, nextMaintenance) {
-  if (!nextMaintenance) {
-    return "no-date";
-  }
-  const days = Number(daysRemaining);
-  if (!Number.isFinite(days)) {
-    return "no-date";
-  }
-  if (days < 0) {
-    return "overdue";
-  }
-  if (days <= 60) {
-    return "soon";
-  }
-  return "ok";
+function getMaintenancePanelRowStatus(maintenance) {
+  return getMaintenanceCycleProgress(maintenance).status;
 }
 
 function compareMaintenanceRows(first, second) {
-  const priority = { overdue: 0, soon: 1, "no-date": 2, ok: 3 };
+  const priority = { soon: 0, "on-time": 1, "no-date": 2, ok: 3 };
   const priorityDiff = priority[first.status] - priority[second.status];
   if (priorityDiff) {
     return priorityDiff;
@@ -141,8 +143,8 @@ function compareMaintenanceRows(first, second) {
 
 function groupMaintenanceRows(rows) {
   return {
-    overdue: rows.filter((row) => row.status === "overdue"),
     soon: rows.filter((row) => row.status === "soon"),
+    onTime: rows.filter((row) => row.status === "on-time"),
     noDate: rows.filter((row) => row.status === "no-date"),
     ok: rows.filter((row) => row.status === "ok"),
     all: rows
@@ -159,7 +161,7 @@ function renderMaintenancePanelSummary(grouped) {
     <section class="maintenance-command-center">
       <div>
         <p class="eyebrow">Prioridad operativa</p>
-        <h3>${grouped.overdue.length ? `${grouped.overdue.length} grua(s) vencida(s)` : "Sin vencimientos criticos"}</h3>
+        <h3>${grouped.soon.length ? `${grouped.soon.length} grua(s) por vencer` : "Mantenimientos bajo control"}</h3>
         <p>${escapeHtml(nextRow ? `Proximo seguimiento: ${nextRow.client} | ${formatDate(nextRow.nextMaintenance)}` : "Completa fechas para activar el seguimiento automatico.")}</p>
       </div>
       <div class="maintenance-command-meter">
@@ -168,12 +170,12 @@ function renderMaintenancePanelSummary(grouped) {
       </div>
     </section>
     <article class="stat-card maintenance-stat-danger">
-      <span>Vencidas</span>
-      <strong>${grouped.overdue.length}</strong>
-    </article>
-    <article class="stat-card maintenance-stat-warning">
       <span>Por vencer</span>
       <strong>${grouped.soon.length}</strong>
+    </article>
+    <article class="stat-card maintenance-stat-warning">
+      <span>A tiempo</span>
+      <strong>${grouped.onTime.length}</strong>
     </article>
     <article class="stat-card maintenance-stat-muted">
       <span>Sin fecha</span>
@@ -199,14 +201,21 @@ function renderMaintenancePanelContent(grouped) {
   elements.maintenancePanelContent.innerHTML = `
     <section class="maintenance-smart-panel">
       <div class="maintenance-smart-toolbar">
+        <label class="maintenance-client-filter">
+          <span>Empresa</span>
+          <select data-maintenance-client-filter>
+            <option value="">Todas las empresas</option>
+            ${getMaintenanceClientOptions(grouped.all)}
+          </select>
+        </label>
         <div class="maintenance-search-box">
           <span>Buscar</span>
           <input type="search" data-maintenance-search placeholder="Cliente, grua, area, marca, modelo o serie" value="${escapeHtml(maintenancePanelSearch)}">
         </div>
         <div class="maintenance-filter-buttons" role="group" aria-label="Filtros de mantenimiento">
           ${renderMaintenanceFilterButton("all", "Todo", grouped.all.length)}
-          ${renderMaintenanceFilterButton("overdue", "Vencidas", grouped.overdue.length)}
           ${renderMaintenanceFilterButton("soon", "Por vencer", grouped.soon.length)}
+          ${renderMaintenanceFilterButton("on-time", "A tiempo", grouped.onTime.length)}
           ${renderMaintenanceFilterButton("no-date", "Sin fecha", grouped.noDate.length)}
           ${renderMaintenanceFilterButton("ok", "Al dia", grouped.ok.length)}
           ${renderMaintenanceFilterButton("issues", "Con hallazgos", grouped.all.filter((row) => row.findings.bad).length)}
@@ -229,7 +238,11 @@ function renderMaintenanceFilterButton(filter, label, count) {
 
 function filterMaintenanceRows(rows) {
   const query = normalizeMaintenanceSearchText(maintenancePanelSearch);
+  const selectedClient = normalizeClientName(maintenancePanelClientFilter);
   return rows.filter((row) => {
+    if (selectedClient && normalizeClientName(row.client) !== selectedClient) {
+      return false;
+    }
     const matchesFilter = maintenancePanelFilter === "all"
       || row.status === maintenancePanelFilter
       || (maintenancePanelFilter === "issues" && row.findings.bad > 0);
@@ -252,6 +265,12 @@ function filterMaintenanceRows(rows) {
     ].filter(Boolean).join(" "));
     return searchable.includes(query);
   });
+}
+
+function getMaintenanceClientOptions(rows) {
+  return normalizeClientNames((rows || []).map((row) => row.client))
+    .map((client) => `<option value="${escapeHtml(client)}" ${normalizeClientName(maintenancePanelClientFilter) === client ? "selected" : ""}>${escapeHtml(client)}</option>`)
+    .join("");
 }
 
 function normalizeMaintenanceSearchText(value) {
@@ -313,20 +332,16 @@ function renderMaintenanceSmartRow(row) {
           <strong>${escapeHtml(formatDate(row.maintenance.maintenanceDate) || "Sin registro")}</strong>
         </div>
       </div>
-      <div class="maintenance-row-actions">
-        ${renderMaintenanceFindingStatus(row.findings)}
-        <button class="secondary-button maintenance-open-crane" type="button" data-maintenance-client="${escapeHtml(row.client)}" data-maintenance-crane-id="${escapeHtml(row.crane.id)}">Ver ficha</button>
-      </div>
     </article>
   `;
 }
 
 function getMaintenanceSmartStatus(row) {
-  if (row.status === "overdue") {
-    return "Vencida";
-  }
   if (row.status === "soon") {
     return "Por vencer";
+  }
+  if (row.status === "on-time") {
+    return "A tiempo";
   }
   if (row.status === "ok") {
     return "Al dia";
@@ -389,10 +404,6 @@ function renderMaintenancePanelCard(row) {
           <dd>${escapeHtml(row.maintenance.reportNumber ? `Reporte ${row.maintenance.reportNumber}` : row.maintenance.source)}</dd>
         </div>
       </dl>
-      <div class="maintenance-card-footer">
-        ${renderMaintenanceFindingStatus(row.findings)}
-        <button class="ghost-button maintenance-open-crane" type="button" data-maintenance-client="${escapeHtml(row.client)}" data-maintenance-crane-id="${escapeHtml(row.crane.id)}">Ver ficha</button>
-      </div>
     </article>
   `;
 }
@@ -416,13 +427,13 @@ function wireMaintenancePanelActions(grouped) {
       }
     });
   }
-  elements.maintenancePanelContent.querySelectorAll("[data-maintenance-crane-id]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      if (typeof openCompanyCraneMasterFromMaintenance === "function") {
-        await openCompanyCraneMasterFromMaintenance(button.dataset.maintenanceClient, button.dataset.maintenanceCraneId, "maintenance");
-      }
+  const clientFilter = elements.maintenancePanelContent.querySelector("[data-maintenance-client-filter]");
+  if (clientFilter) {
+    clientFilter.addEventListener("change", () => {
+      maintenancePanelClientFilter = clientFilter.value || "";
+      renderMaintenancePanelContent(grouped);
     });
-  });
+  }
 }
 
 function renderMaintenancePanelTable(rows) {
@@ -480,7 +491,7 @@ function renderMaintenancePanelRow(row) {
 
 function renderMaintenanceFindingStatus(findings) {
   if (!findings.total) {
-    return '<span class="finding-status-pill neutral">Sin evaluar</span>';
+    return "";
   }
   if (findings.bad) {
     return `<span class="finding-status-pill bad">${findings.bad} mal</span><span class="finding-status-detail">${findings.good} bien / ${findings.notApplicable} N/A</span>`;

@@ -282,7 +282,50 @@ function findMatchingCompanyCrane(cranes, equipment) {
 }
 
 function compareDateInput(firstDate, secondDate) {
-  return new Date(firstDate || 0).getTime() - new Date(secondDate || 0).getTime();
+  const parseInputDate = (value) => {
+    const text = String(value || "").slice(0, 10);
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+      return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])).getTime();
+    }
+    return new Date(value || 0).getTime();
+  };
+  return parseInputDate(firstDate) - parseInputDate(secondDate);
+}
+
+function getMaintenanceCycleProgress(maintenance) {
+  const lastDate = parseMaintenanceCycleDate(maintenance?.maintenanceDate);
+  const nextDate = parseMaintenanceCycleDate(maintenance?.nextMaintenance);
+  const daysRemaining = Number(maintenance?.daysRemaining);
+
+  if (!lastDate || !nextDate || !Number.isFinite(daysRemaining)) {
+    return { status: "no-date", className: "maintenance-neutral", label: "Sin fecha", percent: 0 };
+  }
+
+  const totalDays = Math.max(1, Math.ceil((nextDate - lastDate) / 86400000));
+  const elapsedDays = Math.min(totalDays, Math.max(0, totalDays - daysRemaining));
+  const percent = daysRemaining < 0
+    ? 100
+    : Math.min(100, Math.max(8, Math.round((elapsedDays / totalDays) * 100)));
+  const cycleThird = totalDays / 3;
+
+  if (daysRemaining < 0 || elapsedDays >= cycleThird * 2) {
+    return { status: "soon", className: "maintenance-red", label: "Por vencer", percent };
+  }
+  if (elapsedDays >= cycleThird) {
+    return { status: "on-time", className: "maintenance-yellow", label: "A tiempo", percent };
+  }
+  return { status: "ok", className: "maintenance-green", label: "Al dia", percent };
+}
+
+function parseMaintenanceCycleDate(value) {
+  const text = String(value || "").slice(0, 10);
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const date = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    : new Date(value || "");
+  date.setHours(0, 0, 0, 0);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function renderCompanyCraneMaintenanceStatus(maintenance) {
@@ -323,25 +366,7 @@ function renderCompanyCraneMaintenanceStatus(maintenance) {
 }
 
 function getMaintenanceUrgencyStatus(maintenance) {
-  const daysRemaining = Number(maintenance.daysRemaining);
-  const maintenanceTime = new Date(maintenance.maintenanceDate || 0).getTime();
-  const nextTime = new Date(maintenance.nextMaintenance || 0).getTime();
-  const totalDays = maintenanceTime && nextTime ? Math.max(1, Math.ceil((nextTime - maintenanceTime) / 86400000)) : 1;
-  const elapsedDays = Number.isFinite(daysRemaining) ? Math.max(0, totalDays - daysRemaining) : 0;
-  const percent = Number.isFinite(daysRemaining) && daysRemaining <= 0
-    ? 100
-    : Math.min(100, Math.max(8, Math.round((elapsedDays / totalDays) * 100)));
-
-  if (!Number.isFinite(daysRemaining)) {
-    return { className: "maintenance-neutral", label: "Sin fecha de proximo mantenimiento", percent: 0 };
-  }
-  if (daysRemaining <= 15) {
-    return { className: "maintenance-red", label: "Muy cerca o vencido", percent };
-  }
-  if (daysRemaining <= 60) {
-    return { className: "maintenance-yellow", label: "Cerca", percent };
-  }
-  return { className: "maintenance-green", label: "Lejos", percent };
+  return getMaintenanceCycleProgress(maintenance);
 }
 
 function formatMaintenanceDaysLabel(daysRemaining) {
@@ -481,7 +506,7 @@ function renderCompanyCraneCardImage(crane) {
 }
 
 function getCranePolipastoName(crane) {
-  return String(crane.hoistName || crane.hoistModel || crane.brand || crane.model || "").trim();
+  return String(crane.brand || crane.hoistManufacturer || crane.hoistModel || crane.model || "").trim();
 }
 
 function getPolipastoImageUrl(polipastoName, extension = "png") {
@@ -617,7 +642,6 @@ async function renderCompanyCraneDataTab(client, crane) {
         <p class="eyebrow">Datos tecnicos</p>
         <dl class="crane-master-details">
           ${renderCraneMasterDetail("Capacidad estructura", crane.structureCapacity || "No capturada")}
-          ${renderCraneMasterDetail("Nombre polipasto", getCranePolipastoName(crane) || "No capturado")}
           ${renderCraneMasterDetail("Capacidad polipasto", crane.hoistCapacity || "No capturada")}
           ${renderCraneMasterDetail("Voltaje", crane.voltage || "No capturado")}
           ${renderCraneMasterDetail("Marca", crane.brand || "No capturada")}
@@ -915,7 +939,7 @@ function renderCraneChecklistItem(item, status) {
       <div class="crane-checklist-options" role="radiogroup" aria-label="${escapeHtml(label)}">
         <label class="checklist-option checklist-option-good">
           <input type="radio" name="${escapeHtml(name)}" data-crane-checklist-id="${escapeHtml(item.id)}" value="good" ${status === "good" ? "checked" : ""}>
-          <span>âœ“</span> Bien
+          <span>&#10003;</span> Bien
         </label>
         <label class="checklist-option checklist-option-na">
           <input type="radio" name="${escapeHtml(name)}" data-crane-checklist-id="${escapeHtml(item.id)}" value="na" ${status === "na" ? "checked" : ""}>
@@ -923,7 +947,7 @@ function renderCraneChecklistItem(item, status) {
         </label>
         <label class="checklist-option checklist-option-bad">
           <input type="radio" name="${escapeHtml(name)}" data-crane-checklist-id="${escapeHtml(item.id)}" value="bad" ${status === "bad" ? "checked" : ""}>
-          <span>âœ•</span> Mal
+          <span>X</span> Mal
         </label>
       </div>
     </article>
@@ -1042,7 +1066,7 @@ function renderCraneChecklistCompactOptions(item, status) {
     <div class="crane-checklist-compact-options" role="radiogroup" aria-label="${escapeHtml(label)}">
       <label title="Bien">
         <input type="radio" name="${escapeHtml(name)}" data-crane-checklist-id="${escapeHtml(item.id)}" value="good" ${status === "good" ? "checked" : ""}>
-        <span>âœ“</span>
+        <span>&#10003;</span>
       </label>
       <label title="No aplica">
         <input type="radio" name="${escapeHtml(name)}" data-crane-checklist-id="${escapeHtml(item.id)}" value="na" ${status === "na" ? "checked" : ""}>
@@ -1548,7 +1572,7 @@ function openCompanyCraneForm(craneId) {
   elements.registryCraneArea.value = crane ? crane.area : "";
   elements.registryCraneType.value = crane ? crane.type : "";
   elements.registryStructureCapacity.value = crane ? crane.structureCapacity : "";
-  elements.registryHoistName.value = crane ? crane.hoistName || "" : "";
+  elements.registryHoistName.value = crane ? crane.brand || crane.hoistName || "" : "";
   elements.registryHoistCapacity.value = crane ? crane.hoistCapacity : "";
   elements.registryVoltage.value = crane ? crane.voltage : "";
   elements.registryBrand.value = crane ? crane.brand : "";
@@ -1656,7 +1680,7 @@ function saveCompanyCraneFromForm() {
     area: elements.registryCraneArea.value.trim(),
     type: elements.registryCraneType.value.trim(),
     structureCapacity: elements.registryStructureCapacity.value.trim(),
-    hoistName: elements.registryHoistName.value.trim(),
+    hoistName: elements.registryBrand.value.trim(),
     hoistCapacity: elements.registryHoistCapacity.value.trim(),
     voltage: elements.registryVoltage.value.trim(),
     brand: elements.registryBrand.value.trim(),
@@ -2018,7 +2042,7 @@ function craneRegistryEntryFromEquipment(equipment) {
     area: source.equipmentLocation || "",
     type: source.craneType || "",
     structureCapacity: source.ratedCapacity || "",
-    hoistName: source.hoistName || source.hoistManufacturer || source.hoistModel || "",
+    hoistName: source.hoistManufacturer || source.brand || source.hoistName || source.hoistModel || "",
     hoistCapacity: source.hoistCapacity || "",
     voltage: source.hoistVoltage || "",
     brand: source.hoistManufacturer || "",
@@ -2418,7 +2442,7 @@ function applyCatalogCraneToEquipmentEditor(crane) {
   elements.ratedCapacity.value = crane.structureCapacity || "";
   elements.serialNumber.value = crane.serialNumber || "";
   elements.equipmentLocation.value = crane.area || "";
-  elements.hoistName.value = crane.hoistName || "";
+  elements.hoistName.value = crane.brand || crane.hoistName || "";
   elements.hoistCapacity.value = crane.hoistCapacity || "";
   elements.hoistManufacturer.value = crane.brand || "";
   elements.hoistModel.value = crane.model || "";

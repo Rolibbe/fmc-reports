@@ -290,15 +290,36 @@ function setRoleDisabled(element, disabled, roleLabel) {
 }
 
 function applyPdfTemplateSettings() {
-  const template = getAppSettings().pdfTemplate || {};
+const template = getAppSettings().pdfTemplate || {};
   window.REPORT_TEMPLATE_CONFIG = {
     ...(window.REPORT_TEMPLATE_CONFIG || {}),
     ...Object.fromEntries(Object.entries(template).filter(([, value]) => value !== ""))
   };
 }
 
-async function openSettingsPanel() {
+let activeSettingsSection = "general";
+
+function setupSettingsSectionTabs() {
+  document.querySelectorAll("[data-settings-section-tab], [data-open-settings-section]").forEach((button) => {
+    button.addEventListener("click", () => openSettingsPanel(button.dataset.settingsSectionTab || button.dataset.openSettingsSection || "general"));
+  });
+}
+
+function setSettingsSection(sectionId = "general") {
+  activeSettingsSection = sectionId || "general";
+  document.querySelectorAll("[data-settings-section-tab], [data-open-settings-section]").forEach((button) => {
+    const buttonSection = button.dataset.settingsSectionTab || button.dataset.openSettingsSection;
+    button.classList.toggle("is-active", buttonSection === activeSettingsSection);
+  });
+  document.querySelectorAll("[data-settings-section-panel]").forEach((panel) => {
+    panel.classList.toggle("hidden", panel.dataset.settingsSectionPanel !== activeSettingsSection);
+  });
+}
+
+async function openSettingsPanel(sectionId = activeSettingsSection || "general") {
+  activeSettingsSection = sectionId || "general";
   await populateSettingsForm();
+  setSettingsSection(activeSettingsSection || "general");
   showView("settings");
 }
 

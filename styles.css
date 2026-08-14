@@ -438,6 +438,15 @@ body.auth-locked .app-shell {
   text-align: right;
 }
 
+.profile-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-actions button {
+  width: 100%;
+}
+
 .context-tools-wrap {
   position: relative;
 }
@@ -595,6 +604,13 @@ body.auth-locked .app-shell {
 
 .nav-link {
   color: rgba(255, 255, 255, 0.9);
+}
+
+.nav-link.is-active {
+  border-color: rgba(249, 115, 22, 0.75);
+  background: rgba(249, 115, 22, 0.18);
+  color: #fff;
+  font-weight: 800;
 }
 
 .nav-link-with-menu {
@@ -930,23 +946,100 @@ body.auth-locked .app-shell {
   color: var(--muted);
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .service-flow-progress {
   flex: 0 0 170px;
+  position: relative;
   display: grid;
-  gap: 8px;
-  color: var(--brand);
+  gap: 7px;
+  align-items: center;
+  color: #137a3d;
+  font-size: 0.82rem;
   font-weight: 900;
   text-align: right;
 }
 
-.service-flow-progress strong {
+.service-flow-progress > span {
   display: block;
-  justify-self: stretch;
-  height: 8px;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.service-progress-track {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 12px;
   border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px rgba(240, 124, 34, 0.12);
-  transition: width 0.18s ease;
+  overflow: visible;
+  background: #dcefe6;
+  box-shadow: inset 0 0 0 1px rgba(15, 118, 73, 0.12), 0 0 0 4px rgba(22, 163, 74, 0.1);
+}
+
+.service-flow-progress strong {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: block;
+  width: 25%;
+  min-width: 18px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22c55e 0%, #16a34a 55%, #86efac 100%);
+  background-size: 180% 100%;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.42);
+  transition: width 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: service-progress-glow 1.4s linear infinite;
+}
+
+.service-progress-burst {
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  opacity: 0;
+  transform: translateY(-50%) scale(0.6);
+  pointer-events: none;
+}
+
+.service-flow-progress.is-complete .service-progress-burst {
+  animation: service-progress-burst 0.9s ease-out;
+}
+
+@keyframes service-progress-glow {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 180% 50%;
+  }
+}
+
+@keyframes service-progress-burst {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.5);
+    box-shadow: 0 0 #22c55e, 0 0 #f97316, 0 0 #083047, 0 0 #16a34a;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: -18px -16px #22c55e, 8px -22px #f97316, 18px 10px #083047, -8px 20px #16a34a;
+  }
 }
 
 .service-step-nav {
@@ -2426,7 +2519,7 @@ textarea[readonly] {
 
 .maintenance-smart-toolbar {
   display: grid;
-  grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.7fr);
+  grid-template-columns: minmax(220px, 0.75fr) minmax(260px, 0.95fr) minmax(0, 1.7fr);
   gap: 14px;
   align-items: end;
   padding: 14px;
@@ -2435,11 +2528,13 @@ textarea[readonly] {
   background: rgba(255, 253, 248, 0.82);
 }
 
+.maintenance-client-filter,
 .maintenance-search-box {
   display: grid;
   gap: 6px;
 }
 
+.maintenance-client-filter span,
 .maintenance-search-box span {
   color: var(--muted);
   font-size: 0.78rem;
@@ -2448,6 +2543,7 @@ textarea[readonly] {
   text-transform: uppercase;
 }
 
+.maintenance-client-filter select,
 .maintenance-search-box input {
   min-height: 46px;
   border-radius: 14px;
@@ -2527,6 +2623,10 @@ textarea[readonly] {
 }
 
 .maintenance-smart-row.is-soon .maintenance-row-accent {
+  background: #d94b4b;
+}
+
+.maintenance-smart-row.is-on-time .maintenance-row-accent {
   background: #f3b331;
 }
 
@@ -2589,6 +2689,11 @@ textarea[readonly] {
 }
 
 .maintenance-smart-row.is-soon .maintenance-row-status {
+  background: #fde4e4;
+  color: #a43737;
+}
+
+.maintenance-smart-row.is-on-time .maintenance-row-status {
   background: #fff3cb;
   color: #956f13;
 }
@@ -2784,6 +2889,11 @@ textarea[readonly] {
 }
 
 .maintenance-status-dot.soon {
+  background: #d94b4b;
+  box-shadow: 0 0 0 4px rgba(217, 75, 75, 0.16);
+}
+
+.maintenance-status-dot.on-time {
   background: #f3b331;
   box-shadow: 0 0 0 4px rgba(243, 179, 49, 0.18);
 }
@@ -4647,6 +4757,13 @@ textarea[readonly] {
 
 .settings-grid .subpanel {
   margin: 0;
+}
+
+.settings-action-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .app-dialog-modal {
