@@ -16,11 +16,22 @@ const DELETED_INSPECTIONS_KEY = "deleted-inspections-v1";
 const DELETED_COMPANIES_KEY = "deleted-companies-v1";
 const AUDIT_LOG_KEY = "audit-log-v1";
 const WORK_ORDERS_KEY = "work-orders-v1";
+const RELEASE_NOTICE_KEY = "release-notice-seen-v1";
 const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.50";
+const APP_VERSION = "1.3.52";
+const APP_RELEASE_NOTES = {
+  "1.3.52": {
+    title: "Actualizacion 1.3.52",
+    summary: [
+      "Nuevo panel de usuarios conectados en tiempo real.",
+      "Se muestra en que seccion esta trabajando cada usuario.",
+      "Aviso automatico de novedades cuando se instala una version nueva."
+    ]
+  }
+};
 
 const SERVICE_STEP_DEFINITIONS = [
   { id: "company", title: "Empresa", hint: "Selecciona la empresa y los datos de contacto del servicio." },
@@ -158,6 +169,10 @@ const elements = {
   closeSidebarButton: document.getElementById("closeSidebarButton"),
   toolsMenuButton: document.getElementById("toolsMenuButton"),
   toolsMenuList: document.getElementById("toolsMenuList"),
+  usersButton: document.getElementById("usersButton"),
+  usersBadge: document.getElementById("usersBadge"),
+  usersPanel: document.getElementById("usersPanel"),
+  usersContent: document.getElementById("usersContent"),
   notificationsButton: document.getElementById("notificationsButton"),
   notificationsBadge: document.getElementById("notificationsBadge"),
   notificationsPanel: document.getElementById("notificationsPanel"),
@@ -480,10 +495,14 @@ async function initializeApp() {
     renderEquipmentList();
     await renderSavedReports();
     await initializeCloudSync();
+    if (typeof initializePresence === "function") {
+      await initializePresence();
+    }
     applyRoleRestrictions();
     await openSystemHome();
     updateConnectivityStatus();
     registerServiceWorker();
+    scheduleReleaseNotice();
   } catch (error) {
     updateConnectivityStatus("La app cargo con un detalle. Puedes intentar recargar o revisar tu conexion/sesion.");
     if (elements.loginStatus) {
@@ -562,6 +581,7 @@ function setupAppActions() {
   elements.closeSidebarButton.addEventListener("click", closeSidebar);
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
   elements.toolsMenuButton.addEventListener("click", toggleToolsMenu);
+  elements.usersButton.addEventListener("click", toggleUsersPanel);
   elements.notificationsButton.addEventListener("click", toggleNotificationsPanel);
   elements.profileButton.addEventListener("click", toggleProfilePanel);
   elements.profileContent?.addEventListener("click", handleProfilePanelClick);
@@ -755,10 +775,13 @@ function setupAppActions() {
       closeToolsMenu();
     }
     if (
-      elements.notificationsPanel
+      elements.usersPanel
+      && elements.notificationsPanel
       && elements.profilePanel
+      && !elements.usersButton.contains(event.target)
       && !elements.notificationsButton.contains(event.target)
       && !elements.profileButton.contains(event.target)
+      && !elements.usersPanel.contains(event.target)
       && !elements.notificationsPanel.contains(event.target)
       && !elements.profilePanel.contains(event.target)
     ) {
@@ -885,6 +908,19 @@ function toggleNotificationsPanel(event) {
   }
 }
 
+function toggleUsersPanel(event) {
+  event.stopPropagation();
+  const willOpen = elements.usersPanel.classList.contains("hidden");
+  closeTopPopovers();
+  if (willOpen) {
+    if (typeof renderOnlineUsersPanel === "function") {
+      renderOnlineUsersPanel();
+    }
+    elements.usersPanel.classList.remove("hidden");
+    elements.usersButton.setAttribute("aria-expanded", "true");
+  }
+}
+
 function toggleProfilePanel(event) {
   event.stopPropagation();
   const willOpen = elements.profilePanel.classList.contains("hidden");
@@ -897,8 +933,10 @@ function toggleProfilePanel(event) {
 }
 
 function closeTopPopovers() {
+  elements.usersPanel?.classList.add("hidden");
   elements.notificationsPanel?.classList.add("hidden");
   elements.profilePanel?.classList.add("hidden");
+  elements.usersButton?.setAttribute("aria-expanded", "false");
   elements.notificationsButton?.setAttribute("aria-expanded", "false");
   elements.profileButton?.setAttribute("aria-expanded", "false");
 }
@@ -1003,6 +1041,46 @@ function updateNotificationsBadge(notices) {
   const count = (notices || []).filter((notice) => notice.tone !== "ok").length;
   elements.notificationsBadge.textContent = String(count);
   elements.notificationsBadge.classList.toggle("is-empty", count === 0);
+}
+
+function scheduleReleaseNotice() {
+  window.setTimeout(showReleaseNoticeIfNeeded, 900);
+}
+
+function showReleaseNoticeIfNeeded() {
+  const release = APP_RELEASE_NOTES[APP_VERSION];
+  if (!release) {
+    return;
+  }
+  const lastSeenVersion = localStorage.getItem(RELEASE_NOTICE_KEY);
+  if (lastSeenVersion === APP_VERSION) {
+    return;
+  }
+  localStorage.setItem(RELEASE_NOTICE_KEY, APP_VERSION);
+  showReleaseToast(release);
+}
+
+function showReleaseToast(release) {
+  const existing = document.querySelector(".release-toast");
+  if (existing) {
+    existing.remove();
+  }
+
+  const toast = document.createElement("aside");
+  toast.className = "release-toast";
+  toast.setAttribute("role", "status");
+  toast.innerHTML = `
+    <div>
+      <p class="eyebrow">Novedades</p>
+      <strong>${escapeHtml(release.title || `Actualizacion ${APP_VERSION}`)}</strong>
+    </div>
+    <ul>
+      ${(release.summary || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+    </ul>
+    <button type="button">Entendido</button>
+  `;
+  toast.querySelector("button")?.addEventListener("click", () => toast.remove());
+  document.body.appendChild(toast);
 }
 
 function setupMobileNavigation() {
@@ -1580,6 +1658,9 @@ async function persistInspectionSilently(reason = "autoguardado") {
 function showView(view) {
   closeMobileMorePanel();
   updateContextToolbar(view);
+  if (typeof updatePresenceSection === "function") {
+    updatePresenceSection(getPresenceSectionLabel(view));
+  }
   if (elements.homeView) {
     elements.homeView.classList.toggle("hidden", view !== "home");
   }
@@ -1608,6 +1689,25 @@ function showView(view) {
   if (view === "inspection") {
     renderServiceStepContent();
   }
+}
+
+function getPresenceSectionLabel(view) {
+  const labels = {
+    home: "Inicio",
+    dashboard: "Dashboard",
+    fieldMode: "Modo campo",
+    workOrders: "Agenda",
+    auditLog: "Bitacora",
+    inspection: "Servicios",
+    equipment: "Editando equipo",
+    finding: "Editando hallazgo",
+    consolidatedHistory: "Concentrado general",
+    maintenancePanel: "Mantenimiento",
+    syncCenter: "Centro de sincronizacion",
+    settings: "Configuracion",
+    companyCraneRegistry: "Empresas y equipos"
+  };
+  return labels[view] || "Dentro de la app";
 }
 
 function updateContextToolbar(view) {

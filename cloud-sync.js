@@ -278,6 +278,9 @@ async function cloudSignInFromForm() {
     sessionStorage.removeItem(CLOUD_OFFLINE_MODE_KEY);
     renderCloudStatus();
     renderAuthGate();
+    if (typeof initializePresence === "function") {
+      await initializePresence();
+    }
     requestCloudDataSync("inicio de sesion", { immediate: true, silent: true });
     await showAppDialog({
       title: "Nube conectada",
@@ -323,6 +326,9 @@ async function cloudSignIn(email, password) {
 }
 
 async function cloudSignOutFromForm() {
+  if (typeof disconnectPresence === "function") {
+    await disconnectPresence();
+  }
   clearCloudSession();
   sessionStorage.removeItem(CLOUD_OFFLINE_MODE_KEY);
   renderCloudStatus();
@@ -346,6 +352,9 @@ async function cloudSignInFromLogin() {
     sessionStorage.removeItem(CLOUD_OFFLINE_MODE_KEY);
     renderCloudStatus();
     renderAuthGate();
+    if (typeof initializePresence === "function") {
+      await initializePresence();
+    }
   } catch (error) {
     elements.loginStatus.textContent = getReadableCloudError(error) || "No se pudo iniciar sesion.";
   } finally {

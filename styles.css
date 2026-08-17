@@ -381,6 +381,107 @@ body.auth-locked .app-shell {
   background: rgba(47, 158, 99, 0.08);
 }
 
+.online-user-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(8, 50, 71, 0.1);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.online-user-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.14);
+}
+
+.online-user-card strong,
+.online-user-card span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-user-card strong {
+  color: var(--brand);
+}
+
+.online-user-card span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.online-user-empty {
+  padding: 12px;
+  border: 1px dashed rgba(8, 50, 71, 0.2);
+  border-radius: 14px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.release-toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 80;
+  width: min(380px, calc(100vw - 28px));
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid rgba(8, 50, 71, 0.14);
+  border-left: 5px solid var(--accent);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 58px rgba(8, 47, 73, 0.24);
+  animation: release-toast-in 0.28s ease-out;
+}
+
+.release-toast strong {
+  display: block;
+  color: var(--brand);
+  font-size: 1rem;
+}
+
+.release-toast ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.release-toast button {
+  justify-self: end;
+  min-height: 36px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+@keyframes release-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .profile-card-mini {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -5378,6 +5479,12 @@ textarea[readonly] {
     flex: none;
     width: 100%;
     text-align: left;
+  }
+
+  .release-toast {
+    right: 14px;
+    bottom: 86px;
+    width: calc(100vw - 28px);
   }
 
   .service-step-nav {
