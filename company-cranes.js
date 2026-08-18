@@ -546,7 +546,11 @@ async function openCompanyCraneMasterFromMaintenance(clientName, craneId, tab = 
   openCompanyCraneFindingsModal(craneId, tab);
 }
 
-function closeCompanyCraneFindingsModal() {
+async function closeCompanyCraneFindingsModal() {
+  const { client, craneId, tab } = activeCompanyCraneMaster;
+  if (tab === "checklist" && client && craneId) {
+    await persistVisibleCompanyCraneChecklistDraft(client, craneId);
+  }
   activeCompanyCraneMaster = { client: "", craneId: "", tab: "data" };
   elements.companyCraneFindingsPanel.classList.add("hidden");
 }
@@ -612,9 +616,13 @@ function renderCompanyCraneMasterTabs(activeTab) {
 
 function wireCompanyCraneMasterTabs() {
   elements.companyCraneFindingsSummary.querySelectorAll("[data-crane-master-tab]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
+      const { client, craneId, tab } = activeCompanyCraneMaster;
+      if (tab === "checklist" && client && craneId) {
+        await persistVisibleCompanyCraneChecklistDraft(client, craneId);
+      }
       activeCompanyCraneMaster.tab = button.dataset.craneMasterTab || "data";
-      renderCompanyCraneMasterModal();
+      await renderCompanyCraneMasterModal();
     });
   });
 }
@@ -912,7 +920,7 @@ function summarizeCraneChecklist(catalog, checklistState) {
 }
 
 function renderCraneChecklistHistory(history) {
-  const entries = Array.isArray(history) ? history.slice(0, 8) : [];
+  const entries = Array.isArray(history) ? history.slice(0, 20) : [];
   if (!entries.length) {
     return '<div class="inline-empty-state compact-empty-state">Aun no hay checklists guardados en el historial de esta grua.</div>';
   }
@@ -928,9 +936,12 @@ function renderCraneChecklistHistory(history) {
       <div class="crane-checklist-history-list">
         ${entries.map((entry) => `
           <article>
-            <strong>${escapeHtml(entry.folio || "Sin folio")}</strong>
-            <span>${escapeHtml(formatDate(entry.savedAt) || entry.savedAt || "")}</span>
-            <small>Bien ${Number(entry.totals?.good) || 0} | N/A ${Number(entry.totals?.na) || 0} | Mal ${Number(entry.totals?.bad) || 0}</small>
+            <div class="crane-checklist-history-info">
+              <strong>${escapeHtml(entry.folio || "Sin folio")}</strong>
+              <span>${escapeHtml(formatDate(entry.savedAt) || entry.savedAt || "")}</span>
+              <small>Bien ${Number(entry.totals?.good) || 0} | N/A ${Number(entry.totals?.na) || 0} | Mal ${Number(entry.totals?.bad) || 0}</small>
+            </div>
+            <button class="secondary-button checklist-history-pdf-button" type="button" data-pdf-saved-checklist="${escapeHtml(entry.id || "")}">PDF</button>
           </article>
         `).join("")}
       </div>
@@ -1141,6 +1152,7 @@ function wireCompanyCraneChecklistChecks(client, crane) {
       const previous = findings[key][itemId];
       const description = previous && typeof previous === "object" ? previous.description || "" : "";
       findings[key][itemId] = { status: input.value, description };
+      findings[key]._updatedAt = new Date().toISOString();
       await writeActiveCraneFindings(findings);
       queueDataSync("checklist maestro actualizado");
 
@@ -1155,6 +1167,7 @@ function wireCompanyCraneChecklistChecks(client, crane) {
             status: "bad",
             description: nextDescription
           };
+          latestFindings[key]._updatedAt = new Date().toISOString();
           await writeActiveCraneFindings(latestFindings);
           queueDataSync("descripcion de checklist actualizada");
         }
@@ -1181,10 +1194,63 @@ function wireCompanyCraneChecklistChecks(client, crane) {
 
   const saveButton = elements.companyCraneFindingsList.querySelector("[data-save-crane-checklist]");
   if (saveButton) {
-    saveButton.addEventListener("click", () => {
-      saveCompanyCraneChecklistSnapshot(client, crane);
+    saveButton.addEventListener("click", async () => {
+      await persistVisibleCompanyCraneChecklistDraft(client, crane.id);
+      await saveCompanyCraneChecklistSnapshot(client, crane);
     });
   }
+
+  elements.companyCraneFindingsList.querySelectorAll("[data-pdf-saved-checklist]").forEach((pdfButton) => {
+    pdfButton.addEventListener("click", () => {
+      const entryId = pdfButton.dataset.pdfSavedChecklist;
+      const entry = readCompanyCraneChecklistHistory(client, crane.id)
+        .find((item) => item.id === entryId);
+      if (!entry) {
+        if (typeof showToast === "function") {
+          showToast({
+            title: "Checklist no encontrado",
+            message: "El registro seleccionado ya no esta disponible.",
+            tone: "warning"
+          });
+        }
+        return;
+      }
+      const popup = window.open("", "_blank");
+      if (popup) {
+        popup.document.write('<p style="font-family:Arial,sans-serif;padding:24px">Preparando checklist...</p>');
+        popup.document.close();
+      }
+      if (typeof openCraneChecklistPdf !== "function") {
+        popup?.close();
+        showAppDialog({
+          title: "PDF no disponible",
+          message: "No se pudo cargar el generador del checklist.",
+          actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+        });
+        return;
+      }
+      const savedState = (entry.items || []).reduce((state, item) => {
+        if (item?.id && ["good", "na", "bad"].includes(item.status)) {
+          state[item.id] = { status: item.status, description: item.description || "" };
+        }
+        return state;
+      }, {});
+      openCraneChecklistPdf({
+        client: entry.client || client,
+        contact: entry.contact || (readCompanyContacts()[client] || [])[0] || null,
+        crane: entry.crane || crane,
+        catalog: getCraneChecklistCatalog(),
+        rows: getCraneChecklistExcelRows(),
+        checklistState: savedState,
+        checklistMeta: {
+          folio: entry.folio || "",
+          lastSavedAt: entry.savedAt || "",
+          updatedAt: entry.savedAt || ""
+        },
+        popup
+      });
+    });
+  });
 
   const clearButton = elements.companyCraneFindingsList.querySelector("[data-clear-crane-checklist]");
   if (clearButton) {
@@ -1209,6 +1275,46 @@ function wireCompanyCraneChecklistChecks(client, crane) {
       await renderCompanyCraneMasterModal();
     });
   }
+}
+
+async function persistVisibleCompanyCraneChecklistDraft(client, craneId) {
+  const root = elements.companyCraneFindingsList;
+  if (!root || !root.querySelector("[data-crane-checklist-id]")) {
+    return;
+  }
+
+  const findings = readActiveCraneFindings();
+  const checklistKey = buildCraneChecklistKey(client, craneId);
+  const currentState = findings[checklistKey] || {};
+  const draft = {};
+
+  root.querySelectorAll("[data-crane-checklist-id]:checked").forEach((input) => {
+    const itemId = input.dataset.craneChecklistId;
+    if (!itemId) {
+      return;
+    }
+    draft[itemId] = {
+      status: input.value,
+      description: getCraneChecklistDescription(currentState, itemId)
+    };
+  });
+
+  const updatedAt = new Date().toISOString();
+  draft._updatedAt = updatedAt;
+  findings[checklistKey] = draft;
+
+  const folioInput = root.querySelector("[data-crane-checklist-folio]");
+  if (folioInput) {
+    const metaKey = buildCraneChecklistMetaKey(client, craneId);
+    findings[metaKey] = {
+      ...(findings[metaKey] || {}),
+      folio: folioInput.value.trim(),
+      updatedAt
+    };
+  }
+
+  await writeActiveCraneFindings(findings);
+  queueDataSync("borrador de checklist guardado");
 }
 
 function updateCraneChecklistInputVisualState(input) {
@@ -1655,6 +1761,7 @@ function wireActiveCraneFindingChecks(client, crane) {
       } else {
         delete findings[key][input.dataset.activeFindingValue];
       }
+      findings[key]._updatedAt = new Date().toISOString();
       writeActiveCraneFindings(findings);
       queueDataSync("hallazgos activos actualizados");
       activeCompanyCraneMaster = { client, craneId: crane.id, tab: "findings" };
@@ -1691,7 +1798,7 @@ function readCompanyCraneChecklistHistory(client, craneId) {
   return readActiveCraneFindings()[buildCraneChecklistHistoryKey(client, craneId)] || [];
 }
 
-function saveCompanyCraneChecklistSnapshot(client, crane) {
+async function saveCompanyCraneChecklistSnapshot(client, crane) {
   const catalog = getCraneChecklistCatalog();
   const checklistState = readCompanyCraneChecklistState(client, crane.id);
   const meta = readCompanyCraneChecklistMeta(client, crane.id);
@@ -1699,10 +1806,29 @@ function saveCompanyCraneChecklistSnapshot(client, crane) {
   const findings = readActiveCraneFindings();
   const historyKey = buildCraneChecklistHistoryKey(client, crane.id);
   const currentHistory = Array.isArray(findings[historyKey]) ? findings[historyKey] : [];
+  const savedAt = new Date().toISOString();
+  const contact = (readCompanyContacts()[client] || [])[0] || null;
   findings[historyKey] = [{
     id: createId(),
+    client,
+    contact: contact ? {
+      name: contact.name || "",
+      email: contact.email || "",
+      phone: contact.phone || ""
+    } : null,
+    crane: {
+      craneId: crane.craneId || "",
+      area: crane.area || "",
+      type: crane.type || "",
+      structureCapacity: crane.structureCapacity || "",
+      hoistCapacity: crane.hoistCapacity || "",
+      brand: crane.brand || "",
+      model: crane.model || "",
+      serialNumber: crane.serialNumber || "",
+      voltage: crane.voltage || ""
+    },
     folio: meta.folio || "",
-    savedAt: new Date().toISOString(),
+    savedAt,
     totals,
     items: catalog
       .map((item) => ({
@@ -1717,12 +1843,33 @@ function saveCompanyCraneChecklistSnapshot(client, crane) {
   }, ...currentHistory].slice(0, 20);
   findings[buildCraneChecklistMetaKey(client, crane.id)] = {
     ...meta,
-    lastSavedAt: new Date().toISOString()
+    lastSavedAt: savedAt,
+    updatedAt: savedAt
   };
-  writeActiveCraneFindings(findings);
+  await writeActiveCraneFindings(findings);
   queueDataSync("historial de checklist guardado");
   activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
-  renderCompanyCraneMasterModal();
+  await renderCompanyCraneMasterModal();
+  if (typeof showToast === "function") {
+    showToast({
+      title: "Checklist guardado",
+      message: `${meta.folio || "Sin folio"} se agrego al historial de ${crane.craneId || "la grua"}.`,
+      tone: "success"
+    });
+  }
+}
+
+function getActiveCraneFindingPayloadUpdatedAt(payload) {
+  if (Array.isArray(payload)) {
+    return payload.reduce((latest, entry) => {
+      const current = entry?.updatedAt || entry?.savedAt || "";
+      return new Date(current).getTime() > new Date(latest || 0).getTime() ? current : latest;
+    }, "");
+  }
+  if (!payload || typeof payload !== "object") {
+    return "";
+  }
+  return payload.updatedAt || payload._updatedAt || payload.lastSavedAt || "";
 }
 
 function splitActiveCraneFindingKey(key) {

@@ -460,7 +460,7 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
     const initialCloudSettings = await fetchCloudRows("app_settings", { includeDeleted: true });
     await mergeCloudCompanyCraneRows(initialCloudCompanies, initialCloudCranes);
     await mergeCloudCompaniesIntoSettings(initialCloudCompanies);
-    mergeCloudActiveFindingRows(initialCloudFindings);
+    await mergeCloudActiveFindingRows(initialCloudFindings);
     await mergeCloudReportRows(initialCloudReports);
     await mergeCloudSettingsRows(initialCloudSettings);
 
@@ -489,7 +489,7 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
     const cloudSettings = await fetchCloudRows("app_settings", { includeDeleted: true });
     await mergeCloudCompanyCraneRows(cloudCompanies, cloudCranes);
     await mergeCloudCompaniesIntoSettings(cloudCompanies);
-    mergeCloudActiveFindingRows(cloudFindings);
+    await mergeCloudActiveFindingRows(cloudFindings);
     await mergeCloudReportRows(cloudReports);
     await mergeCloudSettingsRows(cloudSettings);
 
@@ -1077,6 +1077,9 @@ async function buildLocalActiveFindingRows() {
     return !isDeletedCompanyName(client) && !isDeletedCompanyCraneId(craneId);
   }).map(([key, payload]) => {
     const [client, craneId] = splitActiveFindingKey(key);
+    const updatedAt = typeof getActiveCraneFindingPayloadUpdatedAt === "function"
+      ? getActiveCraneFindingPayloadUpdatedAt(payload) || new Date().toISOString()
+      : new Date().toISOString();
     return {
       id: createCloudActiveFindingId(key),
       company_id: client ? createCloudCompanyId(client) : null,
@@ -1085,9 +1088,10 @@ async function buildLocalActiveFindingRows() {
         key,
         client,
         craneId,
-        findings: payload || {}
+        findings: payload || {},
+        updatedAt
       },
-      updated_at: new Date().toISOString(),
+      updated_at: updatedAt,
       deleted_at: null
     };
   });
@@ -1430,7 +1434,7 @@ async function mergeCloudSettingsRows(rows) {
   }
 }
 
-function mergeCloudActiveFindingRows(rows) {
+async function mergeCloudActiveFindingRows(rows) {
   const findings = { ...readActiveCraneFindings() };
   (rows || []).forEach((row) => {
     const payload = row.payload || {};
@@ -1443,9 +1447,22 @@ function mergeCloudActiveFindingRows(rows) {
       delete findings[key];
       return;
     }
-    findings[key] = payload.findings || {};
+    const localPayload = findings[key];
+    const localUpdatedAt = typeof getActiveCraneFindingPayloadUpdatedAt === "function"
+      ? getActiveCraneFindingPayloadUpdatedAt(localPayload)
+      : "";
+    const cloudUpdatedAt = payload.updatedAt || row.updated_at || "";
+    if (!localPayload || getComparableTime(cloudUpdatedAt) >= getComparableTime(localUpdatedAt)) {
+      const cloudFindings = payload.findings || {};
+      findings[key] = Array.isArray(cloudFindings)
+        ? cloudFindings
+        : {
+            ...cloudFindings,
+            _updatedAt: cloudFindings.updatedAt || cloudFindings._updatedAt || cloudUpdatedAt
+          };
+    }
   });
-  writeActiveCraneFindings(findings);
+  await writeActiveCraneFindings(findings);
 }
 
 function stripHeavyInspectionPhotos(inspection) {

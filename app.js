@@ -22,14 +22,30 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.60";
+const APP_VERSION = "1.3.63";
 const APP_RELEASE_NOTES = {
-  "1.3.60": {
-    title: "Actualizacion 1.3.60",
+  "1.3.63": {
+    title: "Actualizacion 1.3.63",
     summary: [
-      "El checklist maestro ya no se vuelve a pintar completo al marcar una casilla.",
-      "Las casillas usan nombres estables por punto para evitar desmarcados cruzados.",
-      "Los contadores del checklist se actualizan sin reiniciar la tabla."
+      "Cada checklist guardado ahora tiene su propio boton PDF en el historial.",
+      "El PDF conserva las respuestas, folio, fecha y datos tecnicos de ese registro.",
+      "Se retiro el boton PDF del checklist activo para evitar exportaciones sin guardar."
+    ]
+  },
+  "1.3.62": {
+    title: "Actualizacion 1.3.62",
+    summary: [
+      "El PDF del checklist ahora conserva el formato oficial de Checklist.xlsx y Checklist.pdf.",
+      "Los 116 puntos se acomodan en tres columnas dentro de una hoja tamano carta.",
+      "El formato completa folio, empresa, contacto, datos de la grua y estados registrados."
+    ]
+  },
+  "1.3.61": {
+    title: "Actualizacion 1.3.61",
+    summary: [
+      "El checklist conserva automaticamente su estado al cerrar la ficha o cambiar de pestana.",
+      "La sincronizacion compara versiones para no reemplazar cambios recientes del checklist.",
+      "Nuevo boton PDF para imprimir o guardar el checklist completo de cada grua."
     ]
   }
 };

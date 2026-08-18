@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M-3200 - Checklist</title>
+  <style>
+    @page { size: Letter portrait; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #dce3e8; color: #000; font-family: Arial, Helvetica, sans-serif; }
+    .print-toolbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: #082f49; color: #fff; }
+    .print-toolbar strong { font-size: 14px; }
+    .print-toolbar div { display: flex; gap: 8px; }
+    .print-toolbar button { border: 1px solid rgba(255,255,255,.4); border-radius: 6px; padding: 9px 13px; background: #fff; color: #082f49; font-weight: 700; cursor: pointer; }
+    .print-toolbar .primary { border-color: #f97316; background: #f97316; color: #fff; }
+    .sheet { position: relative; width: 215.9mm; min-height: 279.4mm; margin: 6mm auto; padding: 8mm 10mm 7mm; overflow: hidden; background: #fff; box-shadow: 0 10px 35px rgba(8,47,73,.18); }
+    .document-header { display: grid; grid-template-columns: 45mm 1fr 46mm; align-items: center; min-height: 25mm; gap: 3mm; }
+    .document-logo { width: 43mm; height: 20mm; object-fit: contain; object-position: left center; }
+    .company-heading { text-align: center; font-size: 7.2pt; font-weight: 700; line-height: 1.25; }
+    .company-heading p { margin: 0; }
+    .folio-box { display: flex; align-items: center; justify-content: center; gap: 2mm; min-height: 14mm; border: .55mm solid #000; font-size: 9pt; font-weight: 700; }
+    .folio-box span:first-child { color: #f00; }
+    .document-title { margin: 0 0 .7mm; text-align: center; font-size: 12pt; line-height: 1; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .metadata-table th, .metadata-table td { height: 5.4mm; border: .35mm solid #000; padding: .35mm .7mm; font-size: 7.5pt; line-height: 1; text-align: left; white-space: nowrap; overflow: hidden; }
+    .metadata-table th { font-weight: 400; }
+    .instructions { height: 7mm; display: flex; align-items: center; justify-content: center; border: .35mm solid #000; border-top: 0; background: #d9d9d9; font-size: 7.5pt; }
+    .instructions strong { margin-right: 1mm; }
+    .instructions .good-example, .instructions .bad-example { margin-left: 1.5mm; font-size: 9pt; font-weight: 900; }
+    .checklist-table { font-size: 5.15pt; line-height: 1; }
+    .checklist-table .point-column { width: 23%; }
+    .checklist-table .state-column { width: 10.333%; }
+    .checklist-table tr { height: 3.32mm; }
+    .checklist-table td { border: .27mm solid #000; padding: .18mm .45mm; vertical-align: middle; white-space: nowrap; overflow: hidden; }
+    .checklist-table .category { background: #d9d9d9; text-align: center; font-weight: 700; }
+    .checklist-table .status-cell { text-align: center; font-weight: 700; }
+    .status-mark { display: inline-block; min-width: 6mm; font-size: 6.4pt; font-weight: 900; }
+    .status-measure { float: right; font-size: 5pt; }
+    .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 42mm; margin: 14mm 22mm 0; }
+    .signature { padding-top: 1.2mm; border-top: .35mm solid #000; text-align: center; font-size: 6.8pt; }
+    .document-footer { position: absolute; left: 10mm; right: 10mm; bottom: 6mm; display: grid; grid-template-columns: 38mm 1fr; gap: 4mm; align-items: end; font-size: 6.5pt; }
+    .document-footer span:last-child { text-align: left; }
+    @media print {
+      html, body { background: #fff; }
+      .print-toolbar { display: none; }
+      .sheet { width: 215.9mm; height: 279.4mm; min-height: 0; margin: 0; box-shadow: none; page-break-after: avoid; }
+    }
+  .print-toolbar{display:none!important}.sheet{margin:0 auto!important}</style>
+</head>
+<body>
+  <div class="print-toolbar">
+    <strong>M-3200 - Checklist listo</strong>
+    <div>
+      <button type="button" onclick="window.close()">Cerrar</button>
+      <button class="primary" type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
+    </div>
+  </div>
+  <main class="sheet">
+    <header class="document-header">
+      <img class="document-logo" src="http://127.0.0.1:5180/logo.png" alt="FMC Industrial">
+      <div class="company-heading">
+        <p>FMC INDUSTRIAL</p>
+        <p>SUMINISTROS BAJA NORTE FMC S DE RL DE CV</p>
+        <p>CALZADA ING. JUAN OJEDA 14990 #9</p>
+        <p>COLONIA GUADALUPE VICTORIA C.P 22426</p>
+        <p>TIJUANA, BC</p>
+        <p>R.F.C SBN230811D29</p>
+      </div>
+      <div class="folio-box"><span>Folio:</span><span>M-3200</span></div>
+    </header>
+    <h1 class="document-title">MANTENIMIENTO PREVENTIVO DE GRUAS Y ELEVADORES</h1>
+    
+    <table class="metadata-table">
+      <tbody>
+        <tr>
+          <th>Empresa:</th><td colspan="3">EMPRESA INDUSTRIAL DE PRUEBA</td>
+          <th>Contacto:</th><td colspan="3">Responsable de mantenimiento</td>
+          <th>Grua #:</th><td>GRUA #12</td>
+          <th>Fecha de Servicio:</th><td>18/08/2026</td>
+        </tr>
+        <tr>
+          <th>Cap Grua:</th><td>10 TON</td>
+          <th>Tipo:</th><td>Viajera</td>
+          <th>Izaje:</th><td></td>
+          <th>Span:</th><td></td>
+          <th>Recorrido:</th><td></td>
+          <th>Area:</th><td>Nave de produccion 2</td>
+        </tr>
+        <tr>
+          <th colspan="2">Capacidad polipasto:</th><td colspan="2">5 TON</td>
+          <th>Fabricante:</th><td colspan="3">Harrington</td>
+          <th>Modelo:</th><td colspan="3">NER2</td>
+        </tr>
+        <tr>
+          <th>Accionamiento:</th><td></td>
+          <th>Velocidades:</th><td colspan="2"></td>
+          <th>Voltaje:</th><td colspan="2">460 V</td>
+          <th># de Serie:</th><td colspan="3">SER-001234</td>
+        </tr>
+      </tbody>
+    </table>
+  
+    <div class="instructions"><strong>Instrucciones:</strong> Revisar todos los articulos e indicar si es Satisfactorio <span class="good-example">&#10003;</span> o Insatisfactorio <span class="bad-example">X</span></div>
+    
+    <table class="checklist-table">
+      <colgroup>
+        <col class="point-column"><col class="state-column">
+        <col class="point-column"><col class="state-column">
+        <col class="point-column"><col class="state-column">
+      </colgroup>
+      <tbody>
+        <tr>
+      <td class="category">Registros del equipo</td>
+      <td class="category status-cell">Estado</td>
+    
+      <td class="category">Sistema Mecanico de Carro</td>
+      <td class="category status-cell">Estado</td>
+    
+      <td class="category">Sistema Electrico de Puente</td>
+      <td class="category status-cell">Estado</td>
+    </tr><tr>
+    <td class="inspection-point">1. Inspeccion Diaria</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">39. Riel</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">79. Freno electromagnetico</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">2. Programa de mantenimiento</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">40. Topes mecanicos y de hule</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">80. Motor electrico</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">3. Ultimo mantenimiento</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">41. Ruedas motrices y giratorias</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">81. Contactores</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+      <td class="category">Aparejo Inferior</td>
+      <td class="category status-cell">Estado</td>
+    
+    <td class="inspection-point">42. Flechas y chumaceras</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  
+    <td class="inspection-point">82. Variador de velocidad</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">4. Apertura de gancho de carga</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">43. Reductor (caja de engranes)</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">83. Resistencia frenado dinamico</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">5. Pestillo de seguridad</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">44. Piñon</td>
+    <td class="status-cell is-bad"><span class="status-mark status-bad">X</span></td>
+  
+    <td class="inspection-point">84. Limit switch y levas</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  </tr><tr>
+    <td class="inspection-point">6. Balero axial giro/lubricacion</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">45. Nivel de aceite de reductor</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">85. Gabinete de control electrico</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">7. Poleas de aparejo inferior</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  
+    <td class="inspection-point">46. Espesor de balatas</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+      <td class="category">Sistema de Festoon</td>
+      <td class="category status-cell">Estado</td>
+    </tr><tr>
+    <td class="inspection-point">8. Pernos de aparejo inferior</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">47. Ajuste de freno</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">86. Riel C</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">9. Guardas de aparejo inferior</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">48. Tornilleria</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">87. Soportes de Riel C</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">10. Tornilleria de aparejo inferior</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+      <td class="category">Sistema Mecanico de Izaje</td>
+      <td class="category status-cell">Estado</td>
+    
+    <td class="inspection-point">88. Carretillas</td>
+    <td class="status-cell is-bad"><span class="status-mark status-bad">X</span></td>
+  </tr><tr>
+    <td class="inspection-point">11. Candados de pernos</td>
+    <td class="status-cell is-bad"><span class="status-mark status-bad">X</span></td>
+  
+    <td class="inspection-point">49. Tambor</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  
+    <td class="inspection-point">89. Topes</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">12. Etiqueta de capacidad</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">50. Polea de carga</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">90. Hangers</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+      <td class="category">Cable de Carga</td>
+      <td class="category status-cell">Estado</td>
+    
+    <td class="inspection-point">51. Guia de cables</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">91. Uniones</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  </tr><tr>
+    <td class="inspection-point">13. Diametro</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">52. Nivel de aceite de reductor</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">92. Cable plano/redondo de fuerza</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">14. Caidas</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  
+    <td class="inspection-point">53. Sodadura de marco</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">93. Cable plano/redondo de control</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">15. Lubricacion</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">54. Baleros</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">94. Gabinetes de interconexion</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">16. Deformacion y/o cocas</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">55. Chumaceras y flechas</td>
+    <td class="status-cell is-bad"><span class="status-mark status-bad">X</span></td>
+  
+    <td class="inspection-point">95. Brazo de arrastre</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">17. Hilos y torones</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">56. Espesor de Balatas</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  
+      <td class="category">Sistema de Mando de Grua</td>
+      <td class="category status-cell">Estado</td>
+    </tr><tr>
+    <td class="inspection-point">18. Casquillos y puntas</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">57. Ajuste de Freno</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">96. Carcasa de Botonera</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">19. Punto fijo</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">58. Tornilleria</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">97. Cable de botonera</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+      <td class="category">Cadena De Carga</td>
+      <td class="category status-cell">Estado</td>
+    
+      <td class="category">Sistema Electrico de Izaje</td>
+      <td class="category status-cell">Estado</td>
+    
+    <td class="inspection-point">98. Caja de interconexiones</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  </tr><tr>
+    <td class="inspection-point">20. Diametro</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">59. Freno electromagnetico</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">99. Radiocontrol sin interferencia</td>
+    <td class="status-cell is-bad"><span class="status-mark status-bad">X</span></td>
+  </tr><tr>
+    <td class="inspection-point">21. Caidas</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  
+    <td class="inspection-point">60. Amperaje del Motor electrico</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">100. Paro de Emergencia</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">22. Lubricacion</td>
+    <td class="status-cell is-bad"><span class="status-mark status-bad">X</span></td>
+  
+    <td class="inspection-point">61. Contactores</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">101. Cable de Tension</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">23. Deformacion y/o Daños</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">62. Variador de velocidad</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">102. Botones Funcionales</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">24. Longitud de Eslabones</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">63. Resistencia de frenado dinamico</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  
+    <td class="inspection-point">103. Botones etiquetados legiblemente</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">25. Bloque Limit Switch Inferior</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">64. Gabinete de control electrico</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+      <td class="category">Alimentacion Electrica de Grua</td>
+      <td class="category status-cell">Estado</td>
+    </tr><tr>
+    <td class="inspection-point">26. Bolsa de Cadena</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">65. Limit switch y levas</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">104. Interruptor de grua</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+      <td class="category">Aparejo Superior</td>
+      <td class="category status-cell">Estado</td>
+    
+    <td class="inspection-point">66. Sensores de sobrecarga</td>
+    <td class="status-cell is-bad"><span class="status-mark status-bad">X</span></td>
+  
+    <td class="inspection-point">105. Bus electrico de la grua</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  </tr><tr>
+    <td class="inspection-point">27. Poleas de aparejo superior</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+      <td class="category">Sistema Mecanico de Puente</td>
+      <td class="category status-cell">Estado</td>
+    
+    <td class="inspection-point">106. Brazos tomacorriente</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">28. Polea igualadora (reenvio)</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  
+    <td class="inspection-point">67. Riel</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+      <td class="category">Accesorios</td>
+      <td class="category status-cell">Estado</td>
+    </tr><tr>
+    <td class="inspection-point">29. Pernos de aparejo superior</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">68. Topes mecanicos y de hule</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">107. Sirena auditiva</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">30. Guardas de aparejo superior</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">69. Ruedas motrices y giratorias</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">108. Torreta estroboscopica</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">31. Tornilleria de aparejo superior</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">70. Flechas y chumaceras</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  
+    <td class="inspection-point">109. Bocina audible</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">32. Candados de pernos</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">71. Reductor (caja de engranes)</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+      <td class="category">Estructura</td>
+      <td class="category status-cell">Estado</td>
+    </tr><tr>
+      <td class="category">Sistema Electrico de Carro</td>
+      <td class="category status-cell">Estado</td>
+    
+    <td class="inspection-point">72. Piñon</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">110. Nivelacion de columnas</td>
+    <td class="status-cell is-bad"><span class="status-mark status-bad">X</span></td>
+  </tr><tr>
+    <td class="inspection-point">33. Freno Electromagnetico</td>
+    <td class="status-cell is-bad"><span class="status-mark status-bad">X</span></td>
+  
+    <td class="inspection-point">73. Nivel de aceite de reductor</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">111. Nivelacion de rieles</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">34. Motor electrico</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">74. Espesor de Balatas</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">112. Torque de anclas</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  </tr><tr>
+    <td class="inspection-point">35. Contactores</td>
+    <td class="status-cell is-na"><span class="status-mark status-na">N/A</span></td>
+  
+    <td class="inspection-point">75. Ajuste de freno</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">113. Cimentacion</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">36. Variador de velocidad</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">76. Tornilleria</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">114. Daño a Columnas</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">37. Resistencia de frenado dinamico</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">77. Etiqueta capacidad</td>
+    <td class="status-cell is-bad"><span class="status-mark status-bad">X</span></td>
+  
+    <td class="inspection-point">115. Tornilleria</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr><tr>
+    <td class="inspection-point">38. Limit switch y levas</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">78. Cabezales/endtrucks</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  
+    <td class="inspection-point">116. Soldadura</td>
+    <td class="status-cell is-good"><span class="status-mark status-good">&#10003;</span></td>
+  </tr>
+      </tbody>
+    </table>
+  
+    <section class="signatures">
+      <div class="signature">Nombre y firma de Inspector</div>
+      <div class="signature">Nombre y firma de Cliente</div>
+    </section>
+    <footer class="document-footer">
+      <span>FMC-FORM-0006 Rev2</span>
+      <span>Tipo de Grua P-Portico M-Monorriel V-Viajera B-Bandera E-Estacion de Trabajo</span>
+    </footer>
+  </main>
+  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 350));</script>
+</body>
+</html>

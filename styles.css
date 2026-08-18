@@ -5500,6 +5500,17 @@ textarea[readonly] {
   font: inherit;
 }
 
+.crane-checklist-actions .checklist-pdf-button {
+  min-width: 64px;
+  border-color: #f97316;
+  color: #c2410c;
+  font-weight: 900;
+}
+
+.crane-checklist-actions .checklist-pdf-button:hover {
+  background: #fff7ed;
+}
+
 .crane-checklist-history {
   display: grid;
   gap: 12px;
@@ -5522,12 +5533,36 @@ textarea[readonly] {
 }
 
 .crane-checklist-history-list article {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: #fbfdff;
+}
+
+.crane-checklist-history-info {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.checklist-history-pdf-button {
+  flex: 0 0 auto;
+  min-width: 72px;
+  color: #fff;
+  border-color: #f97316;
+  background: #f97316;
+  font-weight: 800;
+}
+
+.checklist-history-pdf-button:hover,
+.checklist-history-pdf-button:focus-visible {
+  color: #fff;
+  border-color: #c2410c;
+  background: #c2410c;
 }
 
 .crane-checklist-history-list strong {
