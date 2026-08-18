@@ -10,6 +10,7 @@ const CONSOLIDATED_EXPORT_DELIMITER = ";";
 const COMPANY_CRANE_REGISTRY_KEY = "company-crane-registry-v1";
 const COMPANY_MAINTENANCE_FREQUENCY_KEY = "company-maintenance-frequency-v1";
 const COMPANY_CONTACTS_KEY = "company-contacts-v1";
+const COMPANY_LOCATIONS_KEY = "company-locations-v1";
 const ACTIVE_CRANE_FINDINGS_KEY = "active-crane-findings-v1";
 const DELETED_COMPANY_CRANES_KEY = "deleted-company-cranes-v1";
 const DELETED_INSPECTIONS_KEY = "deleted-inspections-v1";
@@ -21,14 +22,14 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.52";
+const APP_VERSION = "1.3.59";
 const APP_RELEASE_NOTES = {
-  "1.3.52": {
-    title: "Actualizacion 1.3.52",
+  "1.3.59": {
+    title: "Actualizacion 1.3.59",
     summary: [
-      "Nuevo panel de usuarios conectados en tiempo real.",
-      "Se muestra en que seccion esta trabajando cada usuario.",
-      "Aviso automatico de novedades cuando se instala una version nueva."
+      "El campo Tipo de equipo ahora muestra solo el catalogo de Configuracion.",
+      "Se desactivo el autocompletado del navegador para evitar opciones repetidas.",
+      "El checklist maestro espera el guardado antes de refrescar para no perder marcas."
     ]
   }
 };
@@ -155,6 +156,7 @@ const elements = {
   mobileSaveButton: document.getElementById("mobileSaveButton"),
   mobileDashboardButton: document.getElementById("mobileDashboardButton"),
   mobileWorkOrdersButton: document.getElementById("mobileWorkOrdersButton"),
+  mobileClientsMapButton: document.getElementById("mobileClientsMapButton"),
   mobileAuditLogButton: document.getElementById("mobileAuditLogButton"),
   mobileMaintenanceButton: document.getElementById("mobileMaintenanceButton"),
   mobileConsolidatedButton: document.getElementById("mobileConsolidatedButton"),
@@ -207,6 +209,7 @@ const elements = {
   fieldSaveButton: document.getElementById("fieldSaveButton"),
   fieldPdfButton: document.getElementById("fieldPdfButton"),
   workOrdersView: document.getElementById("workOrdersView"),
+  clientsMapView: document.getElementById("clientsMapView"),
   auditLogView: document.getElementById("auditLogView"),
   inspectionView: document.getElementById("inspectionView"),
   equipmentEditorView: document.getElementById("equipmentEditorView"),
@@ -264,6 +267,7 @@ const elements = {
   openFieldModeButton: document.getElementById("openFieldModeButton"),
   openDashboardButton: document.getElementById("openDashboardButton"),
   openWorkOrdersButton: document.getElementById("openWorkOrdersButton"),
+  openClientsMapButton: document.getElementById("openClientsMapButton"),
   openAuditLogButton: document.getElementById("openAuditLogButton"),
   refreshDashboardButton: document.getElementById("refreshDashboardButton"),
   closeDashboardButton: document.getElementById("closeDashboardButton"),
@@ -292,6 +296,14 @@ const elements = {
   workOrderNotes: document.getElementById("workOrderNotes"),
   saveWorkOrderButton: document.getElementById("saveWorkOrderButton"),
   clearWorkOrderFormButton: document.getElementById("clearWorkOrderFormButton"),
+  closeClientsMapButton: document.getElementById("closeClientsMapButton"),
+  refreshClientsMapButton: document.getElementById("refreshClientsMapButton"),
+  clientsMapSummary: document.getElementById("clientsMapSummary"),
+  clientsMapCanvas: document.getElementById("clientsMapCanvas"),
+  clientsMapStatus: document.getElementById("clientsMapStatus"),
+  clientsMapSearch: document.getElementById("clientsMapSearch"),
+  clientsMapStatusFilter: document.getElementById("clientsMapStatusFilter"),
+  clientsMapList: document.getElementById("clientsMapList"),
   closeAuditLogButton: document.getElementById("closeAuditLogButton"),
   refreshAuditLogButton: document.getElementById("refreshAuditLogButton"),
   auditLogFilter: document.getElementById("auditLogFilter"),
@@ -371,6 +383,11 @@ const elements = {
   companyContactPhone: document.getElementById("companyContactPhone"),
   addCompanyContactButton: document.getElementById("addCompanyContactButton"),
   companyContactsList: document.getElementById("companyContactsList"),
+  companyLocationAddress: document.getElementById("companyLocationAddress"),
+  companyLocationCity: document.getElementById("companyLocationCity"),
+  companyLocationLatitude: document.getElementById("companyLocationLatitude"),
+  companyLocationLongitude: document.getElementById("companyLocationLongitude"),
+  saveCompanyLocationButton: document.getElementById("saveCompanyLocationButton"),
   companyRegistrySummary: document.getElementById("companyRegistrySummary"),
   companyServiceOverview: document.getElementById("companyServiceOverview"),
   companyCraneList: document.getElementById("companyCraneList"),
@@ -643,6 +660,7 @@ function setupAppActions() {
   elements.refreshReportsButton.addEventListener("click", renderSavedReports);
   on(elements.openDashboardButton, "click", openGeneralDashboard);
   on(elements.openWorkOrdersButton, "click", openWorkOrdersPanel);
+  on(elements.openClientsMapButton, "click", openClientsMap);
   on(elements.openAuditLogButton, "click", openAuditLogPanel);
   on(elements.refreshDashboardButton, "click", renderGeneralDashboard);
   on(elements.closeDashboardButton, "click", openSystemHome);
@@ -662,6 +680,10 @@ function setupAppActions() {
   on(elements.workOrderClient, "change", renderWorkOrderCranePicker);
   on(elements.saveWorkOrderButton, "click", saveWorkOrderFromForm);
   on(elements.clearWorkOrderFormButton, "click", () => resetWorkOrderForm());
+  on(elements.closeClientsMapButton, "click", openSystemHome);
+  on(elements.refreshClientsMapButton, "click", renderClientsMap);
+  on(elements.clientsMapSearch, "input", renderClientsMap);
+  on(elements.clientsMapStatusFilter, "change", renderClientsMap);
   on(elements.closeAuditLogButton, "click", openSystemHome);
   on(elements.refreshAuditLogButton, "click", renderAuditLogPanel);
   on(elements.auditLogFilter, "change", renderAuditLogPanel);
@@ -739,6 +761,7 @@ function setupAppActions() {
   elements.companyRegistrySearch.addEventListener("input", renderCompanyRegistryClientCards);
   elements.selectCompanyRegistrySearchButton.addEventListener("click", () => selectCompanyRegistryClient(elements.companyRegistrySearch.value));
   elements.addCompanyContactButton.addEventListener("click", addCompanyContactForCurrentCompany);
+  elements.saveCompanyLocationButton.addEventListener("click", saveCompanyLocationForCurrentCompany);
   elements.companyRegistryClient.addEventListener("change", () => {
     closeCompanyCraneForm();
     loadCompanyMaintenanceFrequency();
@@ -1147,6 +1170,12 @@ function setupMobileNavigation() {
     elements.mobileWorkOrdersButton.addEventListener("click", () => {
       closeMobileMorePanel();
       openWorkOrdersPanel();
+    });
+  }
+  if (elements.mobileClientsMapButton) {
+    elements.mobileClientsMapButton.addEventListener("click", () => {
+      closeMobileMorePanel();
+      openClientsMap();
     });
   }
   if (elements.mobileAuditLogButton) {
@@ -1673,6 +1702,9 @@ function showView(view) {
   if (elements.workOrdersView) {
     elements.workOrdersView.classList.toggle("hidden", view !== "workOrders");
   }
+  if (elements.clientsMapView) {
+    elements.clientsMapView.classList.toggle("hidden", view !== "clientsMap");
+  }
   if (elements.auditLogView) {
     elements.auditLogView.classList.toggle("hidden", view !== "auditLog");
   }
@@ -1697,6 +1729,7 @@ function getPresenceSectionLabel(view) {
     dashboard: "Dashboard",
     fieldMode: "Modo campo",
     workOrders: "Agenda",
+    clientsMap: "Mapa de clientes",
     auditLog: "Bitacora",
     inspection: "Servicios",
     equipment: "Editando equipo",
@@ -1723,6 +1756,7 @@ function updateContextToolbar(view) {
     dashboard: { eyebrow: "Analisis", title: "Dashboard ejecutivo", report: false },
     fieldMode: { eyebrow: "Campo", title: "Modo campo", report: true },
     workOrders: { eyebrow: "Operacion", title: "Agenda de servicios", report: false },
+    clientsMap: { eyebrow: "Cobertura", title: "Mapa de clientes", report: false },
     auditLog: { eyebrow: "Control", title: "Bitacora de cambios", report: false },
     consolidatedHistory: { eyebrow: "Datos", title: "Concentrado general", report: false },
     maintenancePanel: { eyebrow: "Mantenimiento", title: "Panel de mantenimiento", report: false },
@@ -1756,28 +1790,10 @@ function closeSidebar() {
 }
 
 function showAppDialog(options = {}) {
-  const actions = options.actions && options.actions.length
-    ? options.actions
-    : [{ id: "ok", label: "Aceptar", variant: "primary" }];
-
-  elements.appDialogEyebrow.textContent = options.eyebrow || "Mensaje";
-  elements.appDialogTitle.textContent = options.title || "Confirmar accion";
-  elements.appDialogMessage.textContent = options.message || "";
-  elements.appDialogDetails.classList.toggle("hidden", !options.details);
-  elements.appDialogDetails.textContent = options.details || "";
-  elements.appDialogActions.innerHTML = actions.map((action) => `
-    <button class="${getDialogButtonClass(action.variant)}" type="button" data-dialog-action="${escapeHtml(action.id)}">
-      ${escapeHtml(action.label)}
-    </button>
-  `).join("");
-  elements.appDialogActions.querySelectorAll("[data-dialog-action]").forEach((button) => {
-    button.addEventListener("click", () => resolveAppDialog(button.dataset.dialogAction));
-  });
-  elements.appDialogPanel.classList.remove("hidden");
-
-  return new Promise((resolve) => {
-    appDialogResolver = resolve;
-  });
+  if (typeof showModal === "function") {
+    return showModal(options);
+  }
+  return Promise.resolve(window.alert(options.message || options.title || "Mensaje"));
 }
 
 function resolveAppDialog(value) {

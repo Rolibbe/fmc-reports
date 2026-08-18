@@ -223,6 +223,9 @@ function writeWorkOrders(workOrders) {
   setCachedMasterData("workOrders", WORK_ORDERS_KEY, workOrders || {});
 }
 
+let workOrderCalendarDate = new Date();
+let workOrderSelectedCalendarDay = "";
+
 async function openWorkOrdersPanel() {
   await populateWorkOrderClientOptions();
   resetWorkOrderForm({ keepClient: true });
@@ -263,10 +266,163 @@ async function renderWorkOrdersPanel() {
   const filter = elements.workOrderStatusFilter?.value || "";
   const visible = filter ? orders.filter((order) => order.status === filter) : orders;
   renderWorkOrderSummary(orders);
+  await renderWorkOrderCalendar(orders);
   elements.workOrdersList.innerHTML = visible.length
     ? visible.map(renderWorkOrderCard).join("")
     : '<div class="inline-empty-state compact-empty-state">No hay ordenes con ese filtro.</div>';
   wireWorkOrderCards();
+}
+
+async function renderWorkOrderCalendar(orders = []) {
+  const panel = document.getElementById("workOrderCalendarPanel");
+  if (!panel) {
+    return;
+  }
+
+  const maintenanceRows = typeof buildMaintenancePanelRows === "function"
+    ? await buildMaintenancePanelRows()
+    : [];
+  const events = buildWorkOrderCalendarEvents(maintenanceRows, orders);
+  const monthStart = new Date(workOrderCalendarDate.getFullYear(), workOrderCalendarDate.getMonth(), 1);
+  const monthEnd = new Date(workOrderCalendarDate.getFullYear(), workOrderCalendarDate.getMonth() + 1, 0);
+  const startOffset = monthStart.getDay();
+  const totalCells = Math.ceil((startOffset + monthEnd.getDate()) / 7) * 7;
+  const todayKey = toDateInputValue(new Date());
+  const monthKey = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`;
+  const monthEvents = events.filter((event) => event.date.startsWith(monthKey));
+  const selectedDay = workOrderSelectedCalendarDay && workOrderSelectedCalendarDay.startsWith(monthKey)
+    ? workOrderSelectedCalendarDay
+    : monthEvents[0]?.date || todayKey;
+  const selectedEvents = events.filter((event) => event.date === selectedDay);
+
+  panel.innerHTML = `
+    <div class="work-calendar-head">
+      <div>
+        <p class="eyebrow">Calendario de mantenimiento</p>
+        <h3>${escapeHtml(formatCalendarMonthLabel(monthStart))}</h3>
+        <p>${escapeHtml(monthEvents.length ? `${monthEvents.length} servicio(s) sugerido(s) este mes` : "No hay servicios sugeridos para este mes.")}</p>
+      </div>
+      <div class="work-calendar-actions">
+        <button class="ghost-button" type="button" data-work-calendar-prev>Anterior</button>
+        <button class="secondary-button" type="button" data-work-calendar-today>Hoy</button>
+        <button class="ghost-button" type="button" data-work-calendar-next>Siguiente</button>
+      </div>
+    </div>
+    <div class="work-calendar-grid" role="grid" aria-label="Calendario de servicios sugeridos">
+      ${["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"].map((day) => `<span class="work-calendar-weekday">${day}</span>`).join("")}
+      ${Array.from({ length: totalCells }).map((_, index) => {
+        const dayNumber = index - startOffset + 1;
+        const inMonth = dayNumber >= 1 && dayNumber <= monthEnd.getDate();
+        const cellDate = inMonth ? new Date(monthStart.getFullYear(), monthStart.getMonth(), dayNumber) : null;
+        const dateKey = cellDate ? toDateInputValue(cellDate) : "";
+        const dayEvents = dateKey ? events.filter((event) => event.date === dateKey) : [];
+        const urgentCount = dayEvents.filter((event) => event.tone === "danger").length;
+        const warningCount = dayEvents.filter((event) => event.tone === "warning").length;
+        const tone = urgentCount ? "danger" : warningCount ? "warning" : dayEvents.length ? "ok" : "";
+        return `
+          <button class="work-calendar-day ${inMonth ? "" : "is-empty"} ${dateKey === todayKey ? "is-today" : ""} ${dateKey === selectedDay ? "is-selected" : ""} ${tone ? `is-${tone}` : ""}" type="button" ${dateKey ? `data-work-calendar-day="${escapeHtml(dateKey)}"` : "disabled"}>
+            <span>${inMonth ? dayNumber : ""}</span>
+            ${dayEvents.length ? `<strong>${dayEvents.length}</strong>` : ""}
+            <div>${dayEvents.slice(0, 3).map((event) => `<i class="is-${escapeHtml(event.tone)}"></i>`).join("")}</div>
+          </button>
+        `;
+      }).join("")}
+    </div>
+    <div class="work-calendar-detail">
+      <div class="work-calendar-detail-head">
+        <div>
+          <span>Dia seleccionado</span>
+          <strong>${escapeHtml(formatDate(selectedDay) || "Sin fecha")}</strong>
+        </div>
+        <button class="secondary-button" type="button" data-work-calendar-new="${escapeHtml(selectedDay)}">Crear orden</button>
+      </div>
+      <div class="work-calendar-events">
+        ${selectedEvents.length ? selectedEvents.map(renderWorkOrderCalendarEvent).join("") : '<div class="inline-empty-state compact-empty-state">No hay gruas programadas para este dia.</div>'}
+      </div>
+    </div>
+  `;
+
+  panel.querySelector("[data-work-calendar-prev]")?.addEventListener("click", () => {
+    workOrderCalendarDate = new Date(workOrderCalendarDate.getFullYear(), workOrderCalendarDate.getMonth() - 1, 1);
+    renderWorkOrdersPanel();
+  });
+  panel.querySelector("[data-work-calendar-next]")?.addEventListener("click", () => {
+    workOrderCalendarDate = new Date(workOrderCalendarDate.getFullYear(), workOrderCalendarDate.getMonth() + 1, 1);
+    renderWorkOrdersPanel();
+  });
+  panel.querySelector("[data-work-calendar-today]")?.addEventListener("click", () => {
+    workOrderCalendarDate = new Date();
+    workOrderSelectedCalendarDay = toDateInputValue(new Date());
+    renderWorkOrdersPanel();
+  });
+  panel.querySelectorAll("[data-work-calendar-day]").forEach((button) => {
+    button.addEventListener("click", () => {
+      workOrderSelectedCalendarDay = button.dataset.workCalendarDay || "";
+      renderWorkOrdersPanel();
+    });
+  });
+  panel.querySelector("[data-work-calendar-new]")?.addEventListener("click", (event) => {
+    resetWorkOrderForm();
+    elements.workOrderDate.value = event.currentTarget.dataset.workCalendarNew || toDateInputValue(new Date());
+    elements.workOrderFormPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+function buildWorkOrderCalendarEvents(maintenanceRows = [], orders = []) {
+  const maintenanceEvents = maintenanceRows
+    .filter((row) => row.nextMaintenance)
+    .map((row) => ({
+      id: `maintenance-${row.client}-${row.crane.id}-${row.nextMaintenance}`,
+      date: row.nextMaintenance,
+      client: row.client,
+      title: row.crane.craneId || row.crane.type || "Grua",
+      detail: [row.crane.area, row.crane.brand, row.crane.model, row.crane.serialNumber].filter(Boolean).join(" | "),
+      source: "Servicio sugerido",
+      tone: row.status === "overdue" || Number(row.daysRemaining) < 0
+        ? "danger"
+        : row.status === "soon" || row.status === "on-time"
+          ? "warning"
+          : "ok"
+    }));
+  const orderEvents = orders
+    .filter((order) => order.scheduledDate)
+    .map((order) => ({
+      id: `order-${order.id}`,
+      date: order.scheduledDate,
+      client: order.client,
+      title: `${formatWorkOrderStatus(order.status)} · ${order.craneIds.length} grua(s)`,
+      detail: order.technician || order.notes || "Orden guardada",
+      source: "Orden de trabajo",
+      tone: order.status === "done" ? "ok" : order.status === "in_progress" ? "warning" : "info"
+    }));
+  return [...maintenanceEvents, ...orderEvents]
+    .sort((a, b) => `${a.date}${a.client}`.localeCompare(`${b.date}${b.client}`));
+}
+
+function renderWorkOrderCalendarEvent(event) {
+  return `
+    <article class="work-calendar-event is-${escapeHtml(event.tone)}">
+      <span>${escapeHtml(event.source)}</span>
+      <strong>${escapeHtml(event.client)}</strong>
+      <p>${escapeHtml(event.title)}</p>
+      ${event.detail ? `<small>${escapeHtml(event.detail)}</small>` : ""}
+    </article>
+  `;
+}
+
+function formatCalendarMonthLabel(date) {
+  return date.toLocaleDateString("es-MX", { month: "long", year: "numeric" });
+}
+
+function toDateInputValue(date) {
+  const value = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(value.getTime())) {
+    return "";
+  }
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function renderWorkOrderSummary(orders) {

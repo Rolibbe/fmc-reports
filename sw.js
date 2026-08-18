@@ -1,9 +1,11 @@
-const CACHE_NAME = "crane-inspection-cache-v146";
+const CACHE_NAME = "crane-inspection-cache-v153";
 const APP_ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./findings.js",
+  "./ui-modals.js",
+  "./crane-checklist-ui.js",
   "./company-cranes.js",
   "./equipment.js",
   "./pdf-actions.js",
@@ -12,6 +14,7 @@ const APP_ASSETS = [
   "./settings.js",
   "./operations.js",
   "./maintenance-panel.js",
+  "./clients-map.js",
   "./dashboard.js",
   "./supabase-config.js",
   "./cloud-sync.js",
@@ -84,3 +87,9 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request, { ignoreSearch: true }).then((cached) => cached || fetch(event.request))
   );
 });
+
+
+
+
+
+

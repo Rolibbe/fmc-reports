@@ -7,7 +7,7 @@
   <title>Servicios FMC</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="logo.png" type="image/png">
-  <link rel="stylesheet" href="styles.css?v=146">
+  <link rel="stylesheet" href="styles.css?v=153">
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -84,6 +84,7 @@
         <button id="openHomeButton" class="nav-action nav-action-strong" type="button">Inicio</button>
         <button id="newInspectionButton" class="nav-link" type="button">Servicios</button>
         <button id="openCompanyCraneRegistryButton" class="nav-link" type="button">Empresas y equipos</button>
+        <button id="openClientsMapButton" class="nav-link" type="button">Mapa de clientes</button>
         <button id="openMaintenancePanelButton" class="nav-link" type="button">Mantenimiento</button>
         <button id="openWorkOrdersButton" class="nav-link" type="button">Agenda</button>
         <div class="nav-history-anchor">
@@ -140,6 +141,7 @@
         <div class="mobile-more-grid">
           <button id="mobileHomeButton" type="button">Inicio</button>
           <button id="mobileWorkOrdersButton" type="button">Agenda</button>
+          <button id="mobileClientsMapButton" type="button">Mapa clientes</button>
           <button id="mobileMaintenanceButton" type="button">Mantenimiento</button>
           <button id="mobileSettingsButton" type="button">Configuracion</button>
           <button id="mobileDashboardButton" type="button">Dashboard</button>
@@ -892,6 +894,8 @@
 
         <div id="workOrdersSummary" class="ops-summary"></div>
 
+        <section id="workOrderCalendarPanel" class="work-calendar-panel"></section>
+
         <div class="work-order-layout">
           <section class="ops-board">
             <div class="ops-board-header">
@@ -948,6 +952,45 @@
               </div>
             </form>
           </section>
+        </div>
+      </section>
+
+      <section class="panel app-view hidden clients-map-view" id="clientsMapView">
+        <div class="map-hero">
+          <div>
+            <p class="eyebrow">Cobertura de clientes</p>
+            <h2>Mapa de clientes</h2>
+            <p class="page-subtitle">Visualiza empresas por ubicacion, estado de mantenimiento y proximos servicios.</p>
+          </div>
+          <div class="toolbar">
+            <button id="refreshClientsMapButton" class="secondary-button" type="button">Actualizar</button>
+            <button id="closeClientsMapButton" class="ghost-button" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div id="clientsMapSummary" class="ops-summary"></div>
+        <div class="clients-map-layout">
+          <section class="clients-map-card">
+            <div id="clientsMapCanvas" class="clients-map-canvas"></div>
+            <div id="clientsMapStatus" class="clients-map-status">Cargando mapa...</div>
+          </section>
+          <aside class="clients-map-side">
+            <label>
+              Filtrar clientes
+              <input id="clientsMapSearch" type="search" placeholder="Cliente, ciudad o direccion">
+            </label>
+            <label>
+              Estado
+              <select id="clientsMapStatusFilter">
+                <option value="">Todos</option>
+                <option value="danger">Vencidos / urgente</option>
+                <option value="warning">Por vencer</option>
+                <option value="ok">Al dia</option>
+                <option value="no-location">Sin coordenadas</option>
+              </select>
+            </label>
+            <div id="clientsMapList" class="clients-map-list"></div>
+          </aside>
         </div>
       </section>
 
@@ -1256,6 +1299,34 @@
                 </div>
                 <div id="companyContactsList" class="company-contacts-list"></div>
               </div>
+              <div class="company-location-panel">
+                <div class="company-contacts-head">
+                  <div>
+                    <p class="eyebrow">Ubicacion</p>
+                    <h4>Datos para mapa</h4>
+                  </div>
+                  <button id="saveCompanyLocationButton" class="secondary-button" type="button">Guardar ubicacion</button>
+                </div>
+                <div class="company-location-form">
+                  <label>
+                    Direccion
+                    <input id="companyLocationAddress" type="text" placeholder="Calle, numero, colonia">
+                  </label>
+                  <label>
+                    Ciudad / estado
+                    <input id="companyLocationCity" type="text" placeholder="Ciudad, estado">
+                  </label>
+                  <label>
+                    Latitud
+                    <input id="companyLocationLatitude" type="number" step="any" placeholder="Ej. 32.6245">
+                  </label>
+                  <label>
+                    Longitud
+                    <input id="companyLocationLongitude" type="number" step="any" placeholder="Ej. -115.4523">
+                  </label>
+                </div>
+                <p class="company-location-hint">Tip: puedes copiar latitud y longitud desde Google Maps u OpenStreetMap.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -1290,7 +1361,7 @@
                 </label>
                 <label>
                   Tipo
-                  <input id="registryCraneType" list="craneTypeOptions" type="text" placeholder="Viajera, puente, bandera">
+                  <input id="registryCraneType" list="craneTypeOptions" type="text" autocomplete="off" placeholder="Viajera, puente, bandera">
                 </label>
                 <label>
                   Capacidad estructura
@@ -1418,23 +1489,32 @@
     <button id="mobileMoreButton" type="button"><span>...</span>Mas</button>
   </nav>
 
-  <script src="report-template-config.js?v=146"></script>
-  <script src="finding-catalog-config.js?v=146"></script>
-  <script src="checklist-config.js?v=146"></script>
-  <script src="findings.js?v=146"></script>
-  <script src="company-cranes.js?v=146"></script>
-  <script src="equipment.js?v=146"></script>
-  <script src="pdf-actions.js?v=146"></script>
-  <script src="backup.js?v=146"></script>
-  <script src="storage.js?v=146"></script>
-  <script src="settings.js?v=146"></script>
-  <script src="operations.js?v=146"></script>
-  <script src="maintenance-panel.js?v=146"></script>
-  <script src="dashboard.js?v=146"></script>
-  <script src="report-generator.js?v=146"></script>
-  <script src="supabase-config.js?v=146"></script>
-  <script src="cloud-sync.js?v=146"></script>
-  <script src="presence.js?v=146"></script>
-  <script src="app.js?v=146"></script>
+  <script src="report-template-config.js?v=153"></script>
+  <script src="finding-catalog-config.js?v=153"></script>
+  <script src="checklist-config.js?v=153"></script>
+  <script src="findings.js?v=153"></script>
+  <script src="ui-modals.js?v=153"></script>
+  <script src="crane-checklist-ui.js?v=153"></script>
+  <script src="company-cranes.js?v=153"></script>
+  <script src="equipment.js?v=153"></script>
+  <script src="pdf-actions.js?v=153"></script>
+  <script src="backup.js?v=153"></script>
+  <script src="storage.js?v=153"></script>
+  <script src="settings.js?v=153"></script>
+  <script src="operations.js?v=153"></script>
+  <script src="maintenance-panel.js?v=153"></script>
+  <script src="clients-map.js?v=153"></script>
+  <script src="dashboard.js?v=153"></script>
+  <script src="report-generator.js?v=153"></script>
+  <script src="supabase-config.js?v=153"></script>
+  <script src="cloud-sync.js?v=153"></script>
+  <script src="presence.js?v=153"></script>
+  <script src="app.js?v=153"></script>
 </body>
 </html>
+
+
+
+
+
+

@@ -1037,16 +1037,27 @@ async function buildLocalReportRows(options = {}) {
 function buildLocalSettingsRows() {
   const settings = getAppSettings();
   const now = new Date().toISOString();
+  const locations = normalizeCompanyLocationMap(readCompanyLocations());
+  const updatedAt = getLatestSettingsPayloadUpdatedAt(settings, locations) || now;
   return [{
     id: "default",
     payload: {
       ...settings,
       clientPlants: normalizeClientNames(settings.clientPlants || []).filter((client) => !isDeletedCompanyName(client)),
-      updatedAt: settings.updatedAt || now,
+      companyLocations: locations,
+      updatedAt,
       syncVersion: 1
     },
-    updated_at: settings.updatedAt || now
+    updated_at: updatedAt
   }];
+}
+
+function getLatestSettingsPayloadUpdatedAt(settings, locations) {
+  const times = [
+    settings?.updatedAt,
+    ...Object.values(locations || {}).map((location) => location?.updatedAt)
+  ].filter(Boolean);
+  return times.sort((a, b) => getComparableTime(b) - getComparableTime(a))[0] || "";
 }
 
 function prepareInspectionForCloud(inspection) {
@@ -1411,6 +1422,9 @@ async function mergeCloudSettingsRows(rows) {
       clientPlants: normalizeClientNames(cloudSettings.payload.clientPlants || []).filter((client) => !isDeletedCompanyName(client)),
       updatedAt: cloudSettings.updated_at || cloudSettings.payload.updatedAt
     });
+    if (cloudSettings.payload.companyLocations) {
+      await writeCompanyLocations(normalizeCompanyLocationMap(cloudSettings.payload.companyLocations));
+    }
     await loadClientPlantOptions();
     await loadPolipastoOptions();
   }

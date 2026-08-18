@@ -43,6 +43,7 @@ async function renderCompanyCraneRegistry() {
   renderCompanyRegistrySummary(client, cranes);
   renderCompanyCraneList(client, cranes, maintenanceLookup, severityLookup);
   renderCompanyContacts(client);
+  renderCompanyLocation(client);
   await renderCompanyServiceOverview(client, cranes);
 }
 
@@ -853,6 +854,8 @@ function countHighSeverityFindings(rows) {
 
 function renderCompanyCraneChecklistTab(client, crane) {
   const checklistState = readCompanyCraneChecklistState(client, crane.id);
+  const checklistMeta = readCompanyCraneChecklistMeta(client, crane.id);
+  const checklistHistory = readCompanyCraneChecklistHistory(client, crane.id);
   const catalog = getCraneChecklistCatalog();
   const totals = summarizeCraneChecklist(catalog, checklistState);
 
@@ -872,9 +875,17 @@ function renderCompanyCraneChecklistTab(client, crane) {
         <p class="eyebrow">Checklist maestro</p>
         <h4>${totals.completed}/${totals.total} puntos revisados</h4>
       </div>
-      <button class="secondary-button" type="button" data-clear-crane-checklist>Limpiar checklist</button>
+      <div class="crane-checklist-actions">
+        <label>
+          Folio checklist
+          <input data-crane-checklist-folio type="text" value="${escapeHtml(checklistMeta.folio || "")}" placeholder="Ej. CHK-001">
+        </label>
+        <button class="primary-button" type="button" data-save-crane-checklist>Guardar checklist</button>
+        <button class="secondary-button" type="button" data-clear-crane-checklist>Limpiar checklist</button>
+      </div>
     </div>
     ${renderCraneChecklistExcelSheet(catalog, checklistState, client, crane)}
+    ${renderCraneChecklistHistory(checklistHistory)}
   `;
 }
 
@@ -898,6 +909,33 @@ function summarizeCraneChecklist(catalog, checklistState) {
     }
   });
   return summary;
+}
+
+function renderCraneChecklistHistory(history) {
+  const entries = Array.isArray(history) ? history.slice(0, 8) : [];
+  if (!entries.length) {
+    return '<div class="inline-empty-state compact-empty-state">Aun no hay checklists guardados en el historial de esta grua.</div>';
+  }
+  return `
+    <section class="crane-checklist-history">
+      <div class="crane-finding-history-header">
+        <div>
+          <p class="eyebrow">Historial de checklist</p>
+          <h4>Ultimos checklists guardados</h4>
+        </div>
+        <span>${entries.length}</span>
+      </div>
+      <div class="crane-checklist-history-list">
+        ${entries.map((entry) => `
+          <article>
+            <strong>${escapeHtml(entry.folio || "Sin folio")}</strong>
+            <span>${escapeHtml(formatDate(entry.savedAt) || entry.savedAt || "")}</span>
+            <small>Bien ${Number(entry.totals?.good) || 0} | N/A ${Number(entry.totals?.na) || 0} | Mal ${Number(entry.totals?.bad) || 0}</small>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
 }
 
 function renderCraneChecklistGroups(catalog, checklistState) {
@@ -1082,35 +1120,93 @@ function renderCraneChecklistCompactOptions(item, status) {
 
 function getCraneChecklistStatus(checklistState, itemId) {
   const value = checklistState[itemId];
+  if (value && typeof value === "object") {
+    return ["good", "na", "bad"].includes(value.status) ? value.status : "";
+  }
   return ["good", "na", "bad"].includes(value) ? value : "";
+}
+
+function getCraneChecklistDescription(checklistState, itemId) {
+  const value = checklistState[itemId];
+  return value && typeof value === "object" ? String(value.description || "") : "";
 }
 
 function wireCompanyCraneChecklistChecks(client, crane) {
   elements.companyCraneFindingsList.querySelectorAll("[data-crane-checklist-id]").forEach((input) => {
-    input.addEventListener("change", () => {
+    input.addEventListener("change", async () => {
       const findings = readActiveCraneFindings();
       const key = buildCraneChecklistKey(client, crane.id);
       findings[key] = findings[key] || {};
-      findings[key][input.dataset.craneChecklistId] = input.value;
-      writeActiveCraneFindings(findings);
+      const itemId = input.dataset.craneChecklistId;
+      const previous = findings[key][itemId];
+      const description = previous && typeof previous === "object" ? previous.description || "" : "";
+      findings[key][itemId] = { status: input.value, description };
+      await writeActiveCraneFindings(findings);
       queueDataSync("checklist maestro actualizado");
+
+      if (input.value === "bad") {
+        const item = getCraneChecklistCatalog().find((entry) => entry.id === itemId);
+        const nextDescription = await showChecklistDescriptionCard(item, description);
+        if (nextDescription !== null) {
+          const latestFindings = readActiveCraneFindings();
+          latestFindings[key] = latestFindings[key] || {};
+          latestFindings[key][itemId] = {
+            ...(latestFindings[key][itemId] && typeof latestFindings[key][itemId] === "object" ? latestFindings[key][itemId] : {}),
+            status: "bad",
+            description: nextDescription
+          };
+          await writeActiveCraneFindings(latestFindings);
+          queueDataSync("descripcion de checklist actualizada");
+        }
+      }
+
       activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
-      renderCompanyCraneMasterModal();
+      await renderCompanyCraneMasterModal();
     });
   });
 
+  const folioInput = elements.companyCraneFindingsList.querySelector("[data-crane-checklist-folio]");
+  if (folioInput) {
+    folioInput.addEventListener("input", async () => {
+      const findings = readActiveCraneFindings();
+      findings[buildCraneChecklistMetaKey(client, crane.id)] = {
+        ...readCompanyCraneChecklistMeta(client, crane.id),
+        folio: folioInput.value,
+        updatedAt: new Date().toISOString()
+      };
+      await writeActiveCraneFindings(findings);
+      queueDataSync("folio de checklist actualizado");
+    });
+  }
+
+  const saveButton = elements.companyCraneFindingsList.querySelector("[data-save-crane-checklist]");
+  if (saveButton) {
+    saveButton.addEventListener("click", () => {
+      saveCompanyCraneChecklistSnapshot(client, crane);
+    });
+  }
+
   const clearButton = elements.companyCraneFindingsList.querySelector("[data-clear-crane-checklist]");
   if (clearButton) {
-    clearButton.addEventListener("click", () => {
-      if (!window.confirm("Quieres limpiar el checklist de esta grua?")) {
+    clearButton.addEventListener("click", async () => {
+      const confirmed = typeof showConfirmModal === "function"
+        ? await showConfirmModal({
+          title: "Limpiar checklist",
+          message: "Se quitaran los estados y descripciones del checklist actual de esta grua.",
+          confirmLabel: "Limpiar",
+          confirmVariant: "danger"
+        })
+        : window.confirm("Quieres limpiar el checklist de esta grua?");
+      if (!confirmed) {
         return;
       }
       const findings = readActiveCraneFindings();
       delete findings[buildCraneChecklistKey(client, crane.id)];
-      writeActiveCraneFindings(findings);
+      delete findings[buildCraneChecklistMetaKey(client, crane.id)];
+      await writeActiveCraneFindings(findings);
       queueDataSync("checklist maestro limpiado");
       activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
-      renderCompanyCraneMasterModal();
+      await renderCompanyCraneMasterModal();
     });
   }
 }
@@ -1529,13 +1625,63 @@ function buildCraneChecklistKey(client, craneId) {
   return ["checklist", normalizeClientName(client), craneId || ""].join("|");
 }
 
+function buildCraneChecklistMetaKey(client, craneId) {
+  return ["checklistMeta", normalizeClientName(client), craneId || ""].join("|");
+}
+
+function buildCraneChecklistHistoryKey(client, craneId) {
+  return ["checklistHistory", normalizeClientName(client), craneId || ""].join("|");
+}
+
 function readCompanyCraneChecklistState(client, craneId) {
   return readActiveCraneFindings()[buildCraneChecklistKey(client, craneId)] || {};
 }
 
+function readCompanyCraneChecklistMeta(client, craneId) {
+  return readActiveCraneFindings()[buildCraneChecklistMetaKey(client, craneId)] || {};
+}
+
+function readCompanyCraneChecklistHistory(client, craneId) {
+  return readActiveCraneFindings()[buildCraneChecklistHistoryKey(client, craneId)] || [];
+}
+
+function saveCompanyCraneChecklistSnapshot(client, crane) {
+  const catalog = getCraneChecklistCatalog();
+  const checklistState = readCompanyCraneChecklistState(client, crane.id);
+  const meta = readCompanyCraneChecklistMeta(client, crane.id);
+  const totals = summarizeCraneChecklist(catalog, checklistState);
+  const findings = readActiveCraneFindings();
+  const historyKey = buildCraneChecklistHistoryKey(client, crane.id);
+  const currentHistory = Array.isArray(findings[historyKey]) ? findings[historyKey] : [];
+  findings[historyKey] = [{
+    id: createId(),
+    folio: meta.folio || "",
+    savedAt: new Date().toISOString(),
+    totals,
+    items: catalog
+      .map((item) => ({
+        id: item.id,
+        number: item.number,
+        title: item.title,
+        category: item.category || "",
+        status: getCraneChecklistStatus(checklistState, item.id),
+        description: getCraneChecklistDescription(checklistState, item.id)
+      }))
+      .filter((item) => item.status)
+  }, ...currentHistory].slice(0, 20);
+  findings[buildCraneChecklistMetaKey(client, crane.id)] = {
+    ...meta,
+    lastSavedAt: new Date().toISOString()
+  };
+  writeActiveCraneFindings(findings);
+  queueDataSync("historial de checklist guardado");
+  activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
+  renderCompanyCraneMasterModal();
+}
+
 function splitActiveCraneFindingKey(key) {
   const parts = String(key || "").split("|");
-  const [client, craneId] = parts[0] === "checklist" ? [parts[1], parts[2]] : parts;
+  const [client, craneId] = parts[0] && parts[0].startsWith("checklist") ? [parts[1], parts[2]] : parts;
   return [normalizeClientName(client), craneId || ""];
 }
 
@@ -1544,7 +1690,7 @@ function readActiveCraneFindings() {
 }
 
 function writeActiveCraneFindings(findings) {
-  setCachedMasterData("activeCraneFindings", ACTIVE_CRANE_FINDINGS_KEY, findings || {});
+  return setCachedMasterData("activeCraneFindings", ACTIVE_CRANE_FINDINGS_KEY, findings || {});
 }
 
 function openCompanyCraneForm(craneId) {
@@ -1755,6 +1901,8 @@ async function deleteCompanyCrane(craneId) {
   const activeFindings = readActiveCraneFindings();
   delete activeFindings[buildActiveCraneFindingKey(client, craneId)];
   delete activeFindings[buildCraneChecklistKey(client, craneId)];
+  delete activeFindings[buildCraneChecklistMetaKey(client, craneId)];
+  delete activeFindings[buildCraneChecklistHistoryKey(client, craneId)];
   writeActiveCraneFindings(activeFindings);
   closeCompanyCraneForm();
   renderCompanyCraneRegistry();
@@ -2139,6 +2287,119 @@ function renderCompanyContacts(client) {
   });
 }
 
+function renderCompanyLocation(client) {
+  if (!elements.companyLocationAddress) {
+    return;
+  }
+  if (!client) {
+    clearCompanyLocationInputs();
+    return;
+  }
+  const location = getCompanyLocation(client);
+  elements.companyLocationAddress.value = location.address || "";
+  elements.companyLocationCity.value = location.city || "";
+  elements.companyLocationLatitude.value = location.latitude || "";
+  elements.companyLocationLongitude.value = location.longitude || "";
+}
+
+async function saveCompanyLocationForCurrentCompany() {
+  const client = normalizeClientName(elements.companyRegistryClient.value || elements.companyRegistrySearch.value);
+  if (!client) {
+    await showAppDialog({
+      title: "Selecciona empresa",
+      message: "Elige una empresa antes de guardar su ubicacion.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    return;
+  }
+
+  const location = normalizeCompanyLocation({
+    address: elements.companyLocationAddress.value,
+    city: elements.companyLocationCity.value,
+    latitude: elements.companyLocationLatitude.value,
+    longitude: elements.companyLocationLongitude.value
+  });
+
+  if ((location.latitude && !isFinite(Number(location.latitude))) || (location.longitude && !isFinite(Number(location.longitude)))) {
+    await showAppDialog({
+      title: "Coordenadas invalidas",
+      message: "Revisa latitud y longitud. Deben ser numeros, por ejemplo 32.6245 y -115.4523.",
+      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+    });
+    return;
+  }
+
+  selectCompanyRegistryClient(client, { render: false });
+  const locations = readCompanyLocations();
+  locations[client] = {
+    ...location,
+    updatedAt: new Date().toISOString()
+  };
+  await writeCompanyLocations(locations);
+  renderCompanyLocation(client);
+  queueDataSync("ubicacion de empresa actualizada");
+  if (typeof showToast === "function") {
+    showToast({
+      eyebrow: "Mapa",
+      title: "Ubicacion guardada",
+      message: `${client} ya puede mostrarse en el mapa si tiene coordenadas.`,
+      tone: "ok"
+    });
+  }
+}
+
+function clearCompanyLocationInputs() {
+  [
+    elements.companyLocationAddress,
+    elements.companyLocationCity,
+    elements.companyLocationLatitude,
+    elements.companyLocationLongitude
+  ].forEach((input) => {
+    if (input) {
+      input.value = "";
+    }
+  });
+}
+
+function normalizeCompanyLocation(source = {}) {
+  return {
+    address: String(source.address || "").trim(),
+    city: String(source.city || "").trim(),
+    latitude: String(source.latitude || "").trim(),
+    longitude: String(source.longitude || "").trim(),
+    updatedAt: source.updatedAt || ""
+  };
+}
+
+function hasCompanyCoordinates(location) {
+  return Boolean(
+    location
+    && location.latitude !== ""
+    && location.longitude !== ""
+    && Number.isFinite(Number(location.latitude))
+    && Number.isFinite(Number(location.longitude))
+  );
+}
+
+function getCompanyLocation(client) {
+  return normalizeCompanyLocation(readCompanyLocations()[normalizeClientName(client)]);
+}
+
+function readCompanyLocations() {
+  return getCachedMasterData("companyLocations");
+}
+
+function writeCompanyLocations(locations) {
+  return setCachedMasterData("companyLocations", COMPANY_LOCATIONS_KEY, normalizeCompanyLocationMap(locations || {}));
+}
+
+function normalizeCompanyLocationMap(source = {}) {
+  return Object.fromEntries(Object.entries(source || {}).map(([client, location]) => [
+    normalizeClientName(client),
+    normalizeCompanyLocation(location)
+  ]).filter(([client]) => Boolean(client)));
+}
+
 async function addCompanyContactForCurrentCompany() {
   const client = normalizeClientName(elements.companyRegistryClient.value || elements.companyRegistrySearch.value);
   if (!client) {
@@ -2352,7 +2613,7 @@ async function promptLoadActiveCraneFindingsIntoReport(client, crane) {
     eyebrow: "Hallazgos activos",
     title: "Cargar hallazgos de esta grua",
     message: `Esta grua tiene ${missingFindings.length} hallazgo(s) marcado(s) como Mal en el checklist.`,
-    details: missingFindings.slice(0, 8).map((item) => `${item.number}. ${item.title}`).join("\n"),
+    details: missingFindings.slice(0, 8).map((item) => `${item.number}. ${item.title}${item.checklistDescription ? `\n  ${item.checklistDescription}` : ""}`).join("\n"),
     actions: [
       { id: "cancel", label: "Cancelar", variant: "ghost" },
       { id: "load", label: "Cargar al reporte", variant: "primary" }
@@ -2370,7 +2631,11 @@ async function promptLoadActiveCraneFindingsIntoReport(client, crane) {
 function getBadCraneChecklistItems(client, craneId) {
   const selected = readCompanyCraneChecklistState(client, craneId);
   return getCraneChecklistCatalog()
-    .filter((item) => selected[item.id] === "bad")
+    .filter((item) => getCraneChecklistStatus(selected, item.id) === "bad")
+    .map((item) => ({
+      ...item,
+      checklistDescription: getCraneChecklistDescription(selected, item.id)
+    }))
     .sort((first, second) => Number(first.number) - Number(second.number));
 }
 
@@ -2380,9 +2645,11 @@ function createFindingFromChecklistItem(item) {
     || findingCatalogIndex.find((catalogItem) => removeFindingCatalogNumber(catalogItem.incidence).toLowerCase() === String(item.title || "").toLowerCase());
 
   if (catalogItem) {
+    const finding = createFindingFromCatalogItem(catalogItem);
     return {
-      ...createFindingFromCatalogItem(catalogItem),
-      checklistItemId: item.id
+      ...finding,
+      checklistItemId: item.id,
+      description: item.checklistDescription || finding.description
     };
   }
 
@@ -2391,7 +2658,7 @@ function createFindingFromChecklistItem(item) {
     checklistItemId: item.id,
     category: item.category || "Checklist",
     incidence,
-    description: buildGenericFindingDescription(item.category || "Checklist", incidence),
+    description: item.checklistDescription || buildGenericFindingDescription(item.category || "Checklist", incidence),
     recommendation: item.clause ? `Atender condicion detectada conforme a ${item.clause}.` : "",
     photos: []
   };

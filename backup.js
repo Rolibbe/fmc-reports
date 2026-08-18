@@ -15,6 +15,7 @@ async function exportFullBackup(options = {}) {
     const portableCompanyCraneRegistry = createPortableCompanyCraneRegistry(companyCraneRegistry, { includePhotos });
     const activeCraneFindings = readActiveCraneFindings();
     const companyContacts = readCompanyContacts();
+    const companyLocations = readCompanyLocations();
     const chunks = [
       '{\n',
       '  "type": "crane-report-full-backup",\n',
@@ -26,6 +27,7 @@ async function exportFullBackup(options = {}) {
         companies: Object.keys(companyCraneRegistry).length,
         cranes: Object.values(companyCraneRegistry).reduce((sum, cranes) => sum + (Array.isArray(cranes) ? cranes.length : 0), 0),
         contacts: Object.values(companyContacts).reduce((sum, contacts) => sum + (Array.isArray(contacts) ? contacts.length : 0), 0),
+        locations: Object.values(companyLocations).filter((location) => hasCompanyCoordinates(location)).length,
         craneFindingGroups: Object.keys(activeCraneFindings).length
       })},\n`,
       '  "data": {\n',
@@ -42,6 +44,7 @@ async function exportFullBackup(options = {}) {
       `    "companyCraneRegistry": ${JSON.stringify(portableCompanyCraneRegistry)},\n`,
       `    "companyMaintenanceFrequencies": ${JSON.stringify(readCompanyMaintenanceFrequencies())},\n`,
       `    "companyContacts": ${JSON.stringify(companyContacts)},\n`,
+      `    "companyLocations": ${JSON.stringify(companyLocations)},\n`,
       `    "activeCraneFindings": ${JSON.stringify(activeCraneFindings)},\n`,
       `    "appSettings": ${JSON.stringify(getAppSettings())}\n`,
       '  }\n',
@@ -383,6 +386,9 @@ function normalizeFullBackup(backup) {
     companyContacts: data.companyContacts && typeof data.companyContacts === "object"
       ? data.companyContacts
       : {},
+    companyLocations: data.companyLocations && typeof data.companyLocations === "object"
+      ? data.companyLocations
+      : {},
     activeCraneFindings: data.activeCraneFindings && typeof data.activeCraneFindings === "object"
       ? data.activeCraneFindings
       : {},
@@ -539,6 +545,7 @@ async function replaceDataWithFullBackup(backup) {
   await writeCompanyCraneRegistry(normalizeCompanyCraneRegistryKeys(backup.companyCraneRegistry));
   await writeCompanyMaintenanceFrequencies(normalizePlainObjectKeys(backup.companyMaintenanceFrequencies));
   await writeCompanyContacts(normalizePlainObjectKeys(backup.companyContacts));
+  await writeCompanyLocations(normalizeCompanyLocationMap(backup.companyLocations));
   await writeActiveCraneFindings(backup.activeCraneFindings);
   if (backup.appSettings) {
     await writeAppSettings(backup.appSettings);
@@ -565,6 +572,10 @@ async function mergeFullBackup(backup) {
   await writeCompanyContacts({
     ...readCompanyContacts(),
     ...normalizePlainObjectKeys(backup.companyContacts)
+  });
+  await writeCompanyLocations({
+    ...readCompanyLocations(),
+    ...normalizeCompanyLocationMap(backup.companyLocations)
   });
   const remappedActiveFindings = remapActiveCraneFindings(backup.activeCraneFindings, registryMerge.craneIdMap);
   await writeActiveCraneFindings({
@@ -616,6 +627,7 @@ async function replaceBackupRegistry(backup) {
   await writeCompanyCraneRegistry(normalizeCompanyCraneRegistryKeys(backup.companyCraneRegistry));
   await writeCompanyMaintenanceFrequencies(normalizePlainObjectKeys(backup.companyMaintenanceFrequencies));
   await writeCompanyContacts(normalizePlainObjectKeys(backup.companyContacts));
+  await writeCompanyLocations(normalizeCompanyLocationMap(backup.companyLocations));
   await writeActiveCraneFindings(backup.activeCraneFindings);
   if (backup.appSettings) {
     await writeAppSettings(backup.appSettings);
@@ -639,6 +651,10 @@ async function mergeBackupRegistry(backup) {
   await writeCompanyContacts({
     ...readCompanyContacts(),
     ...normalizePlainObjectKeys(backup.companyContacts)
+  });
+  await writeCompanyLocations({
+    ...readCompanyLocations(),
+    ...normalizeCompanyLocationMap(backup.companyLocations)
   });
   const remappedActiveFindings = remapActiveCraneFindings(backup.activeCraneFindings, registryMerge.craneIdMap);
   await writeActiveCraneFindings({
