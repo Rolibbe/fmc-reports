@@ -865,15 +865,15 @@ function renderCompanyCraneChecklistTab(client, crane) {
 
   return `
     <div class="crane-master-mini-summary">
-      <article class="history-stat"><span>Bien</span><strong>${totals.good}</strong></article>
-      <article class="history-stat"><span>N/A</span><strong>${totals.na}</strong></article>
-      <article class="history-stat"><span>Mal</span><strong>${totals.bad}</strong></article>
-      <article class="history-stat"><span>Pendientes</span><strong>${totals.pending}</strong></article>
+      <article class="history-stat"><span>Bien</span><strong data-crane-checklist-summary="good">${totals.good}</strong></article>
+      <article class="history-stat"><span>N/A</span><strong data-crane-checklist-summary="na">${totals.na}</strong></article>
+      <article class="history-stat"><span>Mal</span><strong data-crane-checklist-summary="bad">${totals.bad}</strong></article>
+      <article class="history-stat"><span>Pendientes</span><strong data-crane-checklist-summary="pending">${totals.pending}</strong></article>
     </div>
     <div class="crane-checklist-toolbar">
       <div>
         <p class="eyebrow">Checklist maestro</p>
-        <h4>${totals.completed}/${totals.total} puntos revisados</h4>
+        <h4 data-crane-checklist-progress>${totals.completed}/${totals.total} puntos revisados</h4>
       </div>
       <div class="crane-checklist-actions">
         <label>
@@ -955,7 +955,7 @@ function renderCraneChecklistGroups(catalog, checklistState) {
             <p class="eyebrow">Categoria</p>
             <h4>${escapeHtml(category)}</h4>
           </div>
-          <span>${checkedCount}/${items.length}</span>
+          <span data-crane-checklist-category-count="${escapeHtml(category)}">${checkedCount}/${items.length}</span>
         </div>
         <div class="crane-checklist-list">
           ${items.map((item) => renderCraneChecklistItem(item, getCraneChecklistStatus(checklistState, item.id))).join("")}
@@ -966,7 +966,7 @@ function renderCraneChecklistGroups(catalog, checklistState) {
 }
 
 function renderCraneChecklistItem(item, status) {
-  const name = `checklist-status-${createId()}`;
+  const name = `checklist-status-${item.id}`;
   const label = `${item.number}. ${item.title}${item.clause ? ` - ${item.clause}` : ""}`;
   return `
     <article class="crane-checklist-item ${status ? `is-${escapeHtml(status)}` : ""}">
@@ -1098,7 +1098,7 @@ function renderCraneChecklistExcelCell(cell, byId, checklistState) {
 }
 
 function renderCraneChecklistCompactOptions(item, status) {
-  const name = `checklist-status-${createId()}`;
+  const name = `checklist-status-${item.id}`;
   const label = `${item.number}. ${item.title}`;
   return `
     <div class="crane-checklist-compact-options" role="radiogroup" aria-label="${escapeHtml(label)}">
@@ -1160,8 +1160,8 @@ function wireCompanyCraneChecklistChecks(client, crane) {
         }
       }
 
-      activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
-      await renderCompanyCraneMasterModal();
+      updateCraneChecklistInputVisualState(input);
+      refreshCraneChecklistCounters(client, crane);
     });
   });
 
@@ -1209,6 +1209,52 @@ function wireCompanyCraneChecklistChecks(client, crane) {
       await renderCompanyCraneMasterModal();
     });
   }
+}
+
+function updateCraneChecklistInputVisualState(input) {
+  const status = input.value;
+  const statusClasses = ["is-good", "is-na", "is-bad"];
+  const itemCard = input.closest(".crane-checklist-item");
+  const stateCell = input.closest(".crane-checklist-state");
+  const pointCell = stateCell?.previousElementSibling?.classList?.contains("crane-checklist-point")
+    ? stateCell.previousElementSibling
+    : null;
+
+  [itemCard, stateCell, pointCell].filter(Boolean).forEach((element) => {
+    element.classList.remove(...statusClasses);
+    if (status) {
+      element.classList.add(`is-${status}`);
+    }
+  });
+}
+
+function refreshCraneChecklistCounters(client, crane) {
+  const catalog = getCraneChecklistCatalog();
+  const checklistState = readCompanyCraneChecklistState(client, crane.id);
+  const totals = summarizeCraneChecklist(catalog, checklistState);
+  const root = elements.companyCraneFindingsList;
+  if (!root) {
+    return;
+  }
+
+  Object.entries(totals).forEach(([key, value]) => {
+    const target = root.querySelector(`[data-crane-checklist-summary="${key}"]`);
+    if (target) {
+      target.textContent = String(value);
+    }
+  });
+
+  const progress = root.querySelector("[data-crane-checklist-progress]");
+  if (progress) {
+    progress.textContent = `${totals.completed}/${totals.total} puntos revisados`;
+  }
+
+  root.querySelectorAll("[data-crane-checklist-category-count]").forEach((target) => {
+    const category = target.dataset.craneChecklistCategoryCount || "";
+    const items = catalog.filter((item) => (item.category || "Checklist") === category);
+    const checkedCount = items.filter((item) => getCraneChecklistStatus(checklistState, item.id)).length;
+    target.textContent = `${checkedCount}/${items.length}`;
+  });
 }
 
 async function renderCompanyCraneHistoryTab(client, crane) {

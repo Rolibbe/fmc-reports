@@ -1,4 +1,4 @@
-const CACHE_NAME = "crane-inspection-cache-v153";
+const CACHE_NAME = "crane-inspection-cache-v154";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -87,6 +87,7 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request, { ignoreSearch: true }).then((cached) => cached || fetch(event.request))
   );
 });
+
 
 
 

@@ -22,14 +22,14 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.59";
+const APP_VERSION = "1.3.60";
 const APP_RELEASE_NOTES = {
-  "1.3.59": {
-    title: "Actualizacion 1.3.59",
+  "1.3.60": {
+    title: "Actualizacion 1.3.60",
     summary: [
-      "El campo Tipo de equipo ahora muestra solo el catalogo de Configuracion.",
-      "Se desactivo el autocompletado del navegador para evitar opciones repetidas.",
-      "El checklist maestro espera el guardado antes de refrescar para no perder marcas."
+      "El checklist maestro ya no se vuelve a pintar completo al marcar una casilla.",
+      "Las casillas usan nombres estables por punto para evitar desmarcados cruzados.",
+      "Los contadores del checklist se actualizan sin reiniciar la tabla."
     ]
   }
 };
