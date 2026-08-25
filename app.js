@@ -22,8 +22,48 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.63";
+const APP_VERSION = "1.3.68";
 const APP_RELEASE_NOTES = {
+  "1.3.68": {
+    title: "Actualizacion 1.3.68",
+    summary: [
+      "El directorio de empresas ahora se agrupa en Activas y Sin equipos, con filas compactas de una linea.",
+      "La busqueda acepta palabras sueltas en cualquier orden y ya no se autorellena al elegir una empresa.",
+      "Un punto de color indica desde el directorio que empresas tienen mantenimientos vencidos."
+    ]
+  },
+  "1.3.67": {
+    title: "Actualizacion 1.3.67",
+    summary: [
+      "El panel de Empresa activa ahora usa pestañas (Frecuencia, Contactos, Ubicacion) en vez de mostrar todo apilado.",
+      "El panel ocupa mucho menos espacio vertical en Empresas y equipos.",
+      "La pestaña seleccionada se conserva al agregar un contacto o guardar la ubicacion."
+    ]
+  },
+  "1.3.66": {
+    title: "Actualizacion 1.3.66",
+    summary: [
+      "Nueva manija dedicada para arrastrar y reordenar las tarjetas de grua en Empresas y equipos.",
+      "El orden ahora se calcula en horizontal, como corresponde al carrusel, para que arrastrar sea mas preciso.",
+      "El carrusel ya no regresa al inicio al hacer clic en una tarjeta o al reordenar."
+    ]
+  },
+  "1.3.65": {
+    title: "Actualizacion 1.3.65",
+    summary: [
+      "Se corrigio que guardar un servicio borrara la foto de la grua en el catalogo de empresas.",
+      "El autoguardado ya no mezcla datos si cambias de reporte guardado mientras hay cambios sin guardar.",
+      "Aviso al sincronizar cuando un reporte se edito en dos dispositivos antes de combinarse en la nube."
+    ]
+  },
+  "1.3.64": {
+    title: "Actualizacion 1.3.64",
+    summary: [
+      "Nuevo selector de acceso para personal FMC y empresas invitadas.",
+      "El Portal de clientes muestra solamente equipos, mantenimiento y reportes de la empresa asignada.",
+      "Los clientes cuentan con acceso de consulta y descarga de PDF, sin herramientas de edicion o administracion."
+    ]
+  },
   "1.3.63": {
     title: "Actualizacion 1.3.63",
     summary: [
@@ -152,6 +192,11 @@ const REPORT_THUMBNAIL_QUALITY = 0.54;
 const elements = {
   appShell: document.getElementById("appShell"),
   loginGate: document.getElementById("loginGate"),
+  loginAccessChooser: document.getElementById("loginAccessChooser"),
+  loginCredentials: document.getElementById("loginCredentials"),
+  loginAccessBackButton: document.getElementById("loginAccessBackButton"),
+  loginSelectedAccess: document.getElementById("loginSelectedAccess"),
+  loginAccessDescription: document.getElementById("loginAccessDescription"),
   loginEmail: document.getElementById("loginEmail"),
   loginPassword: document.getElementById("loginPassword"),
   loginButton: document.getElementById("loginButton"),
@@ -214,6 +259,14 @@ const elements = {
   homeWorkOrdersButton: document.getElementById("homeWorkOrdersButton"),
   homeSyncButton: document.getElementById("homeSyncButton"),
   homeSettingsButton: document.getElementById("homeSettingsButton"),
+  clientPortalView: document.getElementById("clientPortalView"),
+  clientPortalCompanyName: document.getElementById("clientPortalCompanyName"),
+  clientPortalWelcome: document.getElementById("clientPortalWelcome"),
+  clientPortalRefreshButton: document.getElementById("clientPortalRefreshButton"),
+  clientPortalStatus: document.getElementById("clientPortalStatus"),
+  clientPortalSummary: document.getElementById("clientPortalSummary"),
+  clientPortalCranes: document.getElementById("clientPortalCranes"),
+  clientPortalReports: document.getElementById("clientPortalReports"),
   dashboardView: document.getElementById("dashboardView"),
   fieldModeView: document.getElementById("fieldModeView"),
   fieldModeSummary: document.getElementById("fieldModeSummary"),
@@ -343,6 +396,7 @@ const elements = {
   addSettingsCraneTypeButton: document.getElementById("addSettingsCraneTypeButton"),
   settingsCraneTypes: document.getElementById("settingsCraneTypes"),
   settingsUserRoles: document.getElementById("settingsUserRoles"),
+  settingsClientAccess: document.getElementById("settingsClientAccess"),
   craneTypeOptions: document.getElementById("craneTypeOptions"),
   settingsPhotoMaxSize: document.getElementById("settingsPhotoMaxSize"),
   settingsChecklistMaxSize: document.getElementById("settingsChecklistMaxSize"),
@@ -393,6 +447,7 @@ const elements = {
   companyRegistryClientOptions: document.getElementById("companyRegistryClientOptions"),
   companyRegistryCards: document.getElementById("companyRegistryCards"),
   companyRegistryActiveName: document.getElementById("companyRegistryActiveName"),
+  companyControlTabs: document.getElementById("companyControlTabs"),
   companyMaintenanceFrequency: document.getElementById("companyMaintenanceFrequency"),
   companyContactName: document.getElementById("companyContactName"),
   companyContactEmail: document.getElementById("companyContactEmail"),
@@ -532,7 +587,7 @@ async function initializeApp() {
       await initializePresence();
     }
     applyRoleRestrictions();
-    await openSystemHome();
+    await openAuthenticatedLanding();
     updateConnectivityStatus();
     registerServiceWorker();
     scheduleReleaseNotice();
@@ -558,6 +613,12 @@ function setupAppActions() {
     }
   };
 
+  if (typeof setupLoginAccessSelector === "function") {
+    setupLoginAccessSelector();
+  }
+  if (typeof setupClientPortalActions === "function") {
+    setupClientPortalActions();
+  }
   elements.loginButton.addEventListener("click", cloudSignInFromLogin);
   elements.loginOfflineButton.addEventListener("click", enterOfflineMode);
   elements.loginPassword.addEventListener("keydown", (event) => {
@@ -705,6 +766,7 @@ function setupAppActions() {
   on(elements.auditLogFilter, "change", renderAuditLogPanel);
   on(elements.clearAuditLogButton, "click", clearAuditLogWithConfirmation);
   elements.openCompanyCraneRegistryButton.addEventListener("click", openCompanyCraneRegistry);
+  wireCompanyControlTabs();
   elements.openMaintenancePanelButton.addEventListener("click", openMaintenancePanel);
   on(elements.closeSyncCenterButton, "click", openSystemHome);
   on(elements.refreshSyncCenterButton, "click", renderSyncCenter);
@@ -713,6 +775,11 @@ function setupAppActions() {
   on(elements.forceDownloadEvidenceButton, "click", forceDownloadEvidenceFromCloud);
   on(elements.showPendingEvidenceButton, "click", toggleSyncPendingDetails);
   on(elements.purgeCloudSyncedLocalPhotosButton, "click", purgeCloudSyncedLocalEvidence);
+  elements.syncCenterContent?.addEventListener("click", (event) => {
+    if (event.target.closest("[data-dismiss-sync-conflicts]")) {
+      dismissSyncConflicts();
+    }
+  });
   elements.openConsolidatedHistoryButton.addEventListener("click", openConsolidatedHistory);
   elements.closeSettingsButton.addEventListener("click", openSystemHome);
   elements.saveSettingsButton.addEventListener("click", saveSettingsFromForm);
@@ -788,7 +855,6 @@ function setupAppActions() {
   elements.refreshConsolidatedHistoryButton.addEventListener("click", renderConsolidatedHistory);
   elements.exportConsolidatedHistoryButton.addEventListener("click", exportConsolidatedHistoryExcel);
   elements.consolidatedClientFilter.addEventListener("input", renderConsolidatedHistory);
-  elements.plantName.addEventListener("change", updateNextInspectionFromMaintenanceDate);
   elements.clearConsolidatedClientFilterButton.addEventListener("click", () => {
     elements.consolidatedClientFilter.value = "";
     renderConsolidatedHistory();
@@ -1032,6 +1098,8 @@ function renderProfilePanel() {
   const email = typeof getCloudUserEmail === "function" ? getCloudUserEmail() : "";
   const role = typeof getCurrentUserRole === "function" ? getCurrentUserRole() : "admin";
   const roleLabel = typeof formatUserRoleLabel === "function" ? formatUserRoleLabel(role) : role;
+  const accessMode = typeof getCurrentAccessMode === "function" ? getCurrentAccessMode() : "internal";
+  const clientCompany = typeof getCurrentClientCompany === "function" ? getCurrentClientCompany() : "";
   const connected = Boolean(email);
   elements.profileContent.innerHTML = `
     <article class="profile-card-mini">
@@ -1042,7 +1110,9 @@ function renderProfilePanel() {
       </div>
     </article>
     <div class="profile-info-list">
+      <div><span>Acceso</span><strong>${escapeHtml(accessMode === "client" ? "Portal de clientes" : "Interno FMC")}</strong></div>
       <div><span>Rol</span><strong>${escapeHtml(roleLabel)}</strong></div>
+      ${clientCompany ? `<div><span>Empresa</span><strong>${escapeHtml(clientCompany)}</strong></div>` : ""}
       <div><span>Estado</span><strong>${escapeHtml(navigator.onLine ? "Con conexion" : "Sin conexion")}</strong></div>
       <div><span>Version</span><strong>${escapeHtml(APP_VERSION)}</strong></div>
     </div>
@@ -1218,6 +1288,16 @@ function setupMobileNavigation() {
 async function openSystemHome() {
   await renderSystemHome();
   showView("home");
+}
+
+async function openAuthenticatedLanding() {
+  if (typeof getCurrentAccessMode === "function" && getCurrentAccessMode() === "client") {
+    if (typeof openClientPortal === "function") {
+      await openClientPortal();
+      return;
+    }
+  }
+  await openSystemHome();
 }
 
 async function renderSystemHome() {
@@ -1701,6 +1781,9 @@ async function persistInspectionSilently(reason = "autoguardado") {
 }
 
 function showView(view) {
+  if (typeof getCurrentAccessMode === "function" && getCurrentAccessMode() === "client" && view !== "clientPortal") {
+    view = "clientPortal";
+  }
   closeMobileMorePanel();
   updateContextToolbar(view);
   if (typeof updatePresenceSection === "function") {
@@ -1708,6 +1791,9 @@ function showView(view) {
   }
   if (elements.homeView) {
     elements.homeView.classList.toggle("hidden", view !== "home");
+  }
+  if (elements.clientPortalView) {
+    elements.clientPortalView.classList.toggle("hidden", view !== "clientPortal");
   }
   if (elements.dashboardView) {
     elements.dashboardView.classList.toggle("hidden", view !== "dashboard");
@@ -1742,6 +1828,7 @@ function showView(view) {
 function getPresenceSectionLabel(view) {
   const labels = {
     home: "Inicio",
+    clientPortal: "Portal de clientes",
     dashboard: "Dashboard",
     fieldMode: "Modo campo",
     workOrders: "Agenda",
@@ -1766,6 +1853,7 @@ function updateContextToolbar(view) {
 
   const contextMap = {
     home: { eyebrow: "Inicio", title: "Panel principal", report: false },
+    clientPortal: { eyebrow: "Cliente", title: "Portal de clientes", report: false },
     inspection: { eyebrow: "Servicio", title: "Nuevo servicio", report: true },
     equipment: { eyebrow: "Captura", title: "Editar equipo", report: true },
     finding: { eyebrow: "Captura", title: "Editar hallazgo", report: true },
@@ -3019,6 +3107,10 @@ function isHighSeverityFinding(finding) {
 }
 
 function loadInspection(record) {
+  if (inspectionAutoSaveTimer) {
+    clearTimeout(inspectionAutoSaveTimer);
+  }
+  lastInspectionAutoSaveSignature = "";
   const normalized = normalizeInspection(record);
   resetEquipmentEditorState();
   elements.form.reset();

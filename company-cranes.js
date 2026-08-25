@@ -7,15 +7,44 @@ let activeCompanyCraneMaster = {
   tab: "data"
 };
 let editingCompanyCraneImage = null;
+let activeCompanyControlTab = "frequency";
+let companyDirectoryShowAllInactive = false;
+
+function wireCompanyControlTabs() {
+  if (!elements.companyControlTabs) {
+    return;
+  }
+  elements.companyControlTabs.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-company-control-tab]");
+    if (!button) {
+      return;
+    }
+    setActiveCompanyControlTab(button.dataset.companyControlTab);
+  });
+}
+
+function setActiveCompanyControlTab(tab) {
+  activeCompanyControlTab = tab;
+  if (!elements.companyControlTabs) {
+    return;
+  }
+  elements.companyControlTabs.querySelectorAll("[data-company-control-tab]").forEach((button) => {
+    const isActive = button.dataset.companyControlTab === tab;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+  document.querySelectorAll("[data-company-control-panel]").forEach((panel) => {
+    panel.classList.toggle("hidden", panel.dataset.companyControlPanel !== tab);
+  });
+}
 
 async function openCompanyCraneRegistry() {
   await populateCompanyRegistryClientOptions();
 
   if (!elements.companyRegistryClient.value.trim()) {
     selectCompanyRegistryClient(elements.plantName.value || "", { render: false });
-  } else {
-    elements.companyRegistrySearch.value = elements.companyRegistryClient.value;
   }
+  elements.companyRegistrySearch.value = "";
 
   await seedCompanyRegistryFromReports(false);
   loadCompanyMaintenanceFrequency();
@@ -69,40 +98,148 @@ async function renderCompanyRegistryClientCards() {
   const registry = readCompanyCraneRegistry();
   const records = (await getAllInspections()).map(normalizeInspection);
   const selectedClient = normalizeClientName(elements.companyRegistryClient.value);
-  const filter = normalizeClientName(elements.companyRegistrySearch.value);
-  const visibleClients = filter
-    ? clients.filter((client) => client.includes(filter))
-    : clients;
+  const query = normalizeClientName(elements.companyRegistrySearch.value);
 
-  if (!visibleClients.length) {
-    elements.companyRegistryCards.innerHTML = '<div class="inline-empty-state compact-empty-state">No hay empresas que coincidan. Puedes usar el texto escrito como nueva empresa.</div>';
+  const entries = clients
+    .filter((client) => matchesCompanyQuery(client, query))
+    .map((client) => {
+      const cranes = Array.isArray(registry[client]) ? registry[client] : [];
+      const clientReports = records.filter((record) => normalizeClientName(record.plantName) === client);
+      const latestReport = clientReports
+        .slice()
+        .sort((a, b) => new Date(b.inspectionDate || b.updatedAt || 0) - new Date(a.inspectionDate || a.updatedAt || 0))[0];
+      return {
+        client,
+        craneCount: cranes.length,
+        reportCount: clientReports.length,
+        lastVisit: latestReport ? formatDate(latestReport.inspectionDate) : "Sin servicios",
+        signal: getCompanyDirectorySignal(client, cranes)
+      };
+    });
+
+  updateCompanyCreateAction(clients, query);
+
+  if (!entries.length) {
+    elements.companyRegistryCards.innerHTML = '<div class="inline-empty-state compact-empty-state">Ninguna empresa coincide con la busqueda.</div>';
     return;
   }
 
-  elements.companyRegistryCards.innerHTML = visibleClients.map((client) => {
-    const clientReports = records.filter((record) => normalizeClientName(record.plantName) === client);
-    const latestReport = clientReports.sort((a, b) => new Date(b.inspectionDate || b.updatedAt || 0) - new Date(a.inspectionDate || a.updatedAt || 0))[0];
-    const cranes = Array.isArray(registry[client]) ? registry[client] : [];
-    return `
-      <button class="company-selector-card ${selectedClient === client ? "is-selected" : ""}" type="button" data-company-registry-card="${escapeHtml(client)}">
-        <strong>${escapeHtml(client)}</strong>
-        <span>${cranes.length} equipo(s) registrado(s)</span>
-        <small>${clientReports.length} servicio(s) | Ultima visita: ${escapeHtml(latestReport ? formatDate(latestReport.inspectionDate) : "Sin servicios")}</small>
-      </button>
-    `;
-  }).join("");
+  const byName = (first, second) => first.client.localeCompare(second.client);
+  const activeEntries = entries.filter((entry) => entry.craneCount || entry.reportCount).sort(byName);
+  const inactiveEntries = entries.filter((entry) => !entry.craneCount && !entry.reportCount).sort(byName);
+  const showAllInactive = companyDirectoryShowAllInactive || Boolean(query);
+  const visibleInactive = showAllInactive ? inactiveEntries : inactiveEntries.slice(0, 4);
+  const hiddenInactiveCount = inactiveEntries.length - visibleInactive.length;
+
+  elements.companyRegistryCards.innerHTML = `
+    ${activeEntries.length ? `
+      <p class="company-directory-group">Activas &middot; ${activeEntries.length}</p>
+      ${activeEntries.map((entry) => renderCompanyDirectoryRow(entry, selectedClient)).join("")}
+    ` : ""}
+    ${inactiveEntries.length ? `
+      <p class="company-directory-group">Sin equipos &middot; ${inactiveEntries.length}</p>
+      ${visibleInactive.map((entry) => renderCompanyDirectoryRow(entry, selectedClient)).join("")}
+      ${hiddenInactiveCount > 0
+        ? `<button class="company-directory-more" type="button" data-company-directory-more>Mostrar ${hiddenInactiveCount} mas</button>`
+        : ""}
+    ` : ""}
+  `;
 
   elements.companyRegistryCards.querySelectorAll("[data-company-registry-card]").forEach((button) => {
     button.addEventListener("click", () => selectCompanyRegistryClient(button.dataset.companyRegistryCard));
   });
+
+  const moreButton = elements.companyRegistryCards.querySelector("[data-company-directory-more]");
+  if (moreButton) {
+    moreButton.addEventListener("click", () => {
+      companyDirectoryShowAllInactive = true;
+      renderCompanyRegistryClientCards();
+    });
+  }
+}
+
+function renderCompanyDirectoryRow(entry, selectedClient) {
+  const detail = entry.craneCount
+    ? `${entry.craneCount} eq.${entry.signal.overdue ? ` &middot; ${entry.signal.overdue} venc.` : ""}`
+    : entry.reportCount
+      ? `${entry.reportCount} serv.`
+      : "";
+  const tooltip = `${entry.client} | ${entry.craneCount} equipo(s) | ${entry.reportCount} servicio(s) | Ultima visita: ${entry.lastVisit}`;
+  return `
+    <button
+      class="company-directory-row ${selectedClient === entry.client ? "is-selected" : ""} ${entry.craneCount || entry.reportCount ? "" : "is-empty"}"
+      type="button"
+      data-company-registry-card="${escapeHtml(entry.client)}"
+      title="${escapeHtml(tooltip)}">
+      <span class="company-directory-dot tone-${escapeHtml(entry.signal.tone)}"></span>
+      <strong>${escapeHtml(entry.client)}</strong>
+      ${detail ? `<span class="company-directory-count ${entry.signal.overdue ? "is-overdue" : ""}">${detail}</span>` : ""}
+    </button>
+  `;
+}
+
+function matchesCompanyQuery(client, query) {
+  if (!query) {
+    return true;
+  }
+  const haystack = normalizeClientName(client);
+  return query.split(/\s+/).filter(Boolean).every((token) => haystack.includes(token));
+}
+
+function getCompanyDirectorySignal(client, cranes) {
+  if (!cranes.length) {
+    return { tone: "none", overdue: 0, soon: 0 };
+  }
+
+  const frequencyMonths = Number(getCompanyMaintenanceFrequency(client)) || getDefaultMaintenanceFrequencyMonths();
+  let overdue = 0;
+  let soon = 0;
+
+  cranes.forEach((crane) => {
+    const nextMaintenance = crane.nextMaintenanceDate
+      || (crane.lastMaintenanceDate ? addMonthsToDateInput(crane.lastMaintenanceDate, frequencyMonths) : "");
+    if (!nextMaintenance) {
+      return;
+    }
+    const daysRemaining = calculateDaysUntil(nextMaintenance);
+    if (daysRemaining === "" || daysRemaining === null || daysRemaining === undefined) {
+      return;
+    }
+    const days = Number(daysRemaining);
+    if (!Number.isFinite(days)) {
+      return;
+    }
+    if (days < 0) {
+      overdue += 1;
+    } else if (days <= 15) {
+      soon += 1;
+    }
+  });
+
+  return {
+    tone: overdue ? "red" : soon ? "yellow" : "green",
+    overdue,
+    soon
+  };
+}
+
+function updateCompanyCreateAction(clients, query) {
+  const button = elements.selectCompanyRegistrySearchButton;
+  if (!button) {
+    return;
+  }
+  const canCreate = Boolean(query) && !clients.some((client) => client === query);
+  const wrapper = button.closest(".company-selector-actions") || button;
+  wrapper.classList.toggle("hidden", !canCreate);
+  button.textContent = canCreate ? `Crear empresa "${query}"` : "Crear / usar empresa";
 }
 
 function selectCompanyRegistryClient(clientName, options = {}) {
   const client = normalizeClientName(clientName);
   elements.companyRegistryClient.value = client;
-  elements.companyRegistrySearch.value = client;
   closeCompanyCraneForm();
   loadCompanyMaintenanceFrequency();
+  setActiveCompanyControlTab("frequency");
   if (options.render === false) {
     return;
   }
@@ -386,6 +523,8 @@ function formatMaintenanceDaysLabel(daysRemaining) {
 }
 
 function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map(), severityLookup = new Map()) {
+  const previousTrack = elements.companyCraneList.querySelector("[data-company-crane-track]");
+  const previousScrollLeft = previousTrack ? previousTrack.scrollLeft : 0;
   elements.companyCraneList.innerHTML = "";
 
   if (!client) {
@@ -418,21 +557,18 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map(), s
     const health = calculateCraneHealth(client, crane, maintenance, { highSeverityCount: severityLookup.get(crane.id) || 0 });
     const card = document.createElement("article");
     card.className = `company-crane-card ${health.className}`;
-    card.draggable = true;
     card.dataset.companyCraneId = crane.id;
-    card.title = "Arrastra para cambiar el orden";
-    card.addEventListener("dragstart", (event) => handleCompanyCraneDragStart(event, crane.id));
     card.addEventListener("dragover", handleCompanyCraneDragOver);
     card.addEventListener("dragleave", handleCompanyCraneDragLeave);
     card.addEventListener("drop", (event) => handleCompanyCraneDrop(event, crane.id));
-    card.addEventListener("dragend", handleCompanyCraneDragEnd);
     card.addEventListener("click", (event) => {
-      if (event.target.closest("button")) {
+      if (event.target.closest("button") || event.target.closest("[data-company-crane-drag-handle]")) {
         return;
       }
       openCompanyCraneFindingsModal(crane.id, "data");
     });
     card.innerHTML = `
+      <span class="company-crane-drag-handle" data-company-crane-drag-handle draggable="true" title="Arrastra para cambiar el orden" aria-label="Arrastra para cambiar el orden">&#8942;&#8942;</span>
       ${renderCompanyCraneCardImage(crane)}
       ${renderCraneHealthPill(health)}
       <div class="company-crane-main">
@@ -459,6 +595,9 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map(), s
         <button class="ghost-button" type="button" data-delete-company-crane-id="${escapeHtml(crane.id)}">Quitar</button>
       </div>
     `;
+    const handle = card.querySelector("[data-company-crane-drag-handle]");
+    handle.addEventListener("dragstart", (event) => handleCompanyCraneDragStart(event, crane.id));
+    handle.addEventListener("dragend", handleCompanyCraneDragEnd);
     track.appendChild(card);
   });
 
@@ -469,6 +608,10 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map(), s
   elements.companyCraneList.querySelectorAll("[data-delete-company-crane-id]").forEach((button) => {
     button.addEventListener("click", () => deleteCompanyCrane(button.dataset.deleteCompanyCraneId));
   });
+
+  if (previousScrollLeft) {
+    track.scrollLeft = previousScrollLeft;
+  }
 
   wireCompanyCraneCarousel();
 }
@@ -798,8 +941,12 @@ function renderCraneHealthPill(health) {
 }
 
 function isCriticalChecklistItem(item) {
-  const text = [item.category, item.title, item.measure, item.clause].join(" ").toLowerCase();
-  return /(freno|cable|cadena|gancho|limite|limitador|estructura|deformacion|grieta|seguridad|emergencia|sobrecarga|electrico|elÃ©ctrico)/i.test(text);
+  const text = [item.category, item.title, item.measure, item.clause]
+    .join(" ")
+    .normalize("NFD")
+    .replace(new RegExp("[\\u0300-\\u036f]", "g"), "")
+    .toLowerCase();
+  return /(freno|cable|cadena|gancho|limite|limitador|estructura|deformacion|grieta|seguridad|emergencia|sobrecarga|electrico)/i.test(text);
 }
 
 async function renderCompanyCraneMaintenanceTab(client, crane) {
@@ -1395,52 +1542,6 @@ async function renderCompanyCraneHistoryTab(client, crane) {
       </table>
     </div>
   `;
-}
-
-async function renderCompanyCraneFilesTab(client, crane) {
-  const rows = await getCompanyCraneReportHistory(client, crane);
-  const totals = rows.reduce((summary, row) => ({
-    servicePhotos: summary.servicePhotos + row.servicePhotos,
-    findingPhotos: summary.findingPhotos + row.findingPhotos,
-    checklistImages: summary.checklistImages + (row.hasChecklist ? 1 : 0)
-  }), { servicePhotos: 0, findingPhotos: 0, checklistImages: 0 });
-
-  return `
-    <div class="crane-master-mini-summary">
-      <article class="history-stat"><span>Fotos de servicio</span><strong>${totals.servicePhotos}</strong></article>
-      <article class="history-stat"><span>Fotos de hallazgos</span><strong>${totals.findingPhotos}</strong></article>
-      <article class="history-stat"><span>Checklists</span><strong>${totals.checklistImages}</strong></article>
-    </div>
-    <div class="inline-empty-state">Esta pestaÃ±a resume fotos y documentos encontrados en servicios guardados. Los archivos maestros independientes todavia no estan habilitados.</div>
-  `;
-}
-
-async function getCompanyCraneReportHistory(client, crane) {
-  const records = (await getAllInspections()).map(normalizeInspection);
-  const rows = [];
-  records
-    .filter((record) => normalizeClientName(record.plantName) === client)
-    .forEach((record) => {
-      (record.equipments || []).forEach((equipment) => {
-        if (!equipmentMatchesCompanyCrane(crane, equipment)) {
-          return;
-        }
-        const servicePhotos = Array.isArray(equipment.servicePhotos) ? equipment.servicePhotos.length : 0;
-        const findingPhotos = (equipment.findings || []).reduce((sum, finding) => sum + (Array.isArray(finding.photos) ? finding.photos.length : 0), 0);
-        rows.push({
-          date: equipment.maintenanceDate || record.inspectionDate || "",
-          reportNumber: record.reportNumber || "",
-          condition: equipment.overallCondition || "",
-          findingsCount: (equipment.findings || []).length,
-          nextInspection: equipment.nextInspection || "",
-          servicePhotos,
-          findingPhotos,
-          hasChecklist: Boolean(equipment.checklistImage)
-        });
-      });
-    });
-
-  return rows.sort((first, second) => compareDateInput(second.date, first.date));
 }
 
 function renderCraneMasterDetail(label, value) {
@@ -2218,9 +2319,14 @@ function startServiceForSelectedCompany() {
 
 function handleCompanyCraneDragStart(event, craneId) {
   draggedCompanyCraneId = craneId;
-  event.currentTarget.classList.add("is-dragging");
+  event.currentTarget.closest(".company-crane-card")?.classList.add("is-dragging");
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", craneId);
+}
+
+function getCompanyCraneDropPosition(event, target) {
+  const rect = target.getBoundingClientRect();
+  return event.clientX < rect.left + rect.width / 2 ? "before" : "after";
 }
 
 function handleCompanyCraneDragOver(event) {
@@ -2230,7 +2336,7 @@ function handleCompanyCraneDragOver(event) {
 
   event.preventDefault();
   event.dataTransfer.dropEffect = "move";
-  const position = getEquipmentDropPosition(event, event.currentTarget);
+  const position = getCompanyCraneDropPosition(event, event.currentTarget);
   setEquipmentDropIndicator(event.currentTarget, position);
 }
 
@@ -2243,7 +2349,7 @@ function handleCompanyCraneDragLeave(event) {
 function handleCompanyCraneDrop(event, targetCraneId) {
   event.preventDefault();
   const sourceCraneId = draggedCompanyCraneId || event.dataTransfer.getData("text/plain");
-  const position = getEquipmentDropPosition(event, event.currentTarget);
+  const position = getCompanyCraneDropPosition(event, event.currentTarget);
   clearCompanyCraneDragStates();
 
   if (!sourceCraneId || sourceCraneId === targetCraneId) {
@@ -2309,10 +2415,18 @@ function upsertCatalogCraneFromEquipment(equipment) {
 
   if (existingIndex >= 0) {
     const existing = cranes[existingIndex];
+    const mergedFields = {};
+    [
+      "craneId", "area", "type", "structureCapacity", "hoistName",
+      "hoistCapacity", "voltage", "brand", "model", "serialNumber", "status"
+    ].forEach((field) => {
+      mergedFields[field] = candidate[field] || existing[field] || "";
+    });
     cranes[existingIndex] = {
       ...existing,
-      ...candidate,
+      ...mergedFields,
       id: existing.id,
+      image: existing.image || null,
       notes: existing.notes || candidate.notes || "",
       lastMaintenanceDate: existing.lastMaintenanceDate || candidate.lastMaintenanceDate || "",
       nextMaintenanceDate: existing.nextMaintenanceDate || candidate.nextMaintenanceDate || "",
@@ -2912,7 +3026,11 @@ function applyCatalogCraneToEquipmentEditor(crane) {
 }
 
 function mapCatalogCraneTypeToOption(type) {
-  const normalized = String(type || "").trim().toLowerCase();
+  const normalized = String(type || "")
+    .normalize("NFD")
+    .replace(new RegExp("[\\u0300-\\u036f]", "g"), "")
+    .trim()
+    .toLowerCase();
   const options = Array.from(elements.craneType.options).map((option) => option.value);
   const direct = options.find((option) => option.toLowerCase() === normalized);
   if (direct) {
@@ -2930,7 +3048,7 @@ function mapCatalogCraneTypeToOption(type) {
   if (normalized.includes("monorriel")) {
     return "Monorriel";
   }
-  if (normalized.includes("portico") || normalized.includes("pÃ³rtico")) {
+  if (normalized.includes("portico")) {
     return "Portico";
   }
   if (normalized.includes("polipasto")) {

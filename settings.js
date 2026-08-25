@@ -14,6 +14,7 @@ const DEFAULT_APP_SETTINGS = {
   checklistMaxSize: 1500,
   photoQuality: 0.62,
   userRoles: {},
+  clientAccess: {},
   updatedAt: "",
   pdfTemplate: {
     companyName: "",
@@ -66,6 +67,7 @@ function normalizeAppSettings(settings) {
     checklistMaxSize: clampNumber(source.checklistMaxSize, 900, 2200, DEFAULT_APP_SETTINGS.checklistMaxSize),
     photoQuality: clampNumber(source.photoQuality, 0.35, 0.9, DEFAULT_APP_SETTINGS.photoQuality),
     userRoles: normalizeUserRoles(source.userRoles),
+    clientAccess: normalizeClientAccess(source.clientAccess),
     updatedAt: source.updatedAt || "",
     pdfTemplate: {
       companyName: source.pdfTemplate?.companyName || defaultTemplate.companyName || "",
@@ -120,6 +122,60 @@ function getConfiguredUserRoles() {
   return getAppSettings().userRoles || {};
 }
 
+function getConfiguredClientAccess() {
+  return getAppSettings().clientAccess || {};
+}
+
+function normalizeClientAccess(entries) {
+  const normalized = {};
+  Object.entries(entries && typeof entries === "object" ? entries : {}).forEach(([email, company]) => {
+    const normalizedEmail = normalizeRoleEmail(email);
+    const normalizedCompany = normalizeClientName(company);
+    if (normalizedEmail && normalizedCompany) {
+      normalized[normalizedEmail] = normalizedCompany;
+    }
+  });
+  return normalized;
+}
+
+function parseClientAccess(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .reduce((entries, line) => {
+      const separatorIndex = line.includes("=") ? line.indexOf("=") : line.indexOf(",");
+      if (separatorIndex < 0) {
+        return entries;
+      }
+      const email = normalizeRoleEmail(line.slice(0, separatorIndex));
+      const company = normalizeClientName(line.slice(separatorIndex + 1));
+      if (email && company) {
+        entries[email] = company;
+      }
+      return entries;
+    }, {});
+}
+
+function formatClientAccess(entries) {
+  return Object.entries(normalizeClientAccess(entries))
+    .map(([email, company]) => `${email}=${company}`)
+    .join("\n");
+}
+
+function getClientCompanyForEmail(email = "") {
+  return getConfiguredClientAccess()[normalizeRoleEmail(email)] || "";
+}
+
+function getCurrentClientCompany() {
+  const profile = typeof getCurrentCloudAccessProfile === "function" ? getCurrentCloudAccessProfile() : null;
+  if (profile?.accessType === "client" && profile.companyName) {
+    return normalizeClientName(profile.companyName);
+  }
+  const email = typeof getCloudUserEmail === "function" ? getCloudUserEmail() : "";
+  return getClientCompanyForEmail(email);
+}
+
 function normalizeUserRoles(roles) {
   const normalized = {};
   Object.entries(roles && typeof roles === "object" ? roles : {}).forEach(([email, role]) => {
@@ -138,7 +194,7 @@ function normalizeRoleEmail(email) {
 
 function normalizeUserRole(role) {
   const value = String(role || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-  if (["admin", "supervisor", "tecnico", "solo_lectura"].includes(value)) {
+  if (["admin", "supervisor", "tecnico", "solo_lectura", "client"].includes(value)) {
     return value;
   }
   if (value === "technician") {
@@ -173,9 +229,17 @@ function formatUserRoles(roles) {
 }
 
 function getCurrentUserRole() {
+  const accessProfile = typeof getCurrentCloudAccessProfile === "function" ? getCurrentCloudAccessProfile() : null;
+  const profileRole = normalizeUserRole(accessProfile?.role);
+  if (profileRole) {
+    return profileRole;
+  }
   const roles = getConfiguredUserRoles();
   const roleEntries = Object.keys(roles);
   const email = typeof getCloudUserEmail === "function" ? normalizeRoleEmail(getCloudUserEmail()) : "";
+  if (getClientCompanyForEmail(email)) {
+    return "client";
+  }
   if (!roleEntries.length) {
     return "admin";
   }
@@ -187,7 +251,8 @@ function formatUserRoleLabel(role) {
     admin: "Admin",
     supervisor: "Supervisor",
     tecnico: "Tecnico",
-    solo_lectura: "Solo lectura"
+    solo_lectura: "Solo lectura",
+    client: "Cliente invitado"
   }[normalizeUserRole(role)] || "Solo lectura";
 }
 
@@ -195,8 +260,8 @@ function getRolePermissions(role = getCurrentUserRole()) {
   const normalizedRole = normalizeUserRole(role) || "solo_lectura";
   return {
     view: true,
-    generatePdf: ["admin", "supervisor", "tecnico", "solo_lectura"].includes(normalizedRole),
-    exportData: ["admin", "supervisor", "tecnico", "solo_lectura"].includes(normalizedRole),
+    generatePdf: ["admin", "supervisor", "tecnico", "solo_lectura", "client"].includes(normalizedRole),
+    exportData: ["admin", "supervisor", "tecnico", "solo_lectura", "client"].includes(normalizedRole),
     sync: ["admin", "supervisor", "tecnico"].includes(normalizedRole),
     editReports: ["admin", "supervisor", "tecnico"].includes(normalizedRole),
     editCatalog: ["admin", "supervisor"].includes(normalizedRole),
@@ -247,6 +312,7 @@ function applyRoleRestrictions() {
     elements.settingsNewCraneType,
     elements.settingsCraneTypes,
     elements.settingsUserRoles,
+    elements.settingsClientAccess,
     elements.settingsPhotoMaxSize,
     elements.settingsChecklistMaxSize,
     elements.settingsPhotoQuality,
@@ -333,6 +399,9 @@ async function populateSettingsForm() {
   if (elements.settingsUserRoles) {
     elements.settingsUserRoles.value = formatUserRoles(settings.userRoles);
   }
+  if (elements.settingsClientAccess) {
+    elements.settingsClientAccess.value = formatClientAccess(settings.clientAccess);
+  }
   elements.settingsNewPolipasto.value = "";
   elements.settingsNewCraneType.value = "";
   elements.settingsDefaultFrequency.value = settings.defaultMaintenanceFrequency;
@@ -389,6 +458,7 @@ async function saveSettingsFromForm() {
     polipastos: parsePolipastoList(elements.settingsPolipastos.value),
     craneTypes: parseCraneTypeList(elements.settingsCraneTypes.value),
     userRoles: parseUserRoles(elements.settingsUserRoles?.value || ""),
+    clientAccess: parseClientAccess(elements.settingsClientAccess?.value || ""),
     defaultMaintenanceFrequency: elements.settingsDefaultFrequency.value,
     fixedRecommendationText: elements.settingsRecommendationText.value.trim() || DEFAULT_APP_SETTINGS.fixedRecommendationText,
     photoMaxSize: elements.settingsPhotoMaxSize.value,
@@ -406,6 +476,14 @@ async function saveSettingsFromForm() {
   };
 
   await writeAppSettings(settings);
+  let accessProfileSync = null;
+  if (typeof syncConfiguredAccessProfilesToCloud === "function") {
+    try {
+      accessProfileSync = await syncConfiguredAccessProfilesToCloud(settings.userRoles, settings.clientAccess);
+    } catch (error) {
+      accessProfileSync = { error: error?.message || "No se pudieron actualizar los perfiles en Supabase." };
+    }
+  }
   queueDataSync("configuracion guardada");
   applyRoleRestrictions();
   populateClientPlantOptions(settings.clientPlants, elements.plantName.value);
@@ -413,7 +491,12 @@ async function saveSettingsFromForm() {
   populateCraneTypeOptions(settings.craneTypes, elements.craneType.value);
   await showAppDialog({
     title: "Configuracion guardada",
-    message: "Los cambios se aplicaran a nuevos equipos, respaldos, PDF y lista de clientes.",
+    message: accessProfileSync && !accessProfileSync.skipped && !accessProfileSync.error
+      ? `Los cambios se guardaron y ${accessProfileSync.updated} perfil(es) de acceso se actualizaron en Supabase.`
+      : "Los cambios se aplicaran a nuevos equipos, respaldos, PDF y lista de clientes.",
+    details: accessProfileSync?.error
+      ? `${accessProfileSync.error}\n\nLa configuracion local quedo guardada. Revisa la asignacion o ejecuta supabase-client-portal.sql para aplicar los permisos en la nube.`
+      : "",
     actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
   });
 }

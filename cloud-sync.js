@@ -7,6 +7,9 @@ const CLOUD_LAST_SYNC_KEY = "crane-cloud-last-sync-v1";
 const CLOUD_LAST_ERROR_KEY = "crane-cloud-last-error-v1";
 const CLOUD_EVIDENCE_BUCKET = "report-evidence";
 const CLOUD_PENDING_SYNC_KEY = "crane-cloud-pending-sync-v1";
+const CLOUD_SYNC_CONFLICTS_KEY = "crane-cloud-sync-conflicts-v1";
+const CLOUD_ACCESS_MODE_KEY = "fmc-login-access-mode-v1";
+const CLOUD_ACCESS_PROFILE_KEY = "fmc-cloud-access-profile-v1";
 const CLOUD_AUTO_SYNC_DELAY_MS = 1400;
 
 let cloudAutoSyncTimer = null;
@@ -36,6 +39,82 @@ function clearCloudSession() {
   localStorage.removeItem(CLOUD_SESSION_KEY);
 }
 
+function getRequestedAccessMode() {
+  return sessionStorage.getItem(CLOUD_ACCESS_MODE_KEY) || "";
+}
+
+function setRequestedAccessMode(mode) {
+  const normalized = mode === "client" ? "client" : mode === "internal" ? "internal" : "";
+  if (normalized) {
+    sessionStorage.setItem(CLOUD_ACCESS_MODE_KEY, normalized);
+  } else {
+    sessionStorage.removeItem(CLOUD_ACCESS_MODE_KEY);
+  }
+  renderLoginAccessSelection();
+}
+
+function getCurrentCloudAccessProfile() {
+  try {
+    return JSON.parse(sessionStorage.getItem(CLOUD_ACCESS_PROFILE_KEY) || "null") || null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function setCurrentCloudAccessProfile(profile) {
+  if (profile) {
+    sessionStorage.setItem(CLOUD_ACCESS_PROFILE_KEY, JSON.stringify(profile));
+  } else {
+    sessionStorage.removeItem(CLOUD_ACCESS_PROFILE_KEY);
+  }
+}
+
+function getCurrentAccessMode() {
+  return getCurrentCloudAccessProfile()?.accessType || getRequestedAccessMode() || "internal";
+}
+
+function isClientAccessMode() {
+  return getCurrentAccessMode() === "client";
+}
+
+function setupLoginAccessSelector() {
+  elements.loginGate?.querySelectorAll("[data-login-access-mode]").forEach((button) => {
+    button.addEventListener("click", () => setRequestedAccessMode(button.dataset.loginAccessMode));
+  });
+  elements.loginAccessBackButton?.addEventListener("click", () => {
+    setRequestedAccessMode("");
+    elements.loginPassword.value = "";
+    elements.loginStatus.textContent = "Selecciona como deseas ingresar.";
+  });
+  renderLoginAccessSelection();
+}
+
+function renderLoginAccessSelection() {
+  if (!elements.loginAccessChooser || !elements.loginCredentials) {
+    return;
+  }
+  const mode = getRequestedAccessMode();
+  elements.loginAccessChooser.classList.toggle("hidden", Boolean(mode));
+  elements.loginCredentials.classList.toggle("hidden", !mode);
+  if (!mode) {
+    return;
+  }
+  const isClient = mode === "client";
+  elements.loginSelectedAccess.innerHTML = `
+    <span>${isClient ? "EMP" : "FMC"}</span>
+    <div>
+      <small>Tipo de acceso</small>
+      <strong>${isClient ? "Portal de clientes" : "Acceso interno FMC"}</strong>
+    </div>
+  `;
+  elements.loginAccessDescription.textContent = isClient
+    ? "Consulta los equipos, mantenimientos y reportes asignados a tu empresa."
+    : "Accede a las herramientas de operacion, captura y administracion FMC.";
+  elements.loginButton.textContent = isClient ? "Entrar al portal" : "Ingresar al sistema";
+  elements.loginEmail.placeholder = isClient ? "correo@cliente.com" : "usuario@fmc.com";
+  elements.loginStatus.textContent = getLoginStatusText();
+}
+
 function getCloudUserEmail() {
   const session = getCloudSession();
   return session?.user?.email || "";
@@ -47,6 +126,9 @@ function hasValidCloudConfig() {
 }
 
 async function initializeCloudSync() {
+  if (getCloudSession()?.access_token) {
+    await resolveCurrentCloudAccessProfile({ allowRemoteSettings: true }).catch(() => null);
+  }
   renderCloudStatus();
   renderAuthGate();
   scheduleStartupCloudDownload();
@@ -161,9 +243,14 @@ function getLoginStatusText() {
 function renderAuthGate() {
   const connected = Boolean(getCloudSession()?.access_token);
   const canEnter = connected || isOfflineModeEnabled();
+  const accessMode = connected ? getCurrentAccessMode() : "";
+  document.body.dataset.accessMode = accessMode;
   document.body.classList.toggle("auth-locked", !canEnter);
   elements.loginGate.classList.toggle("hidden", canEnter);
   elements.appShell.setAttribute("aria-hidden", String(!canEnter));
+  if (!canEnter) {
+    renderLoginAccessSelection();
+  }
 }
 
 function isOfflineModeEnabled() {
@@ -212,6 +299,9 @@ function markCloudDataPending(reason = "cambio local") {
 }
 
 function requestCloudDataSync(reason = "cambio local", options = {}) {
+  if (isClientAccessMode()) {
+    return;
+  }
   markCloudDataPending(reason);
   if (!hasCloudConnectionReady()) {
     return;
@@ -249,8 +339,13 @@ function scheduleStartupCloudDownload() {
     return;
   }
   setTimeout(() => {
-    syncCloudDataOnly({ silent: true, source: "arranque" }).catch(() => {
-      markCloudDataPending("sincronizacion de arranque pendiente");
+    const action = isClientAccessMode()
+      ? syncClientPortalData({ silent: true, source: "arranque" })
+      : syncCloudDataOnly({ silent: true, source: "arranque" });
+    action.catch(() => {
+      if (!isClientAccessMode()) {
+        markCloudDataPending("sincronizacion de arranque pendiente");
+      }
     });
   }, 900);
 }
@@ -274,6 +369,8 @@ async function cloudSignInFromForm() {
   try {
     renderCloudStatus("Conectando con Supabase...");
     await cloudSignIn(email, password);
+    setRequestedAccessMode("internal");
+    await resolveCurrentCloudAccessProfile({ requestedMode: "internal", allowRemoteSettings: true });
     elements.cloudPassword.value = "";
     sessionStorage.removeItem(CLOUD_OFFLINE_MODE_KEY);
     renderCloudStatus();
@@ -288,7 +385,10 @@ async function cloudSignInFromForm() {
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
   } catch (error) {
+    clearCloudSession();
+    setCurrentCloudAccessProfile(null);
     renderCloudStatus();
+    renderAuthGate();
     await showAppDialog({
       title: "No se pudo iniciar sesion",
       message: "Revisa el correo, contrasena y que el usuario exista en Supabase Authentication.",
@@ -325,11 +425,82 @@ async function cloudSignIn(email, password) {
   return session;
 }
 
+async function resolveCurrentCloudAccessProfile(options = {}) {
+  const session = getCloudSession();
+  if (!session?.access_token || !session?.user) {
+    setCurrentCloudAccessProfile(null);
+    return null;
+  }
+
+  const email = String(session.user.email || "").trim().toLowerCase();
+  const requestedMode = options.requestedMode || getRequestedAccessMode();
+  let profileRow = null;
+  try {
+    const rows = await cloudFetch(`/rest/v1/user_profiles?select=user_id,email,access_type,role,company_id,company_name,active&user_id=eq.${encodeURIComponent(session.user.id)}&limit=1`);
+    profileRow = Array.isArray(rows) ? rows[0] || null : null;
+  } catch (error) {
+    profileRow = null;
+  }
+
+  if (profileRow && profileRow.active === false) {
+    throw new Error("Esta cuenta fue desactivada. Contacta a un administrador FMC.");
+  }
+
+  let remoteSettings = null;
+  const localCompany = typeof getClientCompanyForEmail === "function" ? getClientCompanyForEmail(email) : "";
+  if (!profileRow && !localCompany && options.allowRemoteSettings !== false) {
+    try {
+      const rows = await cloudFetch("/rest/v1/app_settings?select=payload&id=eq.default&limit=1");
+      remoteSettings = Array.isArray(rows) ? rows[0]?.payload || null : null;
+    } catch (error) {
+      remoteSettings = null;
+    }
+  }
+
+  const remoteClientAccess = remoteSettings?.clientAccess && typeof remoteSettings.clientAccess === "object"
+    ? remoteSettings.clientAccess
+    : {};
+  const companyName = normalizeClientName(profileRow
+    ? profileRow.company_name || ""
+    : localCompany || remoteClientAccess[email] || "");
+  const accessType = profileRow
+    ? profileRow.access_type === "client" ? "client" : "internal"
+    : companyName ? "client" : "internal";
+  const configuredRole = typeof getConfiguredUserRoles === "function" ? getConfiguredUserRoles()[email] : "";
+  const remoteRole = remoteSettings?.userRoles?.[email] || "";
+  const role = accessType === "client"
+    ? "client"
+    : (profileRow?.role || configuredRole || remoteRole || "admin");
+
+  if (requestedMode === "client" && (accessType !== "client" || !companyName)) {
+    throw new Error("Esta cuenta no esta vinculada a una empresa. Un administrador FMC debe asignarla antes de ingresar al portal.");
+  }
+  if (requestedMode === "internal" && accessType === "client") {
+    throw new Error("Esta cuenta pertenece al Portal de clientes. Regresa y selecciona ese tipo de acceso.");
+  }
+
+  const profile = {
+    userId: session.user.id,
+    email,
+    accessType,
+    role,
+    companyId: profileRow?.company_id || (companyName ? createCloudCompanyId(companyName) : ""),
+    companyName,
+    source: profileRow ? "cloud" : companyName ? "settings" : "default",
+    resolvedAt: new Date().toISOString()
+  };
+  setCurrentCloudAccessProfile(profile);
+  setRequestedAccessMode(accessType);
+  return profile;
+}
+
 async function cloudSignOutFromForm() {
   if (typeof disconnectPresence === "function") {
     await disconnectPresence();
   }
   clearCloudSession();
+  setCurrentCloudAccessProfile(null);
+  setRequestedAccessMode("");
   sessionStorage.removeItem(CLOUD_OFFLINE_MODE_KEY);
   renderCloudStatus();
   renderAuthGate();
@@ -338,7 +509,12 @@ async function cloudSignOutFromForm() {
 async function cloudSignInFromLogin() {
   const email = String(elements.loginEmail?.value || "").trim();
   const password = String(elements.loginPassword?.value || "");
+  const requestedMode = getRequestedAccessMode();
 
+  if (!requestedMode) {
+    elements.loginStatus.textContent = "Selecciona el tipo de acceso.";
+    return;
+  }
   if (!email || !password) {
     elements.loginStatus.textContent = "Escribe correo y contrasena para ingresar.";
     return;
@@ -348,6 +524,8 @@ async function cloudSignInFromLogin() {
     elements.loginButton.disabled = true;
     elements.loginStatus.textContent = "Conectando con Supabase...";
     await cloudSignIn(email, password);
+    elements.loginStatus.textContent = "Validando permisos...";
+    await resolveCurrentCloudAccessProfile({ requestedMode, allowRemoteSettings: true });
     elements.loginPassword.value = "";
     sessionStorage.removeItem(CLOUD_OFFLINE_MODE_KEY);
     renderCloudStatus();
@@ -355,7 +533,22 @@ async function cloudSignInFromLogin() {
     if (typeof initializePresence === "function") {
       await initializePresence();
     }
+    if (isClientAccessMode()) {
+      elements.loginStatus.textContent = "Descargando informacion de tu empresa...";
+      await syncClientPortalData({ silent: true, source: "inicio de sesion" });
+    } else {
+      requestCloudDataSync("inicio de sesion", { immediate: true, silent: true });
+    }
+    if (typeof applyRoleRestrictions === "function") {
+      applyRoleRestrictions();
+    }
+    if (typeof openAuthenticatedLanding === "function") {
+      await openAuthenticatedLanding();
+    }
   } catch (error) {
+    clearCloudSession();
+    setCurrentCloudAccessProfile(null);
+    renderAuthGate();
     elements.loginStatus.textContent = getReadableCloudError(error) || "No se pudo iniciar sesion.";
   } finally {
     elements.loginButton.disabled = false;
@@ -451,6 +644,7 @@ async function cloudStorageFetch(path, options = {}) {
 async function syncCompaniesAndCranesToCloud(options = {}) {
   const syncEvidence = options && options.syncEvidence === false ? false : true;
   const silent = Boolean(options.silent);
+  const conflicts = [];
   try {
     renderCloudStatus("Descargando datos de otros dispositivos...");
     const initialCloudCompanies = await fetchCloudRows("companies", { includeDeleted: true });
@@ -461,7 +655,7 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
     await mergeCloudCompanyCraneRows(initialCloudCompanies, initialCloudCranes);
     await mergeCloudCompaniesIntoSettings(initialCloudCompanies);
     await mergeCloudActiveFindingRows(initialCloudFindings);
-    await mergeCloudReportRows(initialCloudReports);
+    await mergeCloudReportRows(initialCloudReports, { conflicts });
     await mergeCloudSettingsRows(initialCloudSettings);
 
     renderCloudStatus("Preparando datos locales...");
@@ -490,7 +684,7 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
     await mergeCloudCompanyCraneRows(cloudCompanies, cloudCranes);
     await mergeCloudCompaniesIntoSettings(cloudCompanies);
     await mergeCloudActiveFindingRows(cloudFindings);
-    await mergeCloudReportRows(cloudReports);
+    await mergeCloudReportRows(cloudReports, { conflicts });
     await mergeCloudSettingsRows(cloudSettings);
 
     await populateCompanyRegistryClientOptions();
@@ -507,11 +701,20 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
         : `\n\nEvidencias: ${localReportRows.evidence?.uploaded || 0} subida(s) y ${localReportRows.evidence?.skipped || 0} ya estaban listas.`
       : "\n\nEvidencias: no se subieron en esta sincronizacion.";
     writeCloudSyncMeta({ success: true });
+    const uniqueConflicts = Array.from(new Map(conflicts.map((item) => [item.id, item])).values());
+    if (uniqueConflicts.length) {
+      markCloudSyncConflicts(uniqueConflicts);
+    }
     await renderSyncCenterIfOpen();
     if (!silent) {
+      const hasPendingEvidence = Boolean(localReportRows.evidence?.warnings?.length);
+      const hasConflicts = uniqueConflicts.length > 0;
+      const conflictText = hasConflicts
+        ? `\n\nPosible edicion simultanea: ${uniqueConflicts.length} reporte(s) fueron editados en este dispositivo y tambien en otro antes de sincronizar, y se aplico la version mas reciente. Revisa: ${uniqueConflicts.map((item) => item.reportNumber).slice(0, 8).join(", ")}.`
+        : "";
       await showAppDialog({
-        title: "Sincronizacion completa",
-        message: `Se combinaron ${visibleCompanies} empresa(s), ${visibleCranes} grua(s), ${cloudFindings.filter((row) => !row.deleted_at).length} grupo(s) de hallazgos y ${visibleReports} reporte(s) con este dispositivo.${evidenceText}`,
+        title: hasConflicts ? "Revisa posibles conflictos" : (hasPendingEvidence ? "Sincronizacion parcial" : "Sincronizacion completa"),
+        message: `Se combinaron ${visibleCompanies} empresa(s), ${visibleCranes} grua(s), ${cloudFindings.filter((row) => !row.deleted_at).length} grupo(s) de hallazgos y ${visibleReports} reporte(s) con este dispositivo.${evidenceText}${hasPendingEvidence ? "\n\nAlgunas evidencias no se pudieron subir. Vuelve a intentar la sincronizacion cuando tengas mejor conexion." : ""}${conflictText}`,
         details: localReportRows.evidence?.warnings?.slice(0, 8).join("\n") || "",
         actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
       });
@@ -536,6 +739,113 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
 async function syncCloudDataOnly(options = {}) {
   await syncCompaniesAndCranesToCloud({ ...options, syncEvidence: false });
 }
+
+async function syncClientPortalData(options = {}) {
+  const profile = getCurrentCloudAccessProfile();
+  const companyName = normalizeClientName(profile?.companyName || (typeof getCurrentClientCompany === "function" ? getCurrentClientCompany() : ""));
+  const companyId = profile?.companyId || (companyName ? createCloudCompanyId(companyName) : "");
+  if (!companyName || !companyId) {
+    throw new Error("La cuenta no tiene una empresa asignada.");
+  }
+
+  try {
+    renderCloudStatus("Descargando informacion de tu empresa...");
+    const encodedCompanyId = encodeURIComponent(companyId);
+    const [companies, cranes, findings, reports] = await Promise.all([
+      cloudFetch(`/rest/v1/companies?select=*&id=eq.${encodedCompanyId}`),
+      cloudFetch(`/rest/v1/cranes?select=*&company_id=eq.${encodedCompanyId}&deleted_at=is.null&order=sort_order.asc`),
+      cloudFetch(`/rest/v1/active_crane_findings?select=*&company_id=eq.${encodedCompanyId}&deleted_at=is.null`),
+      cloudFetch(`/rest/v1/reports?select=*&company_id=eq.${encodedCompanyId}&deleted_at=is.null&order=inspection_date.desc`)
+    ]);
+    await mergeCloudCompanyCraneRows(companies || [], cranes || []);
+    await mergeCloudActiveFindingRows(findings || []);
+    await mergeCloudReportRows(reports || []);
+    writeCloudSyncMeta({ success: true });
+    renderCloudStatus(`Portal actualizado: ${cranes?.length || 0} equipo(s) y ${reports?.length || 0} reporte(s).`);
+    if (typeof renderClientPortal === "function" && elements.clientPortalView && !elements.clientPortalView.classList.contains("hidden")) {
+      await renderClientPortal();
+    }
+    return { companies, cranes, findings, reports };
+  } catch (error) {
+    writeCloudSyncMeta({ success: false, error });
+    renderCloudStatus();
+    if (!options.silent) {
+      await showAppDialog({
+        title: "No se pudo actualizar el portal",
+        message: "La informacion guardada en este dispositivo sigue disponible.",
+        details: getReadableCloudError(error),
+        actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+      });
+    }
+    throw error;
+  }
+}
+
+window.syncClientPortalData = syncClientPortalData;
+
+async function syncConfiguredAccessProfilesToCloud(userRoles = {}, clientAccess = {}) {
+  if (!hasCloudConnectionReady() || isClientAccessMode()) {
+    return { updated: 0, revoked: 0, skipped: true };
+  }
+
+  const currentEmail = String(getCloudUserEmail() || "").trim().toLowerCase();
+  if (currentEmail && clientAccess[currentEmail]) {
+    throw new Error("No puedes asignar como cliente la misma cuenta administrativa que esta en uso.");
+  }
+
+  const profiles = await cloudFetch("/rest/v1/user_profiles?select=user_id,email,access_type,role,company_id,company_name,active");
+  let updated = 0;
+  let revoked = 0;
+
+  for (const profile of profiles || []) {
+    const email = String(profile.email || "").trim().toLowerCase();
+    const client = normalizeClientName(clientAccess[email] || "");
+    const internalRole = typeof normalizeUserRole === "function" ? normalizeUserRole(userRoles[email]) : "";
+    let changes = null;
+
+    if (client) {
+      changes = {
+        access_type: "client",
+        role: "client",
+        company_id: createCloudCompanyId(client),
+        company_name: client,
+        active: true,
+        updated_at: new Date().toISOString()
+      };
+    } else if (internalRole && internalRole !== "client") {
+      changes = {
+        access_type: "internal",
+        role: internalRole,
+        company_id: null,
+        company_name: null,
+        active: true,
+        updated_at: new Date().toISOString()
+      };
+    } else if (profile.access_type === "client") {
+      changes = {
+        company_id: null,
+        company_name: null,
+        active: false,
+        updated_at: new Date().toISOString()
+      };
+      revoked += 1;
+    }
+
+    if (!changes) {
+      continue;
+    }
+    await cloudFetch(`/rest/v1/user_profiles?user_id=eq.${encodeURIComponent(profile.user_id)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(changes)
+    });
+    updated += 1;
+  }
+
+  return { updated, revoked, skipped: false };
+}
+
+window.syncConfiguredAccessProfilesToCloud = syncConfiguredAccessProfilesToCloud;
 
 async function syncEvidenceOnlyToCloud() {
   try {
@@ -644,6 +954,7 @@ async function buildSyncCenterSummary() {
     pendingReason: pendingCloudSync.reason || "",
     pendingUpdatedAt: pendingCloudSync.updatedAt || "",
     evidence,
+    conflicts: readCloudSyncConflicts(),
     connected: Boolean(getCloudSession()?.access_token),
     online: navigator.onLine
   };
@@ -774,14 +1085,30 @@ function renderSyncCenterContent(summary) {
     ? `<section class="sync-panel sync-error-panel"><p class="eyebrow">Ultimo error</p><p>${escapeHtml(summary.lastError)}</p></section>`
     : "";
 
+  const conflictItems = summary.conflicts?.items || [];
+  const conflictPanel = conflictItems.length
+    ? `<section class="sync-panel sync-error-panel">
+        <p class="eyebrow">Posible edicion simultanea (${formatDateTime(summary.conflicts.detectedAt)})</p>
+        <p>Estos reportes se editaron en dos dispositivos antes de sincronizar; se aplico la version mas reciente. Revisalos manualmente:</p>
+        <p>${conflictItems.map((item) => escapeHtml(item.reportNumber)).join(", ")}</p>
+        <button class="ghost-button" type="button" data-dismiss-sync-conflicts>Marcar como revisado</button>
+      </section>`
+    : "";
+
   return `
     ${statusCards}
     ${errorPanel}
+    ${conflictPanel}
     <section class="sync-panel sync-pending-panel hidden" data-sync-pending-panel>
       <p class="eyebrow">Pendientes y evidencias</p>
       ${renderEvidenceRecords(summary.evidence.records)}
     </section>
   `;
+}
+
+function dismissSyncConflicts() {
+  clearCloudSyncConflicts();
+  renderSyncCenter();
 }
 
 function renderEvidenceStatus(label, value, status) {
@@ -875,6 +1202,33 @@ function readCloudLastError() {
     return localStorage.getItem(CLOUD_LAST_ERROR_KEY) || "";
   } catch (error) {
     return "";
+  }
+}
+
+function markCloudSyncConflicts(conflicts) {
+  try {
+    localStorage.setItem(CLOUD_SYNC_CONFLICTS_KEY, JSON.stringify({
+      detectedAt: new Date().toISOString(),
+      items: conflicts || []
+    }));
+  } catch (error) {
+    // No bloquea la operacion principal.
+  }
+}
+
+function readCloudSyncConflicts() {
+  try {
+    return JSON.parse(localStorage.getItem(CLOUD_SYNC_CONFLICTS_KEY) || "null") || { detectedAt: "", items: [] };
+  } catch (error) {
+    return { detectedAt: "", items: [] };
+  }
+}
+
+function clearCloudSyncConflicts() {
+  try {
+    localStorage.removeItem(CLOUD_SYNC_CONFLICTS_KEY);
+  } catch (error) {
+    // No bloquea la operacion principal.
   }
 }
 
@@ -1324,6 +1678,19 @@ async function mergeCloudReportRows(reports, options = {}) {
     });
     const localInspection = await getInspection(cloudInspection.id);
     if (options.forceEvidenceDownload || !localInspection || getComparableTime(cloudInspection.updatedAt) >= getComparableTime(localInspection.updatedAt)) {
+      if (
+        Array.isArray(options.conflicts)
+        && localInspection
+        && !options.forceEvidenceDownload
+        && localInspection.cloudSyncedAt
+        && getComparableTime(localInspection.updatedAt) > getComparableTime(localInspection.cloudSyncedAt)
+        && getComparableTime(cloudInspection.updatedAt) > getComparableTime(localInspection.cloudSyncedAt)
+      ) {
+        options.conflicts.push({
+          id: cloudInspection.id,
+          reportNumber: localInspection.reportNumber || cloudInspection.reportNumber || cloudInspection.id
+        });
+      }
       const hydratedInspection = await downloadInspectionEvidence(cloudInspection, localInspection);
       await putInspection(localInspection
         ? mergeLocalEvidenceIntoCloudInspection(hydratedInspection, normalizeInspection(localInspection))

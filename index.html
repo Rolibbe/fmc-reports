@@ -7,7 +7,7 @@
   <title>Servicios FMC</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="logo.png" type="image/png">
-  <link rel="stylesheet" href="styles.css?v=157">
+  <link rel="stylesheet" href="styles.css?v=162">
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -19,29 +19,52 @@
           <h1>Servicios FMC</h1>
         </div>
       </div>
-      <div class="login-hero-icons" aria-hidden="true">
-        <span>FMC</span>
-        <span>PDF</span>
-        <span>SYNC</span>
+      <div id="loginAccessChooser" class="login-access-chooser">
+        <div class="login-access-heading">
+          <h2>Selecciona tu acceso</h2>
+          <p>El sistema ajustara las herramientas y la informacion segun tu cuenta.</p>
+        </div>
+        <div class="login-access-options">
+          <button class="login-access-option is-internal" type="button" data-login-access-mode="internal">
+            <span class="login-access-mark">FMC</span>
+            <span>
+              <strong>Acceso interno FMC</strong>
+              <small>Administracion, tecnicos y operacion.</small>
+            </span>
+            <b aria-hidden="true">&#8250;</b>
+          </button>
+          <button class="login-access-option is-client" type="button" data-login-access-mode="client">
+            <span class="login-access-mark">EMP</span>
+            <span>
+              <strong>Portal de clientes</strong>
+              <small>Equipos, mantenimiento y reportes.</small>
+            </span>
+            <b aria-hidden="true">&#8250;</b>
+          </button>
+        </div>
       </div>
-      <p class="login-copy">Ingresa para sincronizar empresas, equipos y servicios entre dispositivos.</p>
-      <div class="login-form">
-        <label>
-          Correo
-          <input id="loginEmail" type="email" autocomplete="email" placeholder="usuario@empresa.com">
-        </label>
-        <label>
-          Contrasena
-          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Contrasena">
-        </label>
-        <button id="loginButton" class="primary-button login-submit" type="button">Ingresar</button>
-        <button id="loginOfflineButton" class="ghost-button login-offline hidden" type="button">Entrar en modo offline</button>
+      <div id="loginCredentials" class="login-credentials hidden">
+        <button id="loginAccessBackButton" class="login-access-back" type="button">&#8249; Cambiar tipo de acceso</button>
+        <div id="loginSelectedAccess" class="login-selected-access"></div>
+        <p id="loginAccessDescription" class="login-copy"></p>
+        <div class="login-form">
+          <label>
+            Correo
+            <input id="loginEmail" type="email" autocomplete="email" placeholder="usuario@empresa.com">
+          </label>
+          <label>
+            Contrasena
+            <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Contrasena">
+          </label>
+          <button id="loginButton" class="primary-button login-submit" type="button">Ingresar</button>
+          <button id="loginOfflineButton" class="ghost-button login-offline hidden" type="button">Entrar en modo offline</button>
+        </div>
+        <p id="loginStatus" class="login-status">Conecta con tu cuenta de Supabase para iniciar.</p>
       </div>
-      <p id="loginStatus" class="login-status">Conecta con tu cuenta de Supabase para iniciar.</p>
     </div>
   </section>
 
-  <span id="appVersionBadge" class="app-version-badge">Version 1.3.11</span>
+  <span id="appVersionBadge" class="app-version-badge">Version 1.3.68</span>
 
   <div id="appShell" class="app-shell">
     <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
@@ -296,6 +319,37 @@
             <button id="homeRefreshButton" class="ghost-button" type="button">Actualizar</button>
           </div>
           <div id="homeCriticalList" class="home-critical-list"></div>
+        </section>
+      </section>
+
+      <section class="panel app-view hidden client-portal-view" id="clientPortalView">
+        <header class="client-portal-hero">
+          <div>
+            <p class="eyebrow">Portal de clientes</p>
+            <h2 id="clientPortalCompanyName">Mi empresa</h2>
+            <p id="clientPortalWelcome" class="page-subtitle">Consulta el estado de tus equipos y servicios FMC.</p>
+          </div>
+          <button id="clientPortalRefreshButton" class="secondary-button" type="button">Actualizar informacion</button>
+        </header>
+        <div id="clientPortalStatus" class="client-portal-status"></div>
+        <div id="clientPortalSummary" class="client-portal-summary"></div>
+        <section class="client-portal-band">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Equipos</p>
+              <h3>Gruas registradas</h3>
+            </div>
+          </div>
+          <div id="clientPortalCranes" class="client-portal-cranes"></div>
+        </section>
+        <section class="client-portal-band">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Documentos</p>
+              <h3>Reportes de servicio</h3>
+            </div>
+          </div>
+          <div id="clientPortalReports" class="client-portal-reports"></div>
         </section>
       </section>
 
@@ -1099,7 +1153,12 @@
               Correos y roles
               <textarea id="settingsUserRoles" rows="7" placeholder="correo@empresa.com=admin&#10;tecnico@empresa.com=tecnico&#10;supervisor@empresa.com=supervisor&#10;lector@empresa.com=solo_lectura"></textarea>
             </label>
-            <small class="cloud-helper">Roles disponibles: admin, supervisor, tecnico y solo_lectura. Si no configuras roles, el usuario conectado conserva acceso de admin.</small>
+            <small class="cloud-helper">Roles internos: admin, supervisor, tecnico y solo_lectura. Si no configuras roles, el usuario conectado conserva acceso de admin.</small>
+            <label>
+              Invitados y empresa asignada
+              <textarea id="settingsClientAccess" rows="7" placeholder="cliente@empresa.com=IVEMSA&#10;mantenimiento@empresa.com=HUTCHINSON"></textarea>
+            </label>
+            <small class="cloud-helper">Cada correo configurado aqui entrara al Portal de clientes y solo vera la empresa asignada.</small>
           </section>
 
           <section class="subpanel" data-settings-section-panel="general">
@@ -1254,7 +1313,14 @@
                 </div>
                 <button id="deleteCompanyRegistryButton" class="ghost-button" type="button">Eliminar empresa</button>
               </div>
-              <div class="company-control-grid">
+
+              <div id="companyControlTabs" class="company-control-tabs" role="tablist" aria-label="Secciones de la empresa">
+                <button class="company-control-tab is-active" type="button" data-company-control-tab="frequency" role="tab" aria-selected="true">Frecuencia</button>
+                <button class="company-control-tab" type="button" data-company-control-tab="contacts" role="tab" aria-selected="false">Contactos</button>
+                <button class="company-control-tab" type="button" data-company-control-tab="location" role="tab" aria-selected="false">Ubicacion</button>
+              </div>
+
+              <div class="company-control-grid" data-company-control-panel="frequency">
                 <label>
                   Frecuencia de mantenimiento
                   <select id="companyMaintenanceFrequency">
@@ -1275,7 +1341,7 @@
                 </label>
                 <button id="syncCompanyRegistryButton" class="ghost-button" type="button">Tomar datos de servicios guardados</button>
               </div>
-              <div class="company-contacts-panel">
+              <div class="company-contacts-panel hidden" data-company-control-panel="contacts">
                 <div class="company-contacts-head">
                   <div>
                     <p class="eyebrow">Contactos</p>
@@ -1299,7 +1365,7 @@
                 </div>
                 <div id="companyContactsList" class="company-contacts-list"></div>
               </div>
-              <div class="company-location-panel">
+              <div class="company-location-panel hidden" data-company-control-panel="location">
                 <div class="company-contacts-head">
                   <div>
                     <p class="eyebrow">Ubicacion</p>
@@ -1489,28 +1555,29 @@
     <button id="mobileMoreButton" type="button"><span>...</span>Mas</button>
   </nav>
 
-  <script src="report-template-config.js?v=157"></script>
-  <script src="finding-catalog-config.js?v=157"></script>
-  <script src="checklist-config.js?v=157"></script>
-  <script src="findings.js?v=157"></script>
-  <script src="ui-modals.js?v=157"></script>
-  <script src="crane-checklist-ui.js?v=157"></script>
-  <script src="crane-checklist-pdf.js?v=157"></script>
-  <script src="company-cranes.js?v=157"></script>
-  <script src="equipment.js?v=157"></script>
-  <script src="pdf-actions.js?v=157"></script>
-  <script src="backup.js?v=157"></script>
-  <script src="storage.js?v=157"></script>
-  <script src="settings.js?v=157"></script>
-  <script src="operations.js?v=157"></script>
-  <script src="maintenance-panel.js?v=157"></script>
-  <script src="clients-map.js?v=157"></script>
-  <script src="dashboard.js?v=157"></script>
-  <script src="report-generator.js?v=157"></script>
-  <script src="supabase-config.js?v=157"></script>
-  <script src="cloud-sync.js?v=157"></script>
-  <script src="presence.js?v=157"></script>
-  <script src="app.js?v=157"></script>
+  <script src="report-template-config.js?v=162"></script>
+  <script src="finding-catalog-config.js?v=162"></script>
+  <script src="checklist-config.js?v=162"></script>
+  <script src="findings.js?v=162"></script>
+  <script src="ui-modals.js?v=162"></script>
+  <script src="crane-checklist-ui.js?v=162"></script>
+  <script src="crane-checklist-pdf.js?v=162"></script>
+  <script src="company-cranes.js?v=162"></script>
+  <script src="equipment.js?v=162"></script>
+  <script src="pdf-actions.js?v=162"></script>
+  <script src="backup.js?v=162"></script>
+  <script src="storage.js?v=162"></script>
+  <script src="settings.js?v=162"></script>
+  <script src="operations.js?v=162"></script>
+  <script src="maintenance-panel.js?v=162"></script>
+  <script src="clients-map.js?v=162"></script>
+  <script src="dashboard.js?v=162"></script>
+  <script src="report-generator.js?v=162"></script>
+  <script src="client-portal.js?v=162"></script>
+  <script src="supabase-config.js?v=162"></script>
+  <script src="cloud-sync.js?v=162"></script>
+  <script src="presence.js?v=162"></script>
+  <script src="app.js?v=162"></script>
 </body>
 </html>
 
