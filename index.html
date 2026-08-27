@@ -7,7 +7,7 @@
   <title>Servicios FMC</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="logo.png" type="image/png">
-  <link rel="stylesheet" href="styles.css?v=162">
+  <link rel="stylesheet" href="styles.css?v=164">
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -64,7 +64,7 @@
     </div>
   </section>
 
-  <span id="appVersionBadge" class="app-version-badge">Version 1.3.68</span>
+  <span id="appVersionBadge" class="app-version-badge">Version 1.3.70</span>
 
   <div id="appShell" class="app-shell">
     <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
@@ -94,50 +94,61 @@
     </aside>
 
     <nav class="app-nav" aria-label="Menu principal">
-      <div class="app-brand">
-        <span class="brand-mark">FMC</span>
-        <div>
-          <strong>Servicios FMC</strong>
-          <small>Operacion y mantenimiento</small>
-        </div>
-      </div>
+      <span class="nav-brand-mark" aria-hidden="true">FMC</span>
 
-      <div class="nav-group">
-        <p class="nav-label">Menu principal</p>
-        <button id="openHomeButton" class="nav-action nav-action-strong" type="button">Inicio</button>
-        <button id="newInspectionButton" class="nav-link" type="button">Servicios</button>
-        <button id="openCompanyCraneRegistryButton" class="nav-link" type="button">Empresas y equipos</button>
-        <button id="openClientsMapButton" class="nav-link" type="button">Mapa de clientes</button>
-        <button id="openMaintenancePanelButton" class="nav-link" type="button">Mantenimiento</button>
-        <button id="openWorkOrdersButton" class="nav-link" type="button">Agenda</button>
+      <div class="nav-rail">
+        <button id="openHomeButton" class="nav-rail-item" type="button" data-nav-view="home" title="Inicio">
+          <svg class="nav-rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V21h13V9.5"/></svg>
+          <span>Inicio</span>
+        </button>
+        <button id="newInspectionButton" class="nav-rail-item" type="button" data-nav-view="inspection" title="Servicios">
+          <svg class="nav-rail-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9.5 4h5v3h-5z"/><path d="m9.5 13.5 2 2 3.5-4.5"/></svg>
+          <span>Servicios</span>
+        </button>
+        <button id="openCompanyCraneRegistryButton" class="nav-rail-item" type="button" data-nav-view="companyCraneRegistry" title="Empresas y equipos">
+          <svg class="nav-rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V6.5L11 3.5V21"/><path d="M11 21V9.5L20 12.5V21"/><path d="M2.5 21h19"/></svg>
+          <span>Empresas</span>
+        </button>
+        <button id="openClientsMapButton" class="nav-rail-item" type="button" data-nav-view="clientsMap" title="Mapa de clientes">
+          <svg class="nav-rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          <span>Mapa</span>
+        </button>
+        <button id="openMaintenancePanelButton" class="nav-rail-item" type="button" data-nav-view="maintenancePanel" title="Mantenimiento">
+          <svg class="nav-rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4.5V10h-5.5"/></svg>
+          <span>Mantto</span>
+        </button>
+        <button id="openWorkOrdersButton" class="nav-rail-item" type="button" data-nav-view="workOrders" title="Agenda">
+          <svg class="nav-rail-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+          <span>Agenda</span>
+        </button>
         <div class="nav-history-anchor">
-          <button id="openSidebarButton" class="nav-link" type="button">Reportes</button>
+          <button id="openSidebarButton" class="nav-rail-item" type="button" title="Reportes guardados">
+            <svg class="nav-rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+            <span>Reportes</span>
+          </button>
           <div id="historyCascadePanel" class="history-cascade hidden" aria-label="Historial por empresa"></div>
         </div>
+        <div class="nav-more-anchor">
+          <button id="navMoreButton" class="nav-rail-item" type="button" title="Mas herramientas" aria-expanded="false" aria-controls="navMorePanel">
+            <svg class="nav-rail-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.7" fill="currentColor" stroke="none"/></svg>
+            <span>Mas</span>
+          </button>
+          <div id="navMorePanel" class="nav-more-panel hidden" aria-label="Mas herramientas">
+            <p class="nav-more-title">Herramientas</p>
+            <button id="openFieldModeButton" type="button">Modo campo</button>
+            <button id="openDashboardButton" type="button">Dashboard</button>
+            <button id="openConsolidatedHistoryButton" type="button">Concentrado</button>
+            <button id="openAuditLogButton" type="button">Bitacora</button>
+          </div>
+        </div>
       </div>
 
-      <details class="nav-group nav-tools-group nav-settings-group">
-        <summary>Configuracion</summary>
-        <button id="openSettingsButton" class="nav-link" type="button" data-open-settings-section="general">General</button>
-        <button class="nav-link" type="button" data-open-settings-section="users">Usuarios y roles</button>
-        <button class="nav-link" type="button" data-open-settings-section="sync">Sincronizacion</button>
-        <button class="nav-link" type="button" data-open-settings-section="backup">Respaldos</button>
-        <button class="nav-link" type="button" data-open-settings-section="audit">Bitacora</button>
-        <button class="nav-link" type="button" data-open-settings-section="catalogs">Catalogos</button>
-      </details>
-
-      <details class="nav-group nav-tools-group">
-        <summary>Proximamente</summary>
-        <button id="openFieldModeButton" class="nav-link" type="button">Modo campo</button>
-        <button id="openDashboardButton" class="nav-link" type="button">Dashboard</button>
-        <button id="openConsolidatedHistoryButton" class="nav-link" type="button">Concentrado</button>
-        <button id="openAuditLogButton" class="nav-link" type="button">Bitacora</button>
-      </details>
-
       <div class="nav-footer">
-        <span id="navCloudStatus" class="nav-status nav-cloud-status">Nube sin sesion</span>
-        <span id="connectionStatus" class="nav-status">Verificando conectividad...</span>
-        <button id="installButton" class="nav-install" hidden>Instalar app</button>
+        <button id="openSettingsButton" class="nav-rail-item" type="button" data-nav-view="settings" data-open-settings-section="general" title="Configuracion">
+          <svg class="nav-rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17.5 7H20M4 17h3.5M12 17h8"/><circle cx="15" cy="7" r="2.4"/><circle cx="9.5" cy="17" r="2.4"/></svg>
+          <span>Config</span>
+        </button>
+        <button id="installButton" class="nav-install" hidden>Instalar</button>
       </div>
     </nav>
 
@@ -183,6 +194,10 @@
       <div class="context-title-block">
         <p id="contextEyebrow" class="eyebrow">Operacion</p>
         <h2 id="contextTitle">Panel principal</h2>
+      </div>
+      <div class="context-status-block">
+        <span id="navCloudStatus" class="nav-status nav-cloud-status">Nube sin sesion</span>
+        <span id="connectionStatus" class="nav-status">Verificando conectividad...</span>
       </div>
       <div class="top-icon-actions" aria-label="Notificaciones y perfil">
         <button id="usersButton" class="top-icon-button" type="button" aria-label="Ver usuarios conectados" aria-expanded="false" aria-controls="usersPanel">
@@ -258,16 +273,9 @@
 
     <main class="main-content">
       <section class="panel app-view hidden" id="homeView">
-        <div class="system-home-hero">
-          <div>
-            <p class="eyebrow">Centro de operacion</p>
-            <h2>Panel principal</h2>
-            <p class="page-subtitle">Accesos claros para servicios, mantenimiento, empresas, sincronizacion y analisis general.</p>
-          </div>
-          <div class="system-home-actions">
-            <button id="homeNewReportButton" class="primary-button" type="button">Nuevo servicio</button>
-            <button id="homeFieldModeButton" class="secondary-button" type="button">Modo campo</button>
-          </div>
+        <div class="system-home-actions">
+          <button id="homeNewReportButton" class="primary-button" type="button">Nuevo servicio</button>
+          <button id="homeFieldModeButton" class="secondary-button" type="button">Modo campo</button>
         </div>
 
         <div id="homeStatsGrid" class="home-stats-grid"></div>
@@ -454,6 +462,10 @@
           <input id="importFullBackupInput" class="file-input-hidden" type="file" accept="application/json">
           <datalist id="polipastoOptions"></datalist>
           <datalist id="craneTypeOptions"></datalist>
+          <datalist id="hoistTypeOptions">
+            <option value="Cadena de Carga"></option>
+            <option value="Cable de carga"></option>
+          </datalist>
 
           <section class="service-flow">
             <div class="service-flow-head">
@@ -496,6 +508,7 @@
                   <label>
                     Ubicacion
                     <input id="plantLocation" name="plantLocation" type="text" placeholder="Ciudad, estado, area" required>
+                    <small class="field-hint">Se completa sola con la ubicacion guardada de la empresa.</small>
                   </label>
                   <input id="siteContact" name="siteContact" type="hidden">
                   <input id="siteContactInfo" name="siteContactInfo" type="hidden">
@@ -541,10 +554,10 @@
                   <label>
                     Descripcion del servicio
                     <select id="serviceType" name="serviceType">
-                      <option value="Inspeccion de grua">Inspeccion de grua</option>
-                      <option value="Mantenimiento correctivo">Mantenimiento correctivo</option>
-                      <option value="Mantenimiento preventivo">Mantenimiento preventivo</option>
-                      <option value="Supervision tecnica">Supervision tecnica</option>
+                      <option value="Inspección Técnica">Inspección Técnica</option>
+                      <option value="Mantenimiento Correctivo">Mantenimiento Correctivo</option>
+                      <option value="Mantenimiento Preventivo">Mantenimiento Preventivo</option>
+                      <option value="Orden de servicio">Orden de servicio</option>
                     </select>
                   </label>
                   <label>
@@ -676,7 +689,7 @@
                 <input id="equipmentName" type="text" placeholder="Ej. Grua puente linea 3, GR-001 o tag interno" required>
               </label>
               <label>
-                Tipo de grua
+                Tipo de grúa
                 <select id="craneType" name="craneType">
                   <option value="Puente">Puente</option>
                 </select>
@@ -712,7 +725,7 @@
               <input id="hoistName" type="hidden">
               <label>
                 Tipo de polipasto
-                <input id="hoistType" type="text" placeholder="Cable, cadena, manual, electrico">
+                <input id="hoistType" list="hoistTypeOptions" type="text" autocomplete="off" placeholder="Cadena de Carga, Cable de carga">
               </label>
               <label>
                 Capacidad del polipasto
@@ -1115,6 +1128,15 @@
           </div>
         </div>
 
+        <div class="settings-section-tabs" role="tablist" aria-label="Secciones de configuracion">
+          <button class="settings-section-tab" type="button" data-settings-section-tab="general">General</button>
+          <button class="settings-section-tab" type="button" data-settings-section-tab="users">Usuarios y roles</button>
+          <button class="settings-section-tab" type="button" data-settings-section-tab="sync">Sincronizacion</button>
+          <button class="settings-section-tab" type="button" data-settings-section-tab="backup">Respaldos</button>
+          <button class="settings-section-tab" type="button" data-settings-section-tab="audit">Bitacora</button>
+          <button class="settings-section-tab" type="button" data-settings-section-tab="catalogs">Catalogos</button>
+        </div>
+
         <div class="settings-grid">
           <section class="subpanel" data-settings-section-panel="catalogs">
             <p class="eyebrow">Clientes</p>
@@ -1374,6 +1396,13 @@
                   <button id="saveCompanyLocationButton" class="secondary-button" type="button">Guardar ubicacion</button>
                 </div>
                 <div class="company-location-form">
+                  <label class="company-location-maps">
+                    Enlace de Google Maps
+                    <span class="company-location-maps-row">
+                      <input id="companyLocationMapsUrl" type="text" inputmode="url" placeholder="Pega aqui el enlace de Google Maps">
+                      <button id="applyCompanyMapsUrlButton" class="secondary-button" type="button">Usar enlace</button>
+                    </span>
+                  </label>
                   <label>
                     Direccion
                     <input id="companyLocationAddress" type="text" placeholder="Calle, numero, colonia">
@@ -1391,7 +1420,7 @@
                     <input id="companyLocationLongitude" type="number" step="any" placeholder="Ej. -115.4523">
                   </label>
                 </div>
-                <p class="company-location-hint">Tip: puedes copiar latitud y longitud desde Google Maps u OpenStreetMap.</p>
+                <p class="company-location-hint">Pega el enlace de Google Maps y presiona "Usar enlace": la latitud y longitud se llenan solas. Los enlaces cortos (maps.app.goo.gl) primero deben abrirse en el navegador para obtener el enlace largo.</p>
               </div>
             </div>
           </div>
@@ -1426,7 +1455,7 @@
                   <input id="registryCraneArea" type="text" placeholder="Area o linea">
                 </label>
                 <label>
-                  Tipo
+                  Tipo de grúa
                   <input id="registryCraneType" list="craneTypeOptions" type="text" autocomplete="off" placeholder="Viajera, puente, bandera">
                 </label>
                 <label>
@@ -1555,29 +1584,29 @@
     <button id="mobileMoreButton" type="button"><span>...</span>Mas</button>
   </nav>
 
-  <script src="report-template-config.js?v=162"></script>
-  <script src="finding-catalog-config.js?v=162"></script>
-  <script src="checklist-config.js?v=162"></script>
-  <script src="findings.js?v=162"></script>
-  <script src="ui-modals.js?v=162"></script>
-  <script src="crane-checklist-ui.js?v=162"></script>
-  <script src="crane-checklist-pdf.js?v=162"></script>
-  <script src="company-cranes.js?v=162"></script>
-  <script src="equipment.js?v=162"></script>
-  <script src="pdf-actions.js?v=162"></script>
-  <script src="backup.js?v=162"></script>
-  <script src="storage.js?v=162"></script>
-  <script src="settings.js?v=162"></script>
-  <script src="operations.js?v=162"></script>
-  <script src="maintenance-panel.js?v=162"></script>
-  <script src="clients-map.js?v=162"></script>
-  <script src="dashboard.js?v=162"></script>
-  <script src="report-generator.js?v=162"></script>
-  <script src="client-portal.js?v=162"></script>
-  <script src="supabase-config.js?v=162"></script>
-  <script src="cloud-sync.js?v=162"></script>
-  <script src="presence.js?v=162"></script>
-  <script src="app.js?v=162"></script>
+  <script src="report-template-config.js?v=164"></script>
+  <script src="finding-catalog-config.js?v=164"></script>
+  <script src="checklist-config.js?v=164"></script>
+  <script src="findings.js?v=164"></script>
+  <script src="ui-modals.js?v=164"></script>
+  <script src="crane-checklist-ui.js?v=164"></script>
+  <script src="crane-checklist-pdf.js?v=164"></script>
+  <script src="company-cranes.js?v=164"></script>
+  <script src="equipment.js?v=164"></script>
+  <script src="pdf-actions.js?v=164"></script>
+  <script src="backup.js?v=164"></script>
+  <script src="storage.js?v=164"></script>
+  <script src="settings.js?v=164"></script>
+  <script src="operations.js?v=164"></script>
+  <script src="maintenance-panel.js?v=164"></script>
+  <script src="clients-map.js?v=164"></script>
+  <script src="dashboard.js?v=164"></script>
+  <script src="report-generator.js?v=164"></script>
+  <script src="client-portal.js?v=164"></script>
+  <script src="supabase-config.js?v=164"></script>
+  <script src="cloud-sync.js?v=164"></script>
+  <script src="presence.js?v=164"></script>
+  <script src="app.js?v=164"></script>
 </body>
 </html>
 

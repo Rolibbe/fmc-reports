@@ -785,7 +785,7 @@ function normalizeInspection(record) {
     serviceMode,
     serviceDate: source.serviceDate || source.inspectionDate || "",
     plantName,
-    serviceType: source.serviceType || "Inspeccion de grua",
+    serviceType: source.serviceType || (typeof DEFAULT_SERVICE_TYPE === "string" ? DEFAULT_SERVICE_TYPE : "Inspección Técnica"),
     craneId: source.craneId || craneIds[0] || "",
     craneIds,
     equipments,

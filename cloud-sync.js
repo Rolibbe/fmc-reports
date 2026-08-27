@@ -1787,10 +1787,18 @@ async function mergeCloudSettingsRows(rows) {
   const localSettings = getAppSettings();
   const cloudTime = getComparableTime(cloudSettings.updated_at || cloudSettings.payload.updatedAt);
   const localTime = getComparableTime(localSettings.updatedAt);
+
+  // La lista de tipos de grua se resuelve por su propia fecha. Sin esto, un
+  // dispositivo con la lista vieja pero con cualquier otro cambio mas reciente
+  // (una ubicacion, por ejemplo) pisaba la lista editada aqui.
+  const craneTypes = pickNewerCraneTypeList(localSettings, cloudSettings.payload);
+
   if (cloudTime > localTime) {
     await writeAppSettings({
       ...cloudSettings.payload,
       clientPlants: normalizeClientNames(cloudSettings.payload.clientPlants || []).filter((client) => !isDeletedCompanyName(client)),
+      craneTypes: craneTypes.list,
+      craneTypesUpdatedAt: craneTypes.updatedAt,
       updatedAt: cloudSettings.updated_at || cloudSettings.payload.updatedAt
     });
     if (cloudSettings.payload.companyLocations) {
@@ -1798,7 +1806,36 @@ async function mergeCloudSettingsRows(rows) {
     }
     await loadClientPlantOptions();
     await loadPolipastoOptions();
+    await loadCraneTypeOptions();
+    return;
   }
+
+  if (craneTypes.source === "cloud") {
+    await writeAppSettings({
+      ...localSettings,
+      craneTypes: craneTypes.list,
+      craneTypesUpdatedAt: craneTypes.updatedAt
+    });
+    await loadCraneTypeOptions();
+  }
+}
+
+function pickNewerCraneTypeList(localSettings, cloudPayload) {
+  const localList = Array.isArray(localSettings?.craneTypes) ? localSettings.craneTypes : [];
+  const cloudList = Array.isArray(cloudPayload?.craneTypes) ? cloudPayload.craneTypes : [];
+  const localStamp = localSettings?.craneTypesUpdatedAt || "";
+  const cloudStamp = cloudPayload?.craneTypesUpdatedAt || "";
+
+  if (!cloudStamp && !cloudList.length) {
+    return { list: localList, updatedAt: localStamp, source: "local" };
+  }
+  if (!localStamp && !localList.length) {
+    return { list: cloudList, updatedAt: cloudStamp, source: "cloud" };
+  }
+  if (getComparableTime(cloudStamp) > getComparableTime(localStamp)) {
+    return { list: cloudList, updatedAt: cloudStamp, source: "cloud" };
+  }
+  return { list: localList, updatedAt: localStamp, source: "local" };
 }
 
 async function mergeCloudActiveFindingRows(rows) {

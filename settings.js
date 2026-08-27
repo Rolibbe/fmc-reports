@@ -8,6 +8,7 @@ const DEFAULT_APP_SETTINGS = {
   clientPlants: [],
   polipastos: [],
   craneTypes: [],
+  craneTypesUpdatedAt: "",
   defaultMaintenanceFrequency: 6,
   fixedRecommendationText: SETTINGS_DEFAULT_RECOMMENDATION_TEXT,
   photoMaxSize: 1150,
@@ -36,7 +37,27 @@ async function initializeAppSettings() {
   } catch (error) {
     appSettingsCache = normalizeAppSettings(null);
   }
+  await seedCraneTypesIfNeverConfigured();
   applyPdfTemplateSettings();
+}
+
+// La lista de tipos de grua se siembra una sola vez. A partir de ahi la unica
+// fuente es la lista guardada en la app: si el usuario la edita, ya no vuelve a
+// reemplazarse por la lista de ejemplo.
+async function seedCraneTypesIfNeverConfigured() {
+  if (appSettingsCache.craneTypesUpdatedAt || appSettingsCache.craneTypes.length) {
+    return;
+  }
+  const seeded = {
+    ...appSettingsCache,
+    craneTypes: DEFAULT_CRANE_TYPES,
+    craneTypesUpdatedAt: new Date().toISOString()
+  };
+  try {
+    await writeAppSettings(seeded);
+  } catch (error) {
+    appSettingsCache = normalizeAppSettings(seeded);
+  }
 }
 
 function getAppSettings() {
@@ -61,6 +82,7 @@ function normalizeAppSettings(settings) {
       : [],
     polipastos: normalizePolipastoNames(Array.isArray(source.polipastos) ? source.polipastos : []),
     craneTypes: normalizeCraneTypeNames(Array.isArray(source.craneTypes) ? source.craneTypes : []),
+    craneTypesUpdatedAt: source.craneTypesUpdatedAt || "",
     defaultMaintenanceFrequency: clampNumber(source.defaultMaintenanceFrequency, 1, 12, DEFAULT_APP_SETTINGS.defaultMaintenanceFrequency),
     fixedRecommendationText: String(source.fixedRecommendationText || DEFAULT_APP_SETTINGS.fixedRecommendationText),
     photoMaxSize: clampNumber(source.photoMaxSize, 700, 1800, DEFAULT_APP_SETTINGS.photoMaxSize),
@@ -395,7 +417,7 @@ async function populateSettingsForm() {
   const settings = getAppSettings();
   elements.settingsClientPlants.value = (settings.clientPlants.length ? settings.clientPlants : fileClients).join("\n");
   elements.settingsPolipastos.value = (settings.polipastos.length ? settings.polipastos : filePolipastos).join("\n");
-  elements.settingsCraneTypes.value = (settings.craneTypes.length ? settings.craneTypes : fallbackCraneTypes).join("\n");
+  elements.settingsCraneTypes.value = settings.craneTypes.join("\n");
   if (elements.settingsUserRoles) {
     elements.settingsUserRoles.value = formatUserRoles(settings.userRoles);
   }
@@ -453,10 +475,17 @@ async function saveSettingsFromForm() {
   }
   nextClients.forEach(unmarkCompanyDeleted);
 
+  const previousCraneTypes = getConfiguredCraneTypes();
+  const nextCraneTypes = parseCraneTypeList(elements.settingsCraneTypes.value);
+  const craneTypesChanged = previousCraneTypes.join("|") !== nextCraneTypes.join("|");
+
   const settings = {
     clientPlants: nextClients,
     polipastos: parsePolipastoList(elements.settingsPolipastos.value),
-    craneTypes: parseCraneTypeList(elements.settingsCraneTypes.value),
+    craneTypes: nextCraneTypes,
+    craneTypesUpdatedAt: craneTypesChanged
+      ? new Date().toISOString()
+      : getAppSettings().craneTypesUpdatedAt,
     userRoles: parseUserRoles(elements.settingsUserRoles?.value || ""),
     clientAccess: parseClientAccess(elements.settingsClientAccess?.value || ""),
     defaultMaintenanceFrequency: elements.settingsDefaultFrequency.value,
@@ -558,7 +587,11 @@ async function resetSettingsToDefaults() {
   if (result !== "reset") {
     return;
   }
-  await writeAppSettings(DEFAULT_APP_SETTINGS);
+  await writeAppSettings({
+    ...DEFAULT_APP_SETTINGS,
+    craneTypes: DEFAULT_CRANE_TYPES,
+    craneTypesUpdatedAt: new Date().toISOString()
+  });
   queueDataSync("configuracion restaurada");
   await populateSettingsForm();
   await loadClientPlantOptions();
@@ -624,7 +657,7 @@ function populatePolipastoOptions(polipastos) {
 }
 
 async function loadCraneTypeOptions() {
-  populateCraneTypeOptions(getConfiguredCraneTypes().length ? getConfiguredCraneTypes() : fallbackCraneTypes, elements.craneType.value);
+  populateCraneTypeOptions(getConfiguredCraneTypes(), elements.craneType.value);
 }
 
 function parseCraneTypeList(text) {
@@ -650,15 +683,15 @@ function normalizeCraneTypeNames(items) {
 }
 
 function populateCraneTypeOptions(craneTypes, selectedValue = "") {
-  const options = normalizeCraneTypeNames(craneTypes && craneTypes.length ? craneTypes : fallbackCraneTypes);
+  const options = normalizeCraneTypeNames(craneTypes);
   const selected = selectedValue && options.some((type) => type === selectedValue)
     ? selectedValue
-    : options[0] || "Puente";
+    : options[0] || "";
 
   if (elements.craneType) {
-    elements.craneType.innerHTML = options
-      .map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`)
-      .join("");
+    elements.craneType.innerHTML = options.length
+      ? options.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join("")
+      : '<option value="">Sin tipos de grua configurados</option>';
     elements.craneType.value = selected;
   }
 

@@ -2607,6 +2607,105 @@ function renderCompanyLocation(client) {
   elements.companyLocationCity.value = location.city || "";
   elements.companyLocationLatitude.value = location.latitude || "";
   elements.companyLocationLongitude.value = location.longitude || "";
+  if (elements.companyLocationMapsUrl) {
+    elements.companyLocationMapsUrl.value = location.mapsUrl || "";
+  }
+}
+
+function parseGoogleMapsCoordinates(url) {
+  const text = String(url || "").trim();
+  if (!text) {
+    return null;
+  }
+  if (/(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(text)) {
+    return { shortLink: true };
+  }
+
+  const pairs = [
+    /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
+    /[?&](?:q|query|ll|sll|daddr|destination|center)=(-?\d+(?:\.\d+)?)%2C\s*(-?\d+(?:\.\d+)?)/i,
+    /[?&](?:q|query|ll|sll|daddr|destination|center)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
+    /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
+    /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/
+  ];
+
+  for (const pattern of pairs) {
+    const match = text.match(pattern);
+    if (!match) {
+      continue;
+    }
+    const latitude = Number(match[1]);
+    const longitude = Number(match[2]);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      continue;
+    }
+    if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+      continue;
+    }
+    return { latitude: String(latitude), longitude: String(longitude), place: parseGoogleMapsPlaceName(text) };
+  }
+
+  return null;
+}
+
+function parseGoogleMapsPlaceName(url) {
+  const match = String(url || "").match(/\/place\/([^/@?]+)/);
+  if (!match) {
+    return "";
+  }
+  try {
+    return decodeURIComponent(match[1].replace(/\+/g, " ")).trim();
+  } catch (error) {
+    return match[1].replace(/\+/g, " ").trim();
+  }
+}
+
+async function applyCompanyMapsUrlToCoordinates(options = {}) {
+  if (!elements.companyLocationMapsUrl) {
+    return;
+  }
+  const silent = Boolean(options && options.silent);
+  const url = elements.companyLocationMapsUrl.value.trim();
+  if (!url) {
+    return;
+  }
+
+  const parsed = parseGoogleMapsCoordinates(url);
+  if (parsed && parsed.shortLink) {
+    if (!silent) {
+      await showAppDialog({
+        title: "Enlace corto de Google Maps",
+        message: "Los enlaces cortos (maps.app.goo.gl) no contienen las coordenadas. Abrelo en el navegador, espera a que cargue el mapa y copia el enlace largo de la barra de direcciones.",
+        actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+      });
+    }
+    return;
+  }
+
+  if (!parsed) {
+    if (!silent) {
+      await showAppDialog({
+        title: "No se encontraron coordenadas",
+        message: "Ese enlace no trae latitud y longitud. Usa el enlace largo de Google Maps o escribe las coordenadas como 32.6245, -115.4523.",
+        actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
+      });
+    }
+    return;
+  }
+
+  elements.companyLocationLatitude.value = parsed.latitude;
+  elements.companyLocationLongitude.value = parsed.longitude;
+  if (parsed.place && !elements.companyLocationAddress.value.trim()) {
+    elements.companyLocationAddress.value = parsed.place;
+  }
+  if (typeof showToast === "function") {
+    showToast({
+      eyebrow: "Mapa",
+      title: "Coordenadas listas",
+      message: `${parsed.latitude}, ${parsed.longitude}. Presiona "Guardar ubicacion" para conservarlas.`,
+      tone: "ok"
+    });
+  }
 }
 
 async function saveCompanyLocationForCurrentCompany() {
@@ -2624,7 +2723,8 @@ async function saveCompanyLocationForCurrentCompany() {
     address: elements.companyLocationAddress.value,
     city: elements.companyLocationCity.value,
     latitude: elements.companyLocationLatitude.value,
-    longitude: elements.companyLocationLongitude.value
+    longitude: elements.companyLocationLongitude.value,
+    mapsUrl: elements.companyLocationMapsUrl ? elements.companyLocationMapsUrl.value : ""
   });
 
   if ((location.latitude && !isFinite(Number(location.latitude))) || (location.longitude && !isFinite(Number(location.longitude)))) {
@@ -2660,7 +2760,8 @@ function clearCompanyLocationInputs() {
     elements.companyLocationAddress,
     elements.companyLocationCity,
     elements.companyLocationLatitude,
-    elements.companyLocationLongitude
+    elements.companyLocationLongitude,
+    elements.companyLocationMapsUrl
   ].forEach((input) => {
     if (input) {
       input.value = "";
@@ -2674,6 +2775,7 @@ function normalizeCompanyLocation(source = {}) {
     city: String(source.city || "").trim(),
     latitude: String(source.latitude || "").trim(),
     longitude: String(source.longitude || "").trim(),
+    mapsUrl: String(source.mapsUrl || "").trim(),
     updatedAt: source.updatedAt || ""
   };
 }
@@ -3032,27 +3134,26 @@ function mapCatalogCraneTypeToOption(type) {
     .trim()
     .toLowerCase();
   const options = Array.from(elements.craneType.options).map((option) => option.value);
-  const direct = options.find((option) => option.toLowerCase() === normalized);
+  const direct = options.find((option) => option
+    .normalize("NFD")
+    .replace(new RegExp("[\u0300-\u036f]", "g"), "")
+    .trim()
+    .toLowerCase() === normalized);
   if (direct) {
     return direct;
   }
-  if (normalized.includes("viajera")) {
-    return "Grua viajera";
-  }
-  if (normalized.includes("puente")) {
-    return "Puente";
-  }
-  if (normalized.includes("bandera")) {
-    return "Grua bandera";
-  }
-  if (normalized.includes("monorriel")) {
-    return "Monorriel";
-  }
-  if (normalized.includes("portico")) {
-    return "Portico";
-  }
-  if (normalized.includes("polipasto")) {
-    return "Polipasto";
+  const synonyms = [
+    ["viajera", "Grua viajera"],
+    ["puente", "Puente"],
+    ["bandera", "Grua bandera"],
+    ["monorriel", "Monorriel"],
+    ["portico", "Portico"],
+    ["polipasto", "Polipasto"]
+  ];
+  for (const [needle, option] of synonyms) {
+    if (normalized.includes(needle) && options.includes(option)) {
+      return option;
+    }
   }
   return options.includes("Otro") ? "Otro" : getDefaultCraneTypeOption();
 }

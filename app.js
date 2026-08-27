@@ -22,8 +22,26 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.68";
+const APP_VERSION = "1.3.70";
 const APP_RELEASE_NOTES = {
+  "1.3.70": {
+    title: "Actualizacion 1.3.70",
+    summary: [
+      "La ubicacion de la empresa acepta un enlace de Google Maps y extrae latitud y longitud sola.",
+      "Al elegir la empresa en un servicio nuevo, la Ubicacion se completa con la que tiene guardada esa empresa.",
+      "La descripcion del servicio ahora es Inspeccion Tecnica, Mantenimiento Correctivo, Mantenimiento Preventivo y Orden de servicio.",
+      "La lista de tipos de grua vive solo en la app: ya no se reemplaza por la lista de ejemplo ni la pisa otro dispositivo.",
+      "Tipo de polipasto sugiere Cadena de Carga y Cable de carga."
+    ]
+  },
+  "1.3.69": {
+    title: "Actualizacion 1.3.69",
+    summary: [
+      "Nuevo menu lateral compacto con iconos: libera unos 220 px de ancho para el contenido.",
+      "El titulo de cada pantalla ya no se repite y el estado de nube y conexion se movio al encabezado.",
+      "Configuracion ahora tiene sus propias pestanas y las herramientas extra viven en el boton Mas."
+    ]
+  },
   "1.3.68": {
     title: "Actualizacion 1.3.68",
     summary: [
@@ -156,7 +174,7 @@ const fallbackPolipastos = [
   "Coffing",
   "Stahl"
 ];
-const fallbackCraneTypes = [
+const DEFAULT_CRANE_TYPES = [
   "Puente",
   "Grua viajera",
   "Monorriel",
@@ -166,6 +184,13 @@ const fallbackCraneTypes = [
   "Polipasto",
   "Otro"
 ];
+const SERVICE_TYPE_OPTIONS = [
+  "Inspección Técnica",
+  "Mantenimiento Correctivo",
+  "Mantenimiento Preventivo",
+  "Orden de servicio"
+];
+const DEFAULT_SERVICE_TYPE = SERVICE_TYPE_OPTIONS[0];
 
 const findingCatalog = sanitizeFindingCatalog(window.FINDING_CATALOG_CONFIG) || fallbackFindingCatalog;
 const findingCatalogIndex = buildFindingCatalogIndex(findingCatalog);
@@ -179,6 +204,7 @@ let editingPhotos = [];
 let draggedEquipmentId = null;
 let didDragEquipment = false;
 let draggedCompanyCraneId = null;
+let lastAutoFilledPlantLocation = "";
 let appDialogResolver = null;
 
 const REPORT_IMAGE_MAX_SIZE = 1150;
@@ -447,6 +473,8 @@ const elements = {
   companyRegistryClientOptions: document.getElementById("companyRegistryClientOptions"),
   companyRegistryCards: document.getElementById("companyRegistryCards"),
   companyRegistryActiveName: document.getElementById("companyRegistryActiveName"),
+  navMoreButton: document.getElementById("navMoreButton"),
+  navMorePanel: document.getElementById("navMorePanel"),
   companyControlTabs: document.getElementById("companyControlTabs"),
   companyMaintenanceFrequency: document.getElementById("companyMaintenanceFrequency"),
   companyContactName: document.getElementById("companyContactName"),
@@ -458,6 +486,8 @@ const elements = {
   companyLocationCity: document.getElementById("companyLocationCity"),
   companyLocationLatitude: document.getElementById("companyLocationLatitude"),
   companyLocationLongitude: document.getElementById("companyLocationLongitude"),
+  companyLocationMapsUrl: document.getElementById("companyLocationMapsUrl"),
+  applyCompanyMapsUrlButton: document.getElementById("applyCompanyMapsUrlButton"),
   saveCompanyLocationButton: document.getElementById("saveCompanyLocationButton"),
   companyRegistrySummary: document.getElementById("companyRegistrySummary"),
   companyServiceOverview: document.getElementById("companyServiceOverview"),
@@ -690,6 +720,7 @@ function setupAppActions() {
   elements.importFullBackupInput.addEventListener("change", handleFullBackupImport);
   elements.companyCraneSelector.addEventListener("change", handleCompanyCraneSelection);
   elements.serviceType.addEventListener("change", syncServiceModeFromServiceType);
+  elements.plantName.addEventListener("change", applyCompanyLocationToServiceForm);
   elements.maintenanceDate.addEventListener("change", updateNextInspectionFromMaintenanceDate);
   elements.serviceTaskCleaning.addEventListener("change", syncServiceSummaryFromTasks);
   elements.serviceTaskLubrication.addEventListener("change", syncServiceSummaryFromTasks);
@@ -766,6 +797,10 @@ function setupAppActions() {
   on(elements.auditLogFilter, "change", renderAuditLogPanel);
   on(elements.clearAuditLogButton, "click", clearAuditLogWithConfirmation);
   elements.openCompanyCraneRegistryButton.addEventListener("click", openCompanyCraneRegistry);
+  on(elements.navMoreButton, "click", toggleNavMorePanel);
+  elements.navMorePanel?.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", closeNavMorePanel);
+  });
   wireCompanyControlTabs();
   elements.openMaintenancePanelButton.addEventListener("click", openMaintenancePanel);
   on(elements.closeSyncCenterButton, "click", openSystemHome);
@@ -845,6 +880,10 @@ function setupAppActions() {
   elements.selectCompanyRegistrySearchButton.addEventListener("click", () => selectCompanyRegistryClient(elements.companyRegistrySearch.value));
   elements.addCompanyContactButton.addEventListener("click", addCompanyContactForCurrentCompany);
   elements.saveCompanyLocationButton.addEventListener("click", saveCompanyLocationForCurrentCompany);
+  on(elements.applyCompanyMapsUrlButton, "click", applyCompanyMapsUrlToCoordinates);
+  on(elements.companyLocationMapsUrl, "paste", () => {
+    window.setTimeout(() => applyCompanyMapsUrlToCoordinates({ silent: true }), 0);
+  });
   elements.companyRegistryClient.addEventListener("change", () => {
     closeCompanyCraneForm();
     loadCompanyMaintenanceFrequency();
@@ -899,6 +938,14 @@ function setupAppActions() {
       && !elements.historyCascadePanel.contains(event.target)
     ) {
       hideHistoryCascade();
+    }
+    if (
+      elements.navMorePanel
+      && elements.navMoreButton
+      && !elements.navMoreButton.contains(event.target)
+      && !elements.navMorePanel.contains(event.target)
+    ) {
+      closeNavMorePanel();
     }
   });
   document.addEventListener("keydown", (event) => {
@@ -1881,6 +1928,44 @@ function updateContextToolbar(view) {
   reportActions.forEach((action) => {
     action.classList.toggle("hidden", !context.report);
   });
+
+  updateNavRailActiveItem(view);
+}
+
+function updateNavRailActiveItem(view) {
+  const railAliases = {
+    equipment: "inspection",
+    finding: "inspection",
+    fieldMode: "inspection",
+    syncCenter: "settings",
+    auditLog: "settings"
+  };
+  const activeView = railAliases[view] || view;
+  document.querySelectorAll("[data-nav-view]").forEach((item) => {
+    item.classList.toggle("is-active", item.dataset.navView === activeView);
+  });
+}
+
+function toggleNavMorePanel() {
+  if (!elements.navMorePanel || !elements.navMoreButton) {
+    return;
+  }
+  const willOpen = elements.navMorePanel.classList.contains("hidden");
+  if (willOpen) {
+    const rect = elements.navMoreButton.getBoundingClientRect();
+    const maxTop = Math.max(12, window.innerHeight - 230);
+    elements.navMorePanel.style.top = `${Math.min(rect.top, maxTop)}px`;
+  }
+  elements.navMorePanel.classList.toggle("hidden", !willOpen);
+  elements.navMoreButton.setAttribute("aria-expanded", willOpen ? "true" : "false");
+}
+
+function closeNavMorePanel() {
+  if (!elements.navMorePanel || elements.navMorePanel.classList.contains("hidden")) {
+    return;
+  }
+  elements.navMorePanel.classList.add("hidden");
+  elements.navMoreButton?.setAttribute("aria-expanded", "false");
 }
 
 function openSidebar() {
@@ -2964,15 +3049,18 @@ function normalizeExportHeader(value) {
 
 function shortenServiceType(serviceType) {
   const value = String(serviceType || "").trim();
-  const normalized = value.toLowerCase();
-  if (normalized.includes("mantenimiento preventivo")) {
+  const normalized = normalizeExportHeader(value).toLowerCase();
+  if (normalized.includes("preventivo")) {
     return "MP";
   }
-  if (normalized.includes("mantenimiento correctivo")) {
+  if (normalized.includes("correctivo")) {
     return "MC";
   }
   if (normalized.includes("inspeccion")) {
     return "INSPECCION";
+  }
+  if (normalized.includes("orden de servicio")) {
+    return "ORDEN";
   }
   return value;
 }
@@ -3119,11 +3207,12 @@ function loadInspection(record) {
   elements.reportNumber.value = normalized.reportNumber;
   elements.assetType.value = normalized.assetType || "cranes";
   elements.serviceMode.value = normalized.serviceMode || "preventive";
-  elements.serviceType.value = normalized.serviceType || "Inspeccion de grua";
+  setServiceTypeValue(normalized.serviceType);
   elements.inspectionDate.value = normalized.inspectionDate || "";
   elements.technicianName.value = normalized.technicianName || "";
   setClientPlantValue(normalized.plantName || "");
   elements.plantLocation.value = normalized.plantLocation || "";
+  lastAutoFilledPlantLocation = "";
   elements.siteContact.value = normalized.siteContact || "";
   elements.siteContactInfo.value = normalized.siteContactInfo || "";
   currentEquipments = normalized.equipments.map((equipment) => normalizeEquipment(equipment));
@@ -3146,12 +3235,48 @@ function resetForm() {
   assignNewReportNumber(true);
   elements.assetType.value = "cranes";
   elements.serviceMode.value = "preventive";
-  elements.serviceType.value = "Inspeccion de grua";
+  setServiceTypeValue(DEFAULT_SERVICE_TYPE);
+  lastAutoFilledPlantLocation = "";
   resetEquipmentEditorState();
   renderEquipmentList();
   showView("inspection");
   setServiceStep("company", { scroll: false });
   updateServiceCompletionProgress();
+}
+
+function setServiceTypeValue(value) {
+  const select = elements.serviceType;
+  if (!select) {
+    return;
+  }
+  const requested = String(value || "").trim();
+  if (requested && !Array.from(select.options).some((option) => option.value === requested)) {
+    // Reportes viejos guardaron descripciones que ya no estan en la lista: se conservan para no perder el dato.
+    select.insertAdjacentHTML("afterbegin", `<option value="${escapeHtml(requested)}">${escapeHtml(requested)}</option>`);
+  }
+  select.value = requested || DEFAULT_SERVICE_TYPE;
+}
+
+function applyCompanyLocationToServiceForm() {
+  if (!elements.plantLocation || typeof getCompanyLocation !== "function") {
+    return;
+  }
+  const client = normalizeClientName(elements.plantName.value || "");
+  const current = elements.plantLocation.value.trim();
+  if (current && current !== lastAutoFilledPlantLocation) {
+    return;
+  }
+  if (!client) {
+    if (current === lastAutoFilledPlantLocation) {
+      elements.plantLocation.value = "";
+      lastAutoFilledPlantLocation = "";
+    }
+    return;
+  }
+  const location = getCompanyLocation(client);
+  const suggestion = [location.city, location.address].filter(Boolean)[0] || "";
+  elements.plantLocation.value = suggestion;
+  lastAutoFilledPlantLocation = suggestion;
 }
 
 function syncServiceModeFromServiceType() {
