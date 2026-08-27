@@ -220,7 +220,7 @@ function renderEquipmentPage(report, equipment, index) {
             <th colspan="3">Condicion general</th>
           </tr>
           <tr>
-            <td colspan="3">${escapeHtml(equipment.overallCondition || "No capturado")}</td>
+            <td colspan="3"><strong>${escapeHtml(getConditionLabel(equipment.overallCondition))}</strong>${getConditionDescription(equipment.overallCondition) ? ` &mdash; ${escapeHtml(getConditionDescription(equipment.overallCondition))}` : ""}</td>
           </tr>
         </table>
 

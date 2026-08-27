@@ -902,8 +902,8 @@ function calculateCraneHealth(client, crane, maintenance = null, options = {}) {
     return {
       level: "red",
       className: "health-red",
-      label: "Rojo",
-      scoreLabel: "Riesgo alto",
+      label: getConditionLabel("critico"),
+      scoreLabel: getConditionDescription("critico"),
       reason: reasons[0] || "Requiere atencion inmediata",
       reasons,
       badChecklistCount: badChecklistItems.length
@@ -913,8 +913,8 @@ function calculateCraneHealth(client, crane, maintenance = null, options = {}) {
     return {
       level: "yellow",
       className: "health-yellow",
-      label: "Amarillo",
-      scoreLabel: "Atencion",
+      label: getConditionLabel("atencion"),
+      scoreLabel: getConditionDescription("atencion"),
       reason: reasons[0] || "Tiene puntos por atender",
       reasons,
       badChecklistCount: badChecklistItems.length
@@ -923,8 +923,8 @@ function calculateCraneHealth(client, crane, maintenance = null, options = {}) {
   return {
     level: "green",
     className: "health-green",
-    label: "Verde",
-    scoreLabel: "Operable",
+    label: getConditionLabel("satisfactorio"),
+    scoreLabel: getConditionDescription("satisfactorio"),
     reason: "Sin hallazgos criticos y mantenimiento vigente",
     reasons: ["Checklist sin puntos Mal", "Mantenimiento vigente"],
     badChecklistCount: badChecklistItems.length
@@ -941,12 +941,11 @@ function renderCraneHealthPill(health) {
 }
 
 function isCriticalChecklistItem(item) {
-  const text = [item.category, item.title, item.measure, item.clause]
-    .join(" ")
-    .normalize("NFD")
-    .replace(new RegExp("[\\u0300-\\u036f]", "g"), "")
-    .toLowerCase();
-  return /(freno|cable|cadena|gancho|limite|limitador|estructura|deformacion|grieta|seguridad|emergencia|sobrecarga|electrico)/i.test(text);
+  return getFindingSeverity({
+    checklistItemId: item.id,
+    incidence: `${item.number}. ${item.title}`,
+    description: [item.category, item.title, item.measure, item.clause].join(" ")
+  }) === "critical";
 }
 
 async function renderCompanyCraneMaintenanceTab(client, crane) {
@@ -3050,8 +3049,11 @@ function getBadCraneChecklistItems(client, craneId) {
 
 function createFindingFromChecklistItem(item) {
   const incidence = `${item.number}. ${item.title}`;
-  const catalogItem = findingCatalogIndex.find((catalogItem) => removeFindingCatalogNumber(catalogItem.incidence) === removeFindingCatalogNumber(incidence))
-    || findingCatalogIndex.find((catalogItem) => removeFindingCatalogNumber(catalogItem.incidence).toLowerCase() === String(item.title || "").toLowerCase());
+  // Los dos catalogos comparten la numeracion 1-116, pero el texto no: el de
+  // hallazgos trae la clausula al final. Emparejar por numero es lo unico fiable.
+  const catalogItem = findingCatalogIndex.find((catalogItem) => catalogItem.number === String(item.number))
+    || findingCatalogIndex.find((catalogItem) => removeFindingCatalogNumber(catalogItem.incidence) === removeFindingCatalogNumber(incidence))
+    || findingCatalogIndex.find((catalogItem) => normalizeFindingText(removeFindingCatalogNumber(catalogItem.incidence)) === normalizeFindingText(item.title));
 
   if (catalogItem) {
     const finding = createFindingFromCatalogItem(catalogItem);
@@ -3065,7 +3067,7 @@ function createFindingFromChecklistItem(item) {
   return {
     id: createId(),
     checklistItemId: item.id,
-    category: item.category || "Checklist",
+    category: resolveFindingCategory(item.category || "Checklist", incidence),
     incidence,
     description: item.checklistDescription || buildGenericFindingDescription(item.category || "Checklist", incidence),
     recommendation: item.clause ? `Atender condicion detectada conforme a ${item.clause}.` : "",
@@ -3163,9 +3165,14 @@ function getDefaultCraneTypeOption() {
 }
 
 function mapCatalogStatusToCondition(status) {
-  const normalized = String(status || "").trim().toLowerCase();
-  if (["bueno", "regular", "malo"].includes(normalized)) {
-    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  const raw = String(status || "").trim();
+  if (raw && getConditionLevel(raw) && normalizeFindingText(raw)) {
+    const level = getConditionLevel(raw);
+    const matches = normalizeFindingText(level.label) === normalizeFindingText(raw)
+      || (level.legacy || []).some((alias) => normalizeFindingText(alias) === normalizeFindingText(raw));
+    if (matches) {
+      return level.label;
+    }
   }
-  return elements.overallCondition.value || "Bueno";
+  return elements.overallCondition.value || getConditionLabel("satisfactorio");
 }

@@ -1,4 +1,7 @@
 // equipment.js
+// Cuando el usuario elige la condicion a mano dejamos de recalcularla sola
+// hasta que abra otro equipo o pida volver al modo automatico.
+let overallConditionIsManual = false;
 // Funciones separadas desde app.js para mantener la PWA mas facil de mantener.
 
 function updateNextInspectionFromMaintenanceDate() {
@@ -66,7 +69,8 @@ function loadEquipmentIntoEditor(equipment) {
   elements.hoistModel.value = equipment.hoistModel;
   elements.hoistSerialNumber.value = equipment.hoistSerialNumber;
   elements.hoistVoltage.value = equipment.hoistVoltage;
-  elements.overallCondition.value = equipment.overallCondition;
+  overallConditionIsManual = false;
+  setOverallConditionValue(equipment.overallCondition);
   elements.maintenanceDate.value = equipment.maintenanceDate || elements.inspectionDate.value || "";
   elements.nextInspection.value = equipment.nextInspection;
   updateNextInspectionFromMaintenanceDate();
@@ -140,7 +144,8 @@ function resetEquipmentEditorState() {
   currentChecklistImage = null;
   const nextDate = new Date();
   nextDate.setMonth(nextDate.getMonth() + getDefaultMaintenanceFrequencyMonths());
-  elements.overallCondition.value = "Bueno";
+  overallConditionIsManual = false;
+  setOverallConditionValue("satisfactorio");
   elements.maintenanceDate.value = elements.inspectionDate.value || new Date().toISOString().slice(0, 10);
   updateNextInspectionFromMaintenanceDate();
   if (!elements.nextInspection.value) {
@@ -165,7 +170,12 @@ function openFindingEditor(findingId) {
   const finding = currentEquipmentFindings.find((item) => item.id === findingId);
   elements.findingEditorTitle.textContent = finding ? "Editar hallazgo" : "Nuevo hallazgo";
   elements.editingFindingId.value = finding ? finding.id : "";
-  elements.findingCategory.value = finding ? finding.category : categories[0];
+  // La categoria guardada puede venir escrita distinto (mayusculas, punto final)
+  // que la del catalogo; sin resolverla el select quedaba vacio y la incidencia
+  // se caia al primer punto de la primera categoria.
+  elements.findingCategory.value = finding
+    ? resolveFindingCategory(finding.category, finding.incidence)
+    : categories[0];
   populateIncidenceOptions(finding ? finding.incidence : undefined);
   elements.findingDescription.value = finding ? finding.description : "";
   elements.findingRecommendation.value = finding ? finding.recommendation : "";
@@ -376,6 +386,7 @@ function saveFindingFromEditor() {
 
 function renderFindingsList() {
   elements.findingsList.innerHTML = "";
+  refreshOverallConditionFromFindings();
 
   if (!currentEquipmentFindings.length) {
     elements.findingsList.innerHTML = '<div class="inline-empty-state">Todavia no hay hallazgos capturados para este equipo. Usa el boton de Anadir Hallazgo para registrar uno.</div>';
@@ -391,6 +402,7 @@ function renderFindingsList() {
     card.innerHTML = `
       <p><strong>Hallazgo ${index + 1}: ${escapeHtml(finding.category)}</strong></p>
       <div class="finding-meta">
+        <span class="finding-severity-tag is-${getFindingSeverity(finding) === "critical" ? "critical" : "minor"}">${getFindingSeverity(finding) === "critical" ? "Critico" : "Menor"}</span>
         <span>${escapeHtml(finding.incidence)}</span>
         <span>${(finding.photos || []).length} foto(s)</span>
       </div>
@@ -412,6 +424,51 @@ function renderFindingsList() {
     shell.appendChild(deleteButton);
     elements.findingsList.appendChild(shell);
   });
+}
+
+function setOverallConditionValue(value) {
+  if (!elements.overallCondition) {
+    return;
+  }
+  elements.overallCondition.value = getConditionLabel(value);
+  renderOverallConditionHint();
+}
+
+function refreshOverallConditionFromFindings() {
+  if (!elements.overallCondition) {
+    return;
+  }
+  if (!overallConditionIsManual) {
+    elements.overallCondition.value = calculateConditionFromFindings(currentEquipmentFindings).label;
+  }
+  renderOverallConditionHint();
+}
+
+function renderOverallConditionHint() {
+  const hint = elements.overallConditionHint;
+  if (!hint) {
+    return;
+  }
+  const summary = calculateConditionFromFindings(currentEquipmentFindings);
+  const selected = getConditionLevel(elements.overallCondition.value);
+  const note = overallConditionIsManual
+    ? `Ajustado a mano. <button type="button" class="link-button" data-reset-overall-condition>Volver a automatico (${escapeHtml(summary.label)})</button>`
+    : escapeHtml(describeConditionCalculation(summary));
+
+  hint.innerHTML = `
+    <span class="condition-hint-desc ${escapeHtml(selected.className || "")}">${escapeHtml(selected.description || "")}</span>
+    <span class="condition-hint-note">${note}</span>
+  `;
+}
+
+function markOverallConditionAsManual() {
+  overallConditionIsManual = true;
+  renderOverallConditionHint();
+}
+
+function restoreAutomaticOverallCondition() {
+  overallConditionIsManual = false;
+  refreshOverallConditionFromFindings();
 }
 
 function saveEquipmentFromEditor() {
@@ -812,7 +869,7 @@ function createLegacyEquipment(record) {
     hoistSerialNumber: "",
     hoistVoltage: "",
     findings: Array.isArray(record.findings) ? record.findings : [],
-    overallCondition: record.overallCondition || "Bueno",
+    overallCondition: getConditionLabel(record.overallCondition),
     maintenanceDate: record.maintenanceDate || record.inspectionDate || "",
     nextInspection: record.nextInspection || "",
     serviceSummary: "",
@@ -842,7 +899,7 @@ function createEmptyEquipment() {
     hoistSerialNumber: "",
     hoistVoltage: "",
     findings: [],
-    overallCondition: "Bueno",
+    overallCondition: getConditionLabel("satisfactorio"),
     maintenanceDate: elements.inspectionDate ? elements.inspectionDate.value : new Date().toISOString().slice(0, 10),
     nextInspection: nextDate.toISOString().slice(0, 10),
     serviceSummary: "",
@@ -884,7 +941,7 @@ function normalizeEquipment(equipment) {
           photos: Array.isArray(finding.photos) ? finding.photos.map(normalizePhotoEntry) : []
         }))
       : [],
-    overallCondition: source.overallCondition || "Bueno",
+    overallCondition: getConditionLabel(source.overallCondition),
     maintenanceDate: source.maintenanceDate || source.serviceDate || "",
     nextInspection: source.nextInspection || "",
     serviceSummary: source.serviceSummary || "",

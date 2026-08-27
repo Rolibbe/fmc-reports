@@ -5573,6 +5573,72 @@ textarea[readonly] {
   font-weight: 600;
 }
 
+.condition-field select {
+  text-overflow: ellipsis;
+}
+
+.condition-hint {
+  min-height: 1.1em;
+}
+
+.condition-hint-desc {
+  display: block;
+  font-weight: 800;
+}
+
+.condition-hint-desc.condition-ok {
+  color: #1f7a4d;
+}
+
+.condition-hint-desc.condition-warning {
+  color: #9a6408;
+}
+
+.condition-hint-desc.condition-danger {
+  color: #b3312d;
+}
+
+.condition-hint-note {
+  display: block;
+  margin-top: 2px;
+}
+
+.link-button {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent, #f28c28);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  opacity: 0.8;
+}
+
+.finding-severity-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.finding-severity-tag.is-critical {
+  background: rgba(214, 69, 65, 0.14);
+  color: #b3312d;
+}
+
+.finding-severity-tag.is-minor {
+  background: rgba(226, 155, 32, 0.16);
+  color: #9a6408;
+}
+
 .company-location-hint {
   margin: 10px 0 0;
   color: var(--muted);

@@ -22,8 +22,17 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.70";
+const APP_VERSION = "1.3.71";
 const APP_RELEASE_NOTES = {
+  "1.3.71": {
+    title: "Actualizacion 1.3.71",
+    summary: [
+      "La condicion del equipo dejo de ser Bueno/Regular/Malo: ahora es Satisfactorio, Requiere atencion y Critico / No conforme, con su explicacion.",
+      "La condicion se calcula sola segun los hallazgos y su gravedad normativa, y se puede ajustar a mano si hace falta.",
+      "La salud de la grua usa esos mismos tres nombres en tarjetas, detalle y portal del cliente.",
+      "Al cargar hallazgos del checklist, la Incidencia ya queda en el punto detectado y no en el numero 1."
+    ]
+  },
   "1.3.70": {
     title: "Actualizacion 1.3.70",
     summary: [
@@ -560,6 +569,7 @@ const elements = {
   quickFindingOptions: document.getElementById("quickFindingOptions"),
   addQuickFindingButton: document.getElementById("addQuickFindingButton"),
   overallCondition: document.getElementById("overallCondition"),
+  overallConditionHint: document.getElementById("overallConditionHint"),
   maintenanceDate: document.getElementById("maintenanceDate"),
   nextInspection: document.getElementById("nextInspection"),
   serviceTaskCleaning: document.getElementById("serviceTaskCleaning"),
@@ -722,6 +732,12 @@ function setupAppActions() {
   elements.serviceType.addEventListener("change", syncServiceModeFromServiceType);
   elements.plantName.addEventListener("change", applyCompanyLocationToServiceForm);
   elements.maintenanceDate.addEventListener("change", updateNextInspectionFromMaintenanceDate);
+  elements.overallCondition.addEventListener("change", markOverallConditionAsManual);
+  on(elements.overallConditionHint, "click", (event) => {
+    if (event.target.closest("[data-reset-overall-condition]")) {
+      restoreAutomaticOverallCondition();
+    }
+  });
   elements.serviceTaskCleaning.addEventListener("change", syncServiceSummaryFromTasks);
   elements.serviceTaskLubrication.addEventListener("change", syncServiceSummaryFromTasks);
   elements.cancelEquipmentButton.addEventListener("click", closeEquipmentEditor);
@@ -3181,17 +3197,7 @@ function normalizeClientName(value) {
 }
 
 function isHighSeverityFinding(finding) {
-  const severityText = [
-    finding.severity,
-    finding.priority,
-    finding.criticality,
-    finding.category,
-    finding.incidence,
-    finding.description,
-    finding.recommendation
-  ].join(" ").toLowerCase();
-
-  return /\b(alta|alto|critico|critica|crítico|crítica|grave|urgente|riesgo alto)\b/.test(severityText);
+  return getFindingSeverity(finding) === "critical";
 }
 
 function loadInspection(record) {
