@@ -1692,9 +1692,13 @@ async function mergeCloudReportRows(reports, options = {}) {
         });
       }
       const hydratedInspection = await downloadInspectionEvidence(cloudInspection, localInspection);
-      await putInspection(localInspection
-        ? mergeLocalEvidenceIntoCloudInspection(hydratedInspection, normalizeInspection(localInspection))
-        : hydratedInspection);
+      if (!localInspection) {
+        await putInspection(hydratedInspection);
+        continue;
+      }
+      const normalizedLocal = normalizeInspection(localInspection);
+      const mergedInspection = mergeLocalEvidenceIntoCloudInspection(hydratedInspection, normalizedLocal);
+      await putInspection(preserveLocalEvidenceOnRegression(mergedInspection, normalizedLocal));
     }
   }
 }
@@ -1708,14 +1712,7 @@ function mergeLocalEvidenceIntoCloudInspection(cloudInspection, localInspection)
       return;
     }
     cloudEquipment.servicePhotos = mergePhotoListsByCloudPath(localEquipment.servicePhotos || [], cloudEquipment.servicePhotos || []);
-    if ((!cloudEquipment.checklistImage?.dataUrl && !cloudEquipment.checklistImage?.thumbUrl) && (localEquipment.checklistImage?.dataUrl || localEquipment.checklistImage?.thumbUrl)) {
-      cloudEquipment.checklistImage = {
-        ...cloudEquipment.checklistImage,
-        ...localEquipment.checklistImage,
-        cloudPath: cloudEquipment.checklistImage?.cloudPath || localEquipment.checklistImage?.cloudPath || "",
-        cloudSyncedAt: cloudEquipment.checklistImage?.cloudSyncedAt || localEquipment.checklistImage?.cloudSyncedAt || ""
-      };
-    }
+    cloudEquipment.checklistImage = mergeEvidenceImages(localEquipment.checklistImage, cloudEquipment.checklistImage);
     (cloudEquipment.findings || []).forEach((cloudFinding, findingIndex) => {
       const localFinding = (localEquipment.findings || []).find((finding) => finding.id === cloudFinding.id)
         || (localEquipment.findings || [])[findingIndex];
@@ -1738,9 +1735,7 @@ function mergeDownloadedEvidenceIntoLocalInspection(localInspection, cloudInspec
       return;
     }
     localEquipment.servicePhotos = mergePhotoListsByCloudPath(localEquipment.servicePhotos || [], cloudEquipment.servicePhotos || []);
-    if (cloudEquipment.checklistImage?.dataUrl && !localEquipment.checklistImage?.dataUrl) {
-      localEquipment.checklistImage = cloudEquipment.checklistImage;
-    }
+    localEquipment.checklistImage = mergeEvidenceImages(localEquipment.checklistImage, cloudEquipment.checklistImage);
     (cloudEquipment.findings || []).forEach((cloudFinding, findingIndex) => {
       const localFinding = (localEquipment.findings || []).find((finding) => finding.id === cloudFinding.id)
         || (localEquipment.findings || [])[findingIndex];
@@ -1752,6 +1747,63 @@ function mergeDownloadedEvidenceIntoLocalInspection(localInspection, cloudInspec
   return normalizeInspection({
     ...localInspection,
     equipments: localEquipments
+  });
+}
+
+// La imagen guardada en el dispositivo nunca se reemplaza por la version
+// ligera que viaja a la nube: esa solo lleva miniatura y datos de la ruta.
+function mergeEvidenceImages(localImage, cloudImage) {
+  const local = typeof normalizeChecklistImage === "function" ? normalizeChecklistImage(localImage) : localImage;
+  const cloud = typeof normalizeChecklistImage === "function" ? normalizeChecklistImage(cloudImage) : cloudImage;
+  if (!local) {
+    return cloud || null;
+  }
+  if (!cloud) {
+    return local;
+  }
+
+  const merged = {
+    ...cloud,
+    ...local,
+    dataUrl: local.dataUrl || cloud.dataUrl || "",
+    thumbUrl: local.thumbUrl || cloud.thumbUrl || "",
+    name: local.name || cloud.name || "checklist.jpg",
+    storedSize: local.storedSize || cloud.storedSize || 0,
+    cloudPath: cloud.cloudPath || local.cloudPath || "",
+    cloudBucket: cloud.cloudBucket || local.cloudBucket || CLOUD_EVIDENCE_BUCKET,
+    cloudSyncedAt: cloud.cloudSyncedAt || local.cloudSyncedAt || ""
+  };
+  if (merged.dataUrl) {
+    delete merged.omittedFromCloudSync;
+    delete merged.cloudDownloadError;
+  }
+  return merged;
+}
+
+// Cuenta las evidencias que realmente tienen imagen guardada en el dispositivo.
+function countInspectionEvidence(inspection) {
+  return (inspection?.equipments || []).reduce((total, equipment) => {
+    const servicePhotos = (equipment.servicePhotos || []).filter((photo) => photo?.dataUrl).length;
+    const checklist = equipment.checklistImage?.dataUrl ? 1 : 0;
+    const findingPhotos = (equipment.findings || []).reduce(
+      (sum, finding) => sum + (finding.photos || []).filter((photo) => photo?.dataUrl).length,
+      0
+    );
+    return total + servicePhotos + checklist + findingPhotos;
+  }, 0);
+}
+
+// Ultima red de seguridad: una sincronizacion jamas debe dejar el reporte con
+// menos evidencia de la que ya tenia este dispositivo. Si eso pasara (por
+// ejemplo porque los equipos no se pudieron emparejar), se conservan los
+// equipos locales y de la nube solo se toman los datos del reporte.
+function preserveLocalEvidenceOnRegression(merged, localInspection) {
+  if (countInspectionEvidence(merged) >= countInspectionEvidence(localInspection)) {
+    return merged;
+  }
+  return normalizeInspection({
+    ...merged,
+    equipments: localInspection.equipments
   });
 }
 
@@ -2101,8 +2153,8 @@ async function hydrateCloudPhoto(photo, localByPath) {
   } catch (error) {
     return {
       ...photo,
-      dataUrl: "",
-      thumbUrl: "",
+      dataUrl: photo.dataUrl || "",
+      thumbUrl: photo.thumbUrl || "",
       cloudDownloadError: getReadableCloudError(error)
     };
   }

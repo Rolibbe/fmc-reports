@@ -1058,6 +1058,16 @@ function getPhotoThumbnailUrl(photo) {
   return photo && typeof photo === "object" && photo.thumbUrl ? photo.thumbUrl : "";
 }
 
+// Para imprimir: si la imagen completa ya no esta en el dispositivo, se usa la
+// miniatura antes que dejar la evidencia fuera del reporte.
+function getPhotoPrintableUrl(photo) {
+  return getPhotoDataUrl(photo) || getPhotoThumbnailUrl(photo);
+}
+
+function isPhotoThumbnailOnly(photo) {
+  return Boolean(!getPhotoDataUrl(photo) && getPhotoThumbnailUrl(photo));
+}
+
 function estimateDataUrlBytes(dataUrl) {
   if (!dataUrl || typeof dataUrl !== "string") {
     return 0;

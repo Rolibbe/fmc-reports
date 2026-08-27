@@ -35,6 +35,8 @@ const REPORT_STYLE = `
   .section-banner { margin-top: 4mm; margin-bottom: 0; padding: 2mm 3mm; background: #d9d9d9; border: 1px solid var(--header-color); font-size: 10pt; font-weight: 700; text-transform: uppercase; }
   .findings-table th, .equipment-table th { background: #efefef; text-transform: uppercase; font-size: 7.8pt; letter-spacing: 0.03em; text-align: left; }
   .notes-box { min-height: 24mm; }
+  .condition-headline { font-size: 10pt; margin-bottom: 1.6mm; }
+  .condition-headline strong { font-size: 10.5pt; }
   .evidence-photo { width: 100%; object-fit: contain; display: block; background: #fff; }
   .evidence-photo.finding-photo { height: 48mm; }
   .evidence-photo.service-photo { height: 31mm; }
@@ -126,7 +128,7 @@ async function buildEquipmentData(equipment) {
   const findings = Array.isArray(equipment.findings) ? equipment.findings : [];
   const servicePhotos = Array.isArray(equipment.servicePhotos) ? equipment.servicePhotos : [];
   const totalFindingPhotos = findings.reduce((sum, finding) => sum + ((finding.photos || []).length), 0);
-  const checklistImage = equipment.checklistImage && equipment.checklistImage.dataUrl ? equipment.checklistImage : null;
+  const checklistImage = getPhotoPrintableUrl(equipment.checklistImage) ? equipment.checklistImage : null;
 
   return {
     ...equipment,
@@ -140,6 +142,7 @@ async function buildEquipmentData(equipment) {
     summaryText: equipment.serviceSummary && equipment.serviceSummary.trim()
       ? equipment.serviceSummary.trim()
       : buildEquipmentSummary(equipment, findings, totalFindingPhotos, servicePhotos.length),
+    conditionBasis: buildConditionReportSummary(findings, equipment.overallCondition),
     maintenanceDateLabel: formatDate(equipment.maintenanceDate),
     nextInspectionLabel: formatDate(equipment.nextInspection)
   };
@@ -220,7 +223,11 @@ function renderEquipmentPage(report, equipment, index) {
             <th colspan="3">Condicion general</th>
           </tr>
           <tr>
-            <td colspan="3"><strong>${escapeHtml(getConditionLabel(equipment.overallCondition))}</strong>${getConditionDescription(equipment.overallCondition) ? ` &mdash; ${escapeHtml(getConditionDescription(equipment.overallCondition))}` : ""}</td>
+            <td colspan="3">
+              <div class="condition-headline"><strong>${escapeHtml(getConditionLabel(equipment.overallCondition))}</strong>${getConditionDescription(equipment.overallCondition) ? ` &mdash; ${escapeHtml(getConditionDescription(equipment.overallCondition))}` : ""}</div>
+              <div class="label">Sustento de la condicion</div>
+              <div class="value">${escapeHtml(equipment.conditionBasis || "")}</div>
+            </td>
           </tr>
         </table>
 
@@ -429,9 +436,11 @@ function renderEvidencePage(report, equipment, equipmentIndex, title, photos, su
 }
 
 function renderChecklistPdfPages(report, equipment, equipmentIndex, checklistImage) {
-  if (!checklistImage || !checklistImage.dataUrl) {
+  const checklistSource = getPhotoPrintableUrl(checklistImage);
+  if (!checklistSource) {
     return "";
   }
+  const thumbnailOnly = checklistImage.thumbnailOnly || isPhotoThumbnailOnly(checklistImage);
 
   return `
     <section class="page">
@@ -441,10 +450,10 @@ function renderChecklistPdfPages(report, equipment, equipmentIndex, checklistIma
           <tr>
             <td width="35%"><div class="label">Equipo</div><div class="value">${escapeHtml(equipment.equipmentName || `Equipo ${equipmentIndex + 1}`)}</div></td>
             <td width="30%"><div class="label">Folio checklist</div><div class="value">${escapeHtml(equipment.checklistFolio || "No capturado")}</div></td>
-            <td width="35%"><div class="label">Archivo</div><div class="value">${escapeHtml(checklistImage.name || "checklist.jpg")}</div></td>
+            <td width="35%"><div class="label">Archivo</div><div class="value">${escapeHtml(checklistImage.name || "checklist.jpg")}${thumbnailOnly ? "\n(vista previa en baja resolucion)" : ""}</div></td>
           </tr>
         </table>
-        <img class="checklist-page-image" src="${checklistImage.dataUrl}" alt="Checklist escaneado">
+        <img class="checklist-page-image" src="${checklistSource}" alt="Checklist escaneado">
       </div>
       <div class="footer">
         <span>${escapeHtml(report.reportNumber || "Sin folio")} | ${escapeHtml(equipment.equipmentName || `Equipo ${equipmentIndex + 1}`)}</span>

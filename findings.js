@@ -256,6 +256,81 @@ function calculateConditionFromFindings(findings) {
   };
 }
 
+// Texto para el cliente que explica por que el equipo quedo en esa condicion.
+// Se usa en el PDF, debajo de la condicion general.
+function buildConditionReportSummary(findings, conditionValue) {
+  const list = Array.isArray(findings) ? findings : [];
+  const summary = calculateConditionFromFindings(list);
+  const chosen = getConditionLevel(conditionValue || summary.id);
+  const critical = list.filter((finding) => getFindingSeverity(finding) === "critical");
+  const minorCount = list.length - critical.length;
+  const parts = [];
+
+  if (!list.length) {
+    parts.push("No se registraron hallazgos en este equipo. Los puntos evaluados del checklist se encontraron conformes al momento de la inspección.");
+  } else if (!critical.length) {
+    parts.push(list.length === 1
+      ? "Se registró 1 hallazgo, clasificado como deficiencia menor."
+      : `Se registraron ${list.length} hallazgos, todos clasificados como deficiencias menores.`);
+    parts.push(list.length === 1
+      ? "No afecta la trayectoria de la carga, el sistema de frenado, los dispositivos de límite o sobrecarga, ni la estructura de soporte, por lo que no compromete la operación segura de forma inmediata."
+      : "Ninguno afecta la trayectoria de la carga, el sistema de frenado, los dispositivos de límite o sobrecarga, ni la estructura de soporte, por lo que no comprometen la operación segura de forma inmediata.");
+    parts.push(list.length === 1
+      ? "Se recomienda incluirlo en el siguiente mantenimiento programado para evitar que evolucione."
+      : "Se recomienda incluirlos en el siguiente mantenimiento programado para evitar que evolucionen.");
+  } else {
+    parts.push(`${describeCriticalFindingCount(list.length, critical.length)}: ${listCriticalFindingNames(critical)}.`);
+    parts.push(critical.length === 1
+      ? "Este elemento interviene en la sujeción o el control de la carga, el frenado, los dispositivos de límite y sobrecarga o la estructura de soporte, por lo que representa un riesgo para el personal y para el equipo."
+      : "Estos elementos intervienen en la sujeción o el control de la carga, el frenado, los dispositivos de límite y sobrecarga o la estructura de soporte, por lo que representan un riesgo para el personal y para el equipo.");
+    parts.push(critical.length === 1
+      ? "Se requiere atenderlo antes de continuar con la operación normal de la grúa."
+      : "Se requiere atenderlos antes de continuar con la operación normal de la grúa.");
+    if (minorCount === 1) {
+      parts.push("El hallazgo restante es una deficiencia menor que puede programarse dentro del siguiente mantenimiento.");
+    } else if (minorCount > 1) {
+      parts.push(`Los ${minorCount} hallazgos restantes son deficiencias menores que pueden programarse dentro del siguiente mantenimiento.`);
+    }
+  }
+
+  if (chosen.id !== summary.id) {
+    parts.push("La condición general de este equipo fue ajustada por el técnico responsable con base en la inspección realizada en sitio.");
+  }
+
+  return parts.join(" ");
+}
+
+function describeCriticalFindingCount(total, criticalCount) {
+  if (total === 1) {
+    return "Se registró 1 hallazgo y afecta un componente crítico para la seguridad";
+  }
+  if (criticalCount === total) {
+    return `Se registraron ${total} hallazgos y los ${total} afectan componentes críticos para la seguridad`;
+  }
+  if (criticalCount === 1) {
+    return `Se registraron ${total} hallazgos; uno de ellos afecta un componente crítico para la seguridad`;
+  }
+  return `Se registraron ${total} hallazgos; ${criticalCount} de ellos afectan componentes críticos para la seguridad`;
+}
+
+function listCriticalFindingNames(critical, limit = 6) {
+  const names = critical
+    .map((finding) => cleanFindingIncidenceLabel(finding.incidence))
+    .filter(Boolean);
+  if (!names.length) {
+    return "sin detalle capturado";
+  }
+  if (names.length <= limit) {
+    return names.join("; ");
+  }
+  return `${names.slice(0, limit).join("; ")}; y ${names.length - limit} más`;
+}
+
+// "17. Hilos y torones - OSHA 1910.179(j)(2)(ii)" -> "17. Hilos y torones"
+function cleanFindingIncidenceLabel(incidence) {
+  return String(incidence || "").split(" - ")[0].trim();
+}
+
 function describeConditionCalculation(summary) {
   if (!summary.total) {
     return "Automatico: sin hallazgos registrados en este equipo.";

@@ -22,8 +22,25 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.71";
+const APP_VERSION = "1.3.73";
 const APP_RELEASE_NOTES = {
+  "1.3.73": {
+    title: "Actualizacion 1.3.73",
+    summary: [
+      "Corregida la perdida del checklist escaneado: la sincronizacion automatica lo reemplazaba por la miniatura y desaparecia del PDF.",
+      "Una sincronizacion ya no puede dejar un reporte con menos fotos de las que tenia en este dispositivo.",
+      "Si falla la descarga de una evidencia, ya no se borra la copia que ya estaba guardada.",
+      "Los reportes afectados vuelven a mostrar el checklist usando la miniatura, marcada como vista previa."
+    ]
+  },
+  "1.3.72": {
+    title: "Actualizacion 1.3.72",
+    summary: [
+      "El PDF ahora explica al cliente por que el equipo quedo en esa condicion, no solo el nombre del nivel.",
+      "Cuando hay hallazgos criticos, el reporte los nombra y aclara por que representan riesgo.",
+      "Si el tecnico ajusta la condicion a mano, el reporte lo deja asentado."
+    ]
+  },
   "1.3.71": {
     title: "Actualizacion 1.3.71",
     summary: [

@@ -70,10 +70,12 @@ async function optimizeEquipmentImagesForPdf(equipment) {
     });
   }
   const servicePhotos = await optimizeDataUrlImagesSequential(equipment.servicePhotos || [], REPORT_PDF_IMAGE_MAX_SIZE);
-  const checklistImage = equipment.checklistImage && equipment.checklistImage.dataUrl
+  const checklistSource = getPhotoPrintableUrl(equipment.checklistImage);
+  const checklistImage = checklistSource
     ? {
         ...equipment.checklistImage,
-        dataUrl: await optimizeDataUrlImage(equipment.checklistImage.dataUrl, REPORT_PDF_CHECKLIST_MAX_SIZE)
+        dataUrl: await optimizeDataUrlImage(checklistSource, REPORT_PDF_CHECKLIST_MAX_SIZE),
+        thumbnailOnly: isPhotoThumbnailOnly(equipment.checklistImage)
       }
     : equipment.checklistImage;
 
@@ -88,9 +90,9 @@ async function optimizeEquipmentImagesForPdf(equipment) {
 async function optimizeDataUrlImagesSequential(photos, maxSize = REPORT_PDF_IMAGE_MAX_SIZE) {
   const optimized = [];
   for (const photo of photos) {
-    const dataUrl = getPhotoDataUrl(photo);
-    if (dataUrl) {
-      optimized.push(await optimizeDataUrlImage(dataUrl, maxSize));
+    const source = getPhotoPrintableUrl(photo);
+    if (source) {
+      optimized.push(await optimizeDataUrlImage(source, maxSize));
     }
   }
   return optimized;
