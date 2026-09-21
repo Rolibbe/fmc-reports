@@ -23,19 +23,34 @@ async function buildMaintenancePanelRows() {
   const activeFindings = readActiveCraneFindings();
   const rows = [];
 
-  Object.entries(registry).forEach(([client, cranes]) => {
+  for (const [client, cranes] of Object.entries(registry)) {
     const normalizedClient = normalizeClientName(client);
-    const frequencyMonths = Number(getCompanyMaintenanceFrequency(normalizedClient)) || getDefaultMaintenanceFrequencyMonths();
-    (Array.isArray(cranes) ? cranes : []).forEach((crane) => {
-      const maintenance = resolveCraneMaintenanceFromSources(normalizedClient, crane, frequencyMonths, inspections);
-      const findingSummary = summarizeActiveCraneFindings(normalizedClient, crane.id, activeFindings);
+    const craneList = Array.isArray(cranes) ? cranes : [];
+    // Mismo calculo que Empresas y equipos, para que las fechas coincidan.
+    const lookup = await buildCompanyCraneMaintenanceLookup(normalizedClient, craneList, { records: inspections });
+
+    craneList.forEach((crane) => {
+      const maintenance = lookup.get(crane.id) || {
+        maintenanceDate: "",
+        nextMaintenance: "",
+        reportNumber: "",
+        condition: crane.status || "",
+        manual: false
+      };
       const daysRemaining = maintenance.nextMaintenance ? calculateDaysUntil(maintenance.nextMaintenance) : "";
 
       rows.push({
         client: normalizedClient,
         crane,
-        maintenance,
-        findings: findingSummary,
+        maintenance: {
+          ...maintenance,
+          source: maintenance.reportNumber
+            ? "Reporte"
+            : maintenance.maintenanceDate || maintenance.nextMaintenance
+              ? "Manual"
+              : "Sin fecha"
+        },
+        findings: summarizeActiveCraneFindings(normalizedClient, crane.id, activeFindings),
         nextMaintenance: maintenance.nextMaintenance || "",
         daysRemaining,
         status: getMaintenancePanelRowStatus({
@@ -44,69 +59,9 @@ async function buildMaintenancePanelRows() {
         })
       });
     });
-  });
+  }
 
   return rows.sort(compareMaintenanceRows);
-}
-
-function resolveCraneMaintenanceFromSources(client, crane, frequencyMonths, inspections) {
-  const manualMaintenanceDate = crane.lastMaintenanceDate || "";
-  const manualNextMaintenance = getEffectiveNextMaintenanceDate(manualMaintenanceDate, crane.nextMaintenanceDate, frequencyMonths);
-  let selected = manualMaintenanceDate || manualNextMaintenance
-    ? {
-        maintenanceDate: manualMaintenanceDate,
-        nextMaintenance: manualNextMaintenance,
-        reportNumber: "",
-        condition: crane.status || "",
-        source: "Manual"
-      }
-    : null;
-
-  inspections
-    .filter((record) => normalizeClientName(record.plantName) === client)
-    .forEach((record) => {
-      (record.equipments || []).forEach((equipment) => {
-        if (!equipmentMatchesCompanyCrane(crane, equipment)) {
-          return;
-        }
-
-        const maintenanceDate = equipment.maintenanceDate || record.inspectionDate || "";
-        if (!maintenanceDate) {
-          return;
-        }
-
-        if (selected && compareDateInput(selected.maintenanceDate, maintenanceDate) >= 0) {
-          return;
-        }
-
-        selected = {
-          maintenanceDate,
-          nextMaintenance: getEffectiveNextMaintenanceDate(maintenanceDate, equipment.nextInspection, frequencyMonths),
-          reportNumber: record.reportNumber || "",
-          condition: equipment.overallCondition || crane.status || "",
-          source: "Reporte"
-        };
-      });
-    });
-
-  return selected || {
-    maintenanceDate: "",
-    nextMaintenance: "",
-    reportNumber: "",
-    condition: crane.status || "",
-    source: "Sin fecha"
-  };
-}
-
-function getEffectiveNextMaintenanceDate(maintenanceDate, savedNextDate, frequencyMonths) {
-  const calculatedNextDate = maintenanceDate ? addMonthsToDateInput(maintenanceDate, frequencyMonths) : "";
-  if (!savedNextDate) {
-    return calculatedNextDate;
-  }
-  if (!calculatedNextDate) {
-    return savedNextDate;
-  }
-  return compareDateInput(savedNextDate, calculatedNextDate) >= 0 ? savedNextDate : calculatedNextDate;
 }
 
 function summarizeActiveCraneFindings(client, craneId, activeFindings) {
@@ -128,7 +83,7 @@ function getMaintenancePanelRowStatus(maintenance) {
 }
 
 function compareMaintenanceRows(first, second) {
-  const priority = { soon: 0, "on-time": 1, "no-date": 2, ok: 3 };
+  const priority = { overdue: 0, soon: 1, "on-time": 2, "no-date": 3, ok: 4 };
   const priorityDiff = priority[first.status] - priority[second.status];
   if (priorityDiff) {
     return priorityDiff;
@@ -143,6 +98,7 @@ function compareMaintenanceRows(first, second) {
 
 function groupMaintenanceRows(rows) {
   return {
+    overdue: rows.filter((row) => row.status === "overdue"),
     soon: rows.filter((row) => row.status === "soon"),
     onTime: rows.filter((row) => row.status === "on-time"),
     noDate: rows.filter((row) => row.status === "no-date"),
@@ -161,7 +117,11 @@ function renderMaintenancePanelSummary(grouped) {
     <section class="maintenance-command-center">
       <div>
         <p class="eyebrow">Prioridad operativa</p>
-        <h3>${grouped.soon.length ? `${grouped.soon.length} grua(s) por vencer` : "Mantenimientos bajo control"}</h3>
+        <h3>${grouped.overdue.length
+          ? `${grouped.overdue.length} grua(s) con mantenimiento vencido`
+          : grouped.soon.length
+            ? `${grouped.soon.length} grua(s) por vencer`
+            : "Mantenimientos bajo control"}</h3>
         <p>${escapeHtml(nextRow ? `Proximo seguimiento: ${nextRow.client} | ${formatDate(nextRow.nextMaintenance)}` : "Completa fechas para activar el seguimiento automatico.")}</p>
       </div>
       <div class="maintenance-command-meter">
@@ -169,6 +129,10 @@ function renderMaintenancePanelSummary(grouped) {
         <span>Cumplimiento</span>
       </div>
     </section>
+    <article class="stat-card maintenance-stat-overdue">
+      <span>Vencidas</span>
+      <strong>${grouped.overdue.length}</strong>
+    </article>
     <article class="stat-card maintenance-stat-danger">
       <span>Por vencer</span>
       <strong>${grouped.soon.length}</strong>
@@ -214,6 +178,7 @@ function renderMaintenancePanelContent(grouped) {
         </div>
         <div class="maintenance-filter-buttons" role="group" aria-label="Filtros de mantenimiento">
           ${renderMaintenanceFilterButton("all", "Todo", grouped.all.length)}
+          ${renderMaintenanceFilterButton("overdue", "Vencidas", grouped.overdue.length)}
           ${renderMaintenanceFilterButton("soon", "Por vencer", grouped.soon.length)}
           ${renderMaintenanceFilterButton("on-time", "A tiempo", grouped.onTime.length)}
           ${renderMaintenanceFilterButton("no-date", "Sin fecha", grouped.noDate.length)}
@@ -337,6 +302,9 @@ function renderMaintenanceSmartRow(row) {
 }
 
 function getMaintenanceSmartStatus(row) {
+  if (row.status === "overdue") {
+    return "Vencida";
+  }
   if (row.status === "soon") {
     return "Por vencer";
   }

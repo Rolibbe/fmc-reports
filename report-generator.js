@@ -1,13 +1,13 @@
 
 const DEFAULT_TEMPLATE_CONFIG = {
   companyName: "FMC Industrial",
-  companySubtitle: "Servicio tecnico especializado",
+  companySubtitle: "Servicio técnico especializado",
   logoMode: "image",
   logoText: "FMC",
   logoImageUrl: "logo.png",
   reportTitle: "REPORTE DE SERVICIO",
   reportRevision: "01",
-  footerLegend: "Documento generado automaticamente desde la app de inspecciones.",
+  footerLegend: "Documento generado automáticamente desde la app de inspecciones.",
   accentColor: "#f28c28",
   headerColor: "#1f1f1f"
 };
@@ -42,6 +42,10 @@ const REPORT_STYLE = `
   .evidence-photo.service-photo { height: 31mm; }
   .evidence-label { margin-bottom: 1.2mm; }
   .evidence-topbar { display: flex; justify-content: flex-end; margin-bottom: 2mm; }
+  .focus-table { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+  .focus-table td { border: 1.4pt solid var(--header-color); padding: 3mm 3.2mm; background: #f4f4f4; }
+  .focus-label { font-size: 8.6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--header-color); margin-bottom: 1.4mm; }
+  .focus-value { font-size: 11pt; line-height: 1.4; font-weight: 700; color: #111; white-space: pre-wrap; }
   .evidence-meta-box { border: 1px solid var(--header-color); background: #f7f7f7; padding: 2mm 2.4mm; min-width: 48mm; }
   .evidence-meta-box .label { font-size: 7pt; }
   .evidence-meta-box .value { font-size: 8.2pt; }
@@ -104,6 +108,17 @@ async function openReportPdfWindow(inspection, existingPopup) {
   return true;
 }
 
+// Mantenimiento Correctivo usa una variante de la plantilla. Los demas tipos
+// de servicio siguen con el formato preventivo de siempre.
+function isCorrectiveServiceType(serviceType) {
+  const normalized = String(serviceType || "")
+    .normalize("NFD")
+    .replace(new RegExp("[\\u0300-\\u036f]", "g"), "")
+    .trim()
+    .toLowerCase();
+  return normalized === "mantenimiento correctivo";
+}
+
 async function buildReportData(inspection) {
   const template = getTemplateConfig();
   const equipments = await Promise.all(
@@ -120,6 +135,7 @@ async function buildReportData(inspection) {
     totalFindings,
     totalServicePhotos,
     totalFindingPhotos,
+    isCorrective: isCorrectiveServiceType(inspection.serviceType),
     inspectionDateLabel: formatDate(inspection.inspectionDate)
   };
 }
@@ -170,7 +186,7 @@ function renderCoverPage(report) {
         <table class="meta-table">
           <tr>
             <td><div class="label">Cliente / Planta</div><div class="value">${escapeHtml(report.plantName || "No capturado")}</div></td>
-            <td><div class="label">Ubicacion</div><div class="value">${escapeHtml(report.plantLocation || "No capturado")}</div></td>
+            <td><div class="label">Ubicación</div><div class="value">${escapeHtml(report.plantLocation || "No capturado")}</div></td>
           </tr>
           <tr>
             <td><div class="label">Reporte elaborado por</div><div class="value">${escapeHtml(report.technicianName || "No capturado")}</div></td>
@@ -187,7 +203,7 @@ function renderCoverPage(report) {
       </div>
       <div class="footer">
         <span>${escapeHtml(report.template.footerLegend)}</span>
-        <span>Pagina <span class="page-number"></span></span>
+        <span>Página <span class="page-number"></span></span>
       </div>
     </section>
   `;
@@ -201,7 +217,7 @@ function renderEquipmentPage(report, equipment, index) {
         <table class="equipment-table">
           <tr>
             <th>Nombre o tag</th>
-            <th>Tipo de grua</th>
+            <th>Tipo de grúa</th>
             <th>Capacidad nominal</th>
           </tr>
           <tr>
@@ -209,26 +225,36 @@ function renderEquipmentPage(report, equipment, index) {
             <td>${escapeHtml(equipment.craneType || "No capturado")}</td>
             <td>${escapeHtml(equipment.ratedCapacity || "No capturado")}</td>
           </tr>
+          ${report.isCorrective ? `
           <tr>
-            <th>Serie / Identificacion</th>
+            <th>Serie / Identificación</th>
+            <th colspan="2">Ubicación puntual</th>
+          </tr>
+          <tr>
+            <td>${escapeHtml(equipment.serialNumber || "No capturado")}</td>
+            <td colspan="2">${escapeHtml(equipment.equipmentLocation || "No capturado")}</td>
+          </tr>` : `
+          <tr>
+            <th>Serie / Identificación</th>
             <th>Folio checklist</th>
-            <th>Ubicacion puntual</th>
+            <th>Ubicación puntual</th>
           </tr>
           <tr>
             <td>${escapeHtml(equipment.serialNumber || "No capturado")}</td>
             <td>${escapeHtml(equipment.checklistFolio || "No capturado")}</td>
             <td>${escapeHtml(equipment.equipmentLocation || "No capturado")}</td>
-          </tr>
+          </tr>`}
+          ${report.isCorrective ? "" : `
           <tr>
-            <th colspan="3">Condicion general</th>
+            <th colspan="3">Condición general</th>
           </tr>
           <tr>
             <td colspan="3">
               <div class="condition-headline"><strong>${escapeHtml(getConditionLabel(equipment.overallCondition))}</strong>${getConditionDescription(equipment.overallCondition) ? ` &mdash; ${escapeHtml(getConditionDescription(equipment.overallCondition))}` : ""}</div>
-              <div class="label">Sustento de la condicion</div>
+              <div class="label">Sustento de la condición</div>
               <div class="value">${escapeHtml(equipment.conditionBasis || "")}</div>
             </td>
-          </tr>
+          </tr>`}
         </table>
 
         <div class="section-banner">Datos del polipasto</div>
@@ -257,6 +283,7 @@ function renderEquipmentPage(report, equipment, index) {
           </tr>
         </table>
 
+        ${report.isCorrective ? "" : `
         <div class="section-banner">Resumen del equipo</div>
         <table class="summary-table">
           <tr>
@@ -264,7 +291,7 @@ function renderEquipmentPage(report, equipment, index) {
             <td><div class="label">Fotos de servicio</div><div class="value">${equipment.servicePhotos.length}</div></td>
             <td><div class="label">Fotos de hallazgos</div><div class="value">${equipment.totalFindingPhotos}</div></td>
             <td><div class="label">Mantenimiento realizado</div><div class="value">${escapeHtml(equipment.maintenanceDateLabel || "No especificado")}</div></td>
-            <td><div class="label">Proximo mantenimiento</div><div class="value">${escapeHtml(equipment.nextInspectionLabel || "No especificado")}</div></td>
+            <td><div class="label">Próximo mantenimiento</div><div class="value">${escapeHtml(equipment.nextInspectionLabel || "No especificado")}</div></td>
           </tr>
           <tr>
             <td colspan="5" class="notes-box"><div class="label">Resumen del servicio</div><div class="value">${escapeHtml(equipment.summaryText)}</div></td>
@@ -272,11 +299,11 @@ function renderEquipmentPage(report, equipment, index) {
           <tr>
             <td colspan="5" class="notes-box"><div class="label">Recomendaciones</div><div class="value">${escapeHtml(equipment.recommendationText)}</div></td>
           </tr>
-        </table>
+        </table>`}
       </div>
       <div class="footer">
         <span>${escapeHtml(report.reportNumber || "Sin folio")} | Equipo ${index + 1}</span>
-        <span>Pagina <span class="page-number"></span></span>
+        <span>Página <span class="page-number"></span></span>
       </div>
     </section>
   `;
@@ -286,19 +313,19 @@ function renderEquipmentSection(report, equipment, index) {
     report,
     equipment,
     index,
-    `Evidencias de los hallazgos ${findingIndex + 1}`,
+    report.isCorrective
+      ? `Evidencia de la corrección ${findingIndex + 1}`
+      : `Evidencias de los hallazgos ${findingIndex + 1}`,
     Array.isArray(finding.photos) ? finding.photos : [],
     `${equipment.equipmentName || `Equipo ${index + 1}`} | ${finding.category || "Hallazgo"}`,
     finding,
     "finding"
   )).join("");
 
-  const serviceEvidencePage = renderServiceEvidencePages(
-    report,
-    equipment,
-    index,
-    equipment.servicePhotos
-  );
+  // En correctivo el reporte se queda con la evidencia de cada correccion.
+  const serviceEvidencePage = report.isCorrective
+    ? ""
+    : renderServiceEvidencePages(report, equipment, index, equipment.servicePhotos);
 
   const checklistPages = renderChecklistPdfPages(
     report,
@@ -324,7 +351,7 @@ function renderHeader(report) {
         </td>
         <td class="header-title">
           ${escapeHtml(report.template.reportTitle)} ${escapeHtml(report.reportNumber || "Sin folio")}
-          <span class="header-line-strong">Mantenimiento Preventivo a Gruas</span>
+          <span class="header-line-strong">${report.isCorrective ? "Mantenimiento Correctivo a Grúas" : "Mantenimiento Preventivo a Grúas"}</span>
           <span class="header-line-strong">SUMINISTROS BAJA NORTE FMC S. DE R.L de C.V</span>
           <span class="header-line">Av. Ingeniero Juan Ojeda Robles 14990 Int. 9 Col. Guadalupe Victoria, Tijuana, B.C</span>
           <span class="header-line">Fecha del reporte: ${escapeHtml(report.inspectionDateLabel || "No capturada")}</span>
@@ -351,9 +378,9 @@ function renderFindingsTable(findings) {
       <thead>
         <tr>
           <th width="6%">No.</th>
-          <th width="16%">Categoria</th>
+          <th width="16%">Categoría</th>
           <th width="24%">Incidencia</th>
-          <th width="42%">Descripcion</th>
+          <th width="42%">Descripción</th>
           <th width="12%">Fotos</th>
         </tr>
       </thead>
@@ -409,8 +436,9 @@ function renderEvidencePage(report, equipment, equipmentIndex, title, photos, su
       <div class="page-inner">
         <div class="evidence-topbar">
           <div class="evidence-meta-box">
+            ${report.isCorrective ? "" : `
             <div class="label">Folio checklist</div>
-            <div class="value">${escapeHtml(equipment.checklistFolio || "No capturado")}</div>
+            <div class="value">${escapeHtml(equipment.checklistFolio || "No capturado")}</div>`}
             <div class="label">Fecha</div>
             <div class="value">${escapeHtml(report.inspectionDateLabel || "No capturada")}</div>
           </div>
@@ -422,14 +450,28 @@ function renderEvidencePage(report, equipment, equipmentIndex, title, photos, su
             <td width="25%"><div class="label">Tipo</div><div class="value">${escapeHtml(equipment.craneType || "No capturado")}</div></td>
             <td width="50%"><div class="label">Detalle</div><div class="value">${escapeHtml(subtitle || "Sin detalle")}</div></td>
           </tr>
-          ${finding ? `<tr><td><div class="label">Categoria</div><div class="value">${escapeHtml(finding.category || "")}</div></td><td><div class="label">Incidencia</div><div class="value">${escapeHtml(finding.incidence || "")}</div></td><td><div class="label">Descripcion</div><div class="value">${escapeHtml(finding.description || "")}</div></td></tr>` : ""}
-          ${finding ? `<tr><td colspan="3"><div class="label">Recomendacion</div><div class="value">${escapeHtml(finding.recommendation || "Sin recomendacion registrada")}</div></td></tr>` : ""}
+          ${finding ? `<tr><td colspan="2"><div class="label">Categoría</div><div class="value">${escapeHtml(finding.category || "")}</div></td><td><div class="label">Incidencia</div><div class="value">${escapeHtml(finding.incidence || "")}</div></td></tr>` : ""}
         </table>
+        ${finding ? `
+        <table class="focus-table">
+          <tr>
+            <td>
+              <div class="focus-label">${report.isCorrective ? "Tarea" : "Descripción"}</div>
+              <div class="focus-value">${escapeHtml(finding.description || (report.isCorrective ? "Sin tarea registrada" : "Sin descripción registrada"))}</div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="focus-label">${report.isCorrective ? "Observaciones / Comentarios" : "Recomendación"}</div>
+              <div class="focus-value">${escapeHtml(finding.recommendation || (report.isCorrective ? "Sin observaciones registradas" : "Sin recomendación registrada"))}</div>
+            </td>
+          </tr>
+        </table>` : ""}
         ${renderEvidenceTable(photos, layout || "finding")}
       </div>
       <div class="footer">
         <span>${escapeHtml(report.reportNumber || "Sin folio")} | ${escapeHtml(equipment.equipmentName || `Equipo ${equipmentIndex + 1}`)}</span>
-        <span>Pagina <span class="page-number"></span></span>
+        <span>Página <span class="page-number"></span></span>
       </div>
     </section>
   `;
@@ -440,24 +482,15 @@ function renderChecklistPdfPages(report, equipment, equipmentIndex, checklistIma
   if (!checklistSource) {
     return "";
   }
-  const thumbnailOnly = checklistImage.thumbnailOnly || isPhotoThumbnailOnly(checklistImage);
-
   return `
     <section class="page">
       <div class="page-inner">
         <div class="section-banner">Checklist escaneado</div>
-        <table class="meta-table">
-          <tr>
-            <td width="35%"><div class="label">Equipo</div><div class="value">${escapeHtml(equipment.equipmentName || `Equipo ${equipmentIndex + 1}`)}</div></td>
-            <td width="30%"><div class="label">Folio checklist</div><div class="value">${escapeHtml(equipment.checklistFolio || "No capturado")}</div></td>
-            <td width="35%"><div class="label">Archivo</div><div class="value">${escapeHtml(checklistImage.name || "checklist.jpg")}${thumbnailOnly ? "\n(vista previa en baja resolucion)" : ""}</div></td>
-          </tr>
-        </table>
         <img class="checklist-page-image" src="${checklistSource}" alt="Checklist escaneado">
       </div>
       <div class="footer">
         <span>${escapeHtml(report.reportNumber || "Sin folio")} | ${escapeHtml(equipment.equipmentName || `Equipo ${equipmentIndex + 1}`)}</span>
-        <span>Pagina <span class="page-number"></span></span>
+        <span>Página <span class="page-number"></span></span>
       </div>
     </section>
   `;
@@ -465,7 +498,7 @@ function renderChecklistPdfPages(report, equipment, equipmentIndex, checklistIma
 
 function renderEvidenceTable(photos, layout) {
   if (!photos.length) {
-    return `<table class="evidence-table"><tr><td><span class="muted">No se adjuntaron fotografias para esta seccion.</span></td></tr></table>`;
+    return `<table class="evidence-table"><tr><td><span class="muted">No se adjuntaron fotografías para esta sección.</span></td></tr></table>`;
   }
 
   const columns = layout === "service" ? 3 : 2;
@@ -482,7 +515,7 @@ function renderEvidenceTable(photos, layout) {
           ${row.map((photo, photoIndex) => `
             <td width="${100 / columns}%">
               <div class="label evidence-label">Evidencia ${photoIndex + 1 + rowIndex * columns}</div>
-              <img class="evidence-photo ${photoClass}" src="${photo}" alt="Evidencia fotografica">
+              <img class="evidence-photo ${photoClass}" src="${photo}" alt="Evidencia fotográfica">
             </td>
           `).join("")}
           ${Array.from({ length: columns - row.length }).map(() => `<td width="${100 / columns}%"></td>`).join("")}
@@ -494,25 +527,25 @@ function renderEvidenceTable(photos, layout) {
 
 function buildEquipmentSummary(equipment, findings, totalFindingPhotos, servicePhotoCount) {
   const findingText = findings.length ? `${findings.length} hallazgo(s)` : "sin hallazgos registrados";
-  return `Se capturo el equipo ${equipment.equipmentName || equipment.craneType || "sin nombre"} con condicion general ${equipment.overallCondition || "pendiente"}. Se registraron ${findingText}, ${servicePhotoCount} fotografia(s) generales de servicio y ${totalFindingPhotos} fotografia(s) asociadas a hallazgos.`;
+  return `Se capturó el equipo ${equipment.equipmentName || equipment.craneType || "sin nombre"} con condición general ${equipment.overallCondition || "pendiente"}. Se registraron ${findingText}, ${servicePhotoCount} fotografía(s) generales de servicio y ${totalFindingPhotos} fotografía(s) asociadas a hallazgos.`;
 }
 
 function buildAutomaticRecommendations(findings, overallCondition) {
   if (!findings.length) {
-    return `Mantener el programa de inspeccion vigente y repetir la evaluacion de acuerdo con la frecuencia recomendada. Condicion general registrada: ${overallCondition || "pendiente"}.`;
+    return `Mantener el programa de inspección vigente y repetir la evaluación de acuerdo con la frecuencia recomendada. Condición general registrada: ${overallCondition || "pendiente"}.`;
   }
 
   const grouped = summarizeByCategory(findings)
     .map((item) => `Atender observaciones de ${item.category.toLowerCase()} (${item.count}).`)
     .join(" ");
 
-  return `${grouped} Verificar el cierre de acciones correctivas antes de la siguiente inspeccion. Condicion general registrada: ${overallCondition || "pendiente"}.`;
+  return `${grouped} Verificar el cierre de acciones correctivas antes de la siguiente inspección. Condición general registrada: ${overallCondition || "pendiente"}.`;
 }
 
 function summarizeByCategory(findings) {
   const counts = new Map();
   findings.forEach((finding) => {
-    const category = finding.category || "Sin categoria";
+    const category = finding.category || "Sin categoría";
     counts.set(category, (counts.get(category) || 0) + 1);
   });
   return Array.from(counts.entries()).map(([category, count]) => ({ category, count }));

@@ -539,7 +539,7 @@ function saveWorkOrderFromForm() {
       message: "Tu rol actual no permite guardar ordenes.",
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
-    return;
+    return false;
   }
   const orders = readWorkOrders();
   const editingId = elements.editingWorkOrderId.value;
@@ -559,7 +559,7 @@ function saveWorkOrderFromForm() {
   });
   if (!order.client) {
     window.alert("Selecciona un cliente para guardar la orden.");
-    return;
+    return false;
   }
   orders[order.id] = order;
   writeWorkOrders(orders);
@@ -574,6 +574,8 @@ function saveWorkOrderFromForm() {
   });
   resetWorkOrderForm({ keepClient: true });
   renderWorkOrdersPanel();
+
+  return true;
 }
 
 async function deleteWorkOrder(orderId) {

@@ -22,8 +22,154 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.73";
+const APP_VERSION = "1.3.89";
 const APP_RELEASE_NOTES = {
+  "1.3.89": {
+    title: "Actualizacion 1.3.89",
+    summary: [
+      "Los checklists guardados en el historial de cada grua ahora se pueden editar.",
+      "El boton Editar carga esa version para corregirla y Guardar cambios la escribe sobre el mismo registro, sin duplicarlo.",
+      "Los registros corregidos quedan marcados como editados."
+    ]
+  },
+  "1.3.88": {
+    title: "Actualizacion 1.3.88",
+    summary: [
+      "Reordenar tarjetas ya no obliga a arrastrar: cada equipo y cada grua tienen un boton Mover.",
+      "Al tocarlo aparecen los huecos disponibles y solo hay que elegir donde colocar la tarjeta.",
+      "Arrastrar sigue funcionando para quien prefiera el raton."
+    ]
+  },
+  "1.3.87": {
+    title: "Actualizacion 1.3.87",
+    summary: [
+      "El recuadro de Tarea y Observaciones pasa a negro, sin el naranja: mantiene el peso visual por el borde grueso y la letra grande."
+    ]
+  },
+  "1.3.86": {
+    title: "Actualizacion 1.3.86",
+    summary: [
+      "El checklist escaneado se imprime con calidad alta: antes se comprimia igual que una foto de evidencia y por eso se veia borroso.",
+      "Se quito el aviso de vista previa en baja resolucion.",
+      "En correctivo, la Tarea y las Observaciones / Comentarios salen en un recuadro destacado, con letra mas grande.",
+      "En correctivo tambien se quita la Condicion general del equipo.",
+      "Revision ortografica completa del reporte, preventivo y correctivo: acentos en Descripcion, Ubicacion, Categoria, Pagina, Condicion y demas.",
+      "Los checklist nuevos se capturan con mas resolucion para que el texto se lea en el PDF."
+    ]
+  },
+  "1.3.85": {
+    title: "Actualizacion 1.3.85",
+    summary: [
+      "Mantenimiento Correctivo genera ahora su propia version del reporte PDF.",
+      "En correctivo la portada dice Mantenimiento Correctivo a Gruas, se quita el Resumen del equipo y las paginas de evidencia del servicio.",
+      "La evidencia de cada hallazgo se titula Evidencia de la correccion, y sus etiquetas pasan a Tarea y Observaciones.",
+      "El folio de checklist desaparece del reporte correctivo.",
+      "En los dos reportes, la hoja del checklist escaneado ya no lleva la fila de Equipo, Folio y Archivo.",
+      "Preventivo, Orden de servicio e Inspeccion Tecnica siguen con el formato de siempre."
+    ]
+  },
+  "1.3.84": {
+    title: "Actualizacion 1.3.84",
+    summary: [
+      "Faltaba confirmar el boton Guardar servicio del paso PDF, que se genera desde codigo y no aparecia en el barrido del HTML.",
+      "Tambien confirman ahora: agregar archivo a la grua, duplicar y exportar un reporte, y marcar conflictos como revisados.",
+      "Donde la accion cierra el panel y el boton desaparece, la senal queda en el tono y la vibracion."
+    ]
+  },
+  "1.3.83": {
+    title: "Actualizacion 1.3.83",
+    summary: [
+      "Todos los botones responden al toque al instante, para saber que quedo registrado.",
+      "Los de guardar y actualizar ademas confirman el resultado: el propio boton dice Guardado o Actualizado, con su tono y vibracion.",
+      "Si la accion no procede, por un campo faltante o un permiso, el boton no dice que guardo: no se inventa la confirmacion.",
+      "Si algo falla, el boton lo dice en rojo.",
+      "Actualizar el panel de mantenimiento ya no abre una ventana: la confirmacion va en el boton."
+    ]
+  },
+  "1.3.82": {
+    title: "Actualizacion 1.3.82",
+    summary: [
+      "Las tabletas dejan de recibir el diseno de escritorio: ahora lo que manda es si la pantalla es tactil, no si es ancha.",
+      "Botones de 48 pixeles en iPad y tabletas Android, donde antes median entre 21 y 43.",
+      "Guardar y Cancelar tambien quedan fijos abajo en tableta.",
+      "El checklist compacto, con sus filtros y el marcado por lote, llega igual a la tableta.",
+      "El filtro del dashboard pasa a dos columnas en tableta vertical."
+    ]
+  },
+  "1.3.81": {
+    title: "Actualizacion 1.3.81",
+    summary: [
+      "El checklist maestro cambia en telefono y tableta: las 16 categorias llegan plegadas, con su marcador de Bien, N/A, Mal y pendientes.",
+      "Un boton marca de golpe todos los puntos pendientes como Bien, sin pisar lo que ya habias contestado.",
+      "Filtros de Todos, Pendientes y No conformes, para ir directo a los pocos puntos que importan.",
+      "Guardar queda fijo abajo con el avance a la vista.",
+      "En escritorio se conserva la hoja con el formato del Excel."
+    ]
+  },
+  "1.3.80": {
+    title: "Actualizacion 1.3.80",
+    summary: [
+      "El editor de equipo se divide en cinco pestanas: Equipo, Checklist, Hallazgos, Evidencia y Resumen.",
+      "Antes era una sola columna de mas de 4,000 pixeles y habia que recorrerla entera para llegar al checklist.",
+      "Cada pestana muestra cuanto lleva dentro, para no abrirlas a ciegas.",
+      "La version dejo de flotar sobre los botones y ahora va en el encabezado, mucho mas discreta."
+    ]
+  },
+  "1.3.79": {
+    title: "Actualizacion 1.3.79",
+    summary: [
+      "En telefono y tableta, Guardar y Cancelar del editor de equipo y del editor de hallazgo quedan fijos abajo, al alcance del pulgar.",
+      "Antes habia que subir hasta 3,400 pixeles para guardar un equipo.",
+      "Anterior y Siguiente del flujo de servicio ya no se meten debajo del menu inferior.",
+      "Botones de accion a 48 pixeles de alto en movil, para usarse con una sola mano."
+    ]
+  },
+  "1.3.78": {
+    title: "Actualizacion 1.3.78",
+    summary: [
+      "Limpieza previa al trabajo de movil: el flujo de servicio declaraba nueve paneles pero solo cuatro eran alcanzables.",
+      "Se quitaron los cinco paneles muertos y las cuatro funciones que los llenaban en cada cambio de paso.",
+      "La linea de servicio pasa a campo oculto: estaba en un panel al que no se podia llegar, y su valor se sigue guardando igual.",
+      "Menos trabajo desperdiciado en cada toque, que es justo lo que se nota en telefono y tableta."
+    ]
+  },
+  "1.3.77": {
+    title: "Actualizacion 1.3.77",
+    summary: [
+      "Panel principal rehecho como tablero ejecutivo, con graficos en lugar de puras cifras sueltas.",
+      "Cuatro indicadores con tendencia real: servicios del mes y hallazgos criticos comparados contra el mes anterior.",
+      "Grafica de servicios de los ultimos 6 meses, dona de condicion de la flota y rankings de empresas con mas riesgo y hallazgos mas frecuentes.",
+      "Se quitaron los siete accesos numerados: duplicaban el menu lateral que ya existe.",
+      "Los graficos toman el color del tema activo, asi que se ven bien en Acero, Grafito y Arena."
+    ]
+  },
+  "1.3.76": {
+    title: "Actualizacion 1.3.76",
+    summary: [
+      "Sonido y vibracion para confirmar lo que no alcanzas a ver: evidencia guardada, hallazgo critico, sincronizacion y errores.",
+      "La vibracion viene encendida porque se siente con guantes; el sonido viene apagado hasta que lo pruebes. Ambos se controlan en Ajustes > General.",
+      "Los tonos se generan en el momento, no son archivos: no agregan peso a la descarga de cada actualizacion.",
+      "Animaciones de entrada en secciones y listas, y esqueletos de carga mientras se lee la base local.",
+      "Si tu sistema pide menos movimiento, la app ahora lo respeta y no anima nada."
+    ]
+  },
+  "1.3.75": {
+    title: "Actualizacion 1.3.75",
+    summary: [
+      "Tres temas de color para toda la app: Acero, Grafito y Arena, los tres con el naranja del logo.",
+      "El tema se elige en Ajustes > General y se aplica al instante en todas las secciones.",
+      "Los colores de la app quedaron unificados: antes convivian dos paletas distintas segun la pantalla.",
+      "Los colores de riesgo, conformidad y aviso son iguales en los tres temas para no cambiar su significado."
+    ]
+  },
+  "1.3.74": {
+    title: "Actualizacion 1.3.74",
+    summary: [
+      "Las fechas de MTTO ya salen del mismo calculo que Empresas y equipos: antes cada seccion usaba reglas distintas.",
+      "Nuevo estado Vencida para las gruas que ya pasaron su fecha, separado de Por vencer.",
+      "El panel de MTTO ordena primero las vencidas y agrega su tarjeta y su filtro."
+    ]
+  },
   "1.3.73": {
     title: "Actualizacion 1.3.73",
     summary: [
@@ -201,13 +347,11 @@ const fallbackPolipastos = [
   "Stahl"
 ];
 const DEFAULT_CRANE_TYPES = [
-  "Puente",
-  "Grua viajera",
+  "Bandera",
   "Monorriel",
-  "Portico",
-  "Grua bandera",
-  "Pluma",
-  "Polipasto",
+  "Pórtico",
+  "Viajera",
+  "Elevador de carga",
   "Otro"
 ];
 const SERVICE_TYPE_OPTIONS = [
@@ -237,7 +381,10 @@ const REPORT_IMAGE_MAX_SIZE = 1150;
 const REPORT_CHECKLIST_MAX_SIZE = 1500;
 const REPORT_THUMBNAIL_MAX_SIZE = 320;
 const REPORT_PDF_IMAGE_MAX_SIZE = 1300;
-const REPORT_PDF_CHECKLIST_MAX_SIZE = 1700;
+const REPORT_PDF_CHECKLIST_MAX_SIZE = 2400;
+// La hoja del checklist es texto fino: se imprime con calidad alta, no
+// con la de una fotografia de evidencia.
+const REPORT_PDF_CHECKLIST_QUALITY = 0.92;
 const REPORT_IMAGE_QUALITY = 0.62;
 const REPORT_THUMBNAIL_QUALITY = 0.54;
 
@@ -255,6 +402,7 @@ const elements = {
   loginOfflineButton: document.getElementById("loginOfflineButton"),
   loginStatus: document.getElementById("loginStatus"),
   appVersionBadge: document.getElementById("appVersionBadge"),
+  mobileAppVersion: document.getElementById("mobileAppVersion"),
   mobileCloudStatus: document.getElementById("mobileCloudStatus"),
   mobileSyncButton: document.getElementById("mobileSyncButton"),
   mobileMorePanel: document.getElementById("mobileMorePanel"),
@@ -301,16 +449,11 @@ const elements = {
   homeView: document.getElementById("homeView"),
   homeStatsGrid: document.getElementById("homeStatsGrid"),
   homeCriticalList: document.getElementById("homeCriticalList"),
+  homeBoardCharts: document.getElementById("homeBoardCharts"),
+  homeBoardPeriod: document.getElementById("homeBoardPeriod"),
   homeRefreshButton: document.getElementById("homeRefreshButton"),
   homeNewReportButton: document.getElementById("homeNewReportButton"),
   homeFieldModeButton: document.getElementById("homeFieldModeButton"),
-  homeDashboardButton: document.getElementById("homeDashboardButton"),
-  homeClientsButton: document.getElementById("homeClientsButton"),
-  homeReportsButton: document.getElementById("homeReportsButton"),
-  homeMaintenanceButton: document.getElementById("homeMaintenanceButton"),
-  homeWorkOrdersButton: document.getElementById("homeWorkOrdersButton"),
-  homeSyncButton: document.getElementById("homeSyncButton"),
-  homeSettingsButton: document.getElementById("homeSettingsButton"),
   clientPortalView: document.getElementById("clientPortalView"),
   clientPortalCompanyName: document.getElementById("clientPortalCompanyName"),
   clientPortalWelcome: document.getElementById("clientPortalWelcome"),
@@ -350,10 +493,6 @@ const elements = {
   serviceStepBody: document.getElementById("serviceStepBody"),
   serviceStepPrevButton: document.getElementById("serviceStepPrevButton"),
   serviceStepNextButton: document.getElementById("serviceStepNextButton"),
-  serviceChecklistStepContent: document.getElementById("serviceChecklistStepContent"),
-  serviceFindingsStepContent: document.getElementById("serviceFindingsStepContent"),
-  serviceEvidenceStepContent: document.getElementById("serviceEvidenceStepContent"),
-  serviceSummaryStepContent: document.getElementById("serviceSummaryStepContent"),
   servicePdfStepContent: document.getElementById("servicePdfStepContent"),
   polipastoOptions: document.getElementById("polipastoOptions"),
   reportNumber: document.getElementById("reportNumber"),
@@ -625,6 +764,12 @@ document.addEventListener("DOMContentLoaded", initializeApp);
 async function initializeApp() {
   updateConnectivityStatus();
   updateAppVersionBadge();
+  if (typeof initializeAppTheme === "function") {
+    initializeAppTheme();
+  }
+  if (typeof initializeFeedback === "function") {
+    initializeFeedback();
+  }
   try {
     await initializeMasterDataStore();
     await initializeAppSettings();
@@ -661,6 +806,10 @@ function updateAppVersionBadge() {
   if (elements.appVersionBadge) {
     elements.appVersionBadge.textContent = `Version ${APP_VERSION}`;
   }
+  // En movil la version viaja en el encabezado, donde no le quita sitio a nada.
+  if (elements.mobileAppVersion) {
+    elements.mobileAppVersion.textContent = `v${APP_VERSION}`;
+  }
 }
 
 function setupAppActions() {
@@ -688,22 +837,21 @@ function setupAppActions() {
   if (typeof setupSettingsSectionTabs === "function") {
     setupSettingsSectionTabs();
   }
+  if (typeof setupEquipmentEditorTabs === "function") {
+    setupEquipmentEditorTabs();
+  }
   setupInspectionAutoSave();
   on(elements.openHomeButton, "click", openSystemHome);
   on(elements.openFieldModeButton, "click", openFieldMode);
-  on(elements.homeRefreshButton, "click", renderSystemHome);
+  onAction(elements.homeRefreshButton, renderSystemHome, { done: "Actualizado", working: "Actualizando..." });
   on(elements.homeNewReportButton, "click", () => {
     resetForm();
     showView("inspection");
   });
   on(elements.homeFieldModeButton, "click", openFieldMode);
-  on(elements.homeDashboardButton, "click", openGeneralDashboard);
-  on(elements.homeClientsButton, "click", openCompanyCraneRegistry);
-  on(elements.homeReportsButton, "click", openSidebar);
-  on(elements.homeMaintenanceButton, "click", openMaintenancePanel);
-  on(elements.homeWorkOrdersButton, "click", openWorkOrdersPanel);
-  on(elements.homeSyncButton, "click", openSyncCenter);
-  on(elements.homeSettingsButton, "click", openSettingsPanel);
+  if (typeof setupHomeBoardLinks === "function") {
+    setupHomeBoardLinks();
+  }
   on(elements.closeFieldModeButton, "click", openSystemHome);
   on(elements.fieldNewButton, "click", () => {
     resetForm();
@@ -758,9 +906,9 @@ function setupAppActions() {
   elements.serviceTaskCleaning.addEventListener("change", syncServiceSummaryFromTasks);
   elements.serviceTaskLubrication.addEventListener("change", syncServiceSummaryFromTasks);
   elements.cancelEquipmentButton.addEventListener("click", closeEquipmentEditor);
-  elements.saveEquipmentButton.addEventListener("click", saveEquipmentFromEditor);
+  onAction(elements.saveEquipmentButton, saveEquipmentFromEditor, { done: "Guardado" });
   elements.addFindingButton.addEventListener("click", () => openFindingEditor());
-  elements.addQuickFindingButton.addEventListener("click", addQuickFindingsFromInput);
+  onAction(elements.addQuickFindingButton, addQuickFindingsFromInput, { done: "Agregado" });
   elements.quickFindingNumber.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -783,27 +931,25 @@ function setupAppActions() {
   setupImageDropZone(elements.servicePhotoPreview, addServicePhotoFiles);
   setupImageDropZone(elements.checklistImageStatus, addChecklistImageFile, { single: true });
   elements.cancelFindingButton.addEventListener("click", closeFindingEditor);
-  elements.saveFindingButton.addEventListener("click", saveFindingFromEditor);
-  elements.saveInspectionButton.addEventListener("click", async () => {
-    await persistInspection();
-  });
+  onAction(elements.saveFindingButton, saveFindingFromEditor, { done: "Guardado" });
+  onAction(elements.saveInspectionButton, persistInspection, { done: "Guardado" });
   elements.exportInspectionButton.addEventListener("click", exportCurrentInspection);
   elements.exportFullBackupButton.addEventListener("click", () => exportFullBackup({ includePhotos: false }));
   elements.exportFullBackupWithPhotosButton.addEventListener("click", () => exportFullBackup({ includePhotos: true }));
   elements.purgeStoredPhotosButton.addEventListener("click", purgeStoredHeavyPhotos);
-  elements.navSyncCloudButton.addEventListener("click", syncCloudDataOnly);
+  onAction(elements.navSyncCloudButton, syncCloudDataOnly, { working: "Sincronizando...", confirm: false });
   on(elements.openSyncCenterButton, "click", openSyncCenter);
   elements.generatePdfButton.addEventListener("click", generatePdfReport);
   elements.newInspectionButton.addEventListener("click", () => {
     resetForm();
     showView("inspection");
   });
-  elements.refreshReportsButton.addEventListener("click", renderSavedReports);
+  onAction(elements.refreshReportsButton, renderSavedReports, { done: "Actualizado", working: "Actualizando..." });
   on(elements.openDashboardButton, "click", openGeneralDashboard);
   on(elements.openWorkOrdersButton, "click", openWorkOrdersPanel);
   on(elements.openClientsMapButton, "click", openClientsMap);
   on(elements.openAuditLogButton, "click", openAuditLogPanel);
-  on(elements.refreshDashboardButton, "click", renderGeneralDashboard);
+  onAction(elements.refreshDashboardButton, renderGeneralDashboard, { done: "Actualizado", working: "Actualizando..." });
   on(elements.closeDashboardButton, "click", openSystemHome);
   on(elements.dashboardClientFilter, "change", renderGeneralDashboard);
   on(elements.dashboardDateFrom, "change", renderGeneralDashboard);
@@ -816,17 +962,17 @@ function setupAppActions() {
   });
   on(elements.closeWorkOrdersButton, "click", openSystemHome);
   on(elements.newWorkOrderButton, "click", () => resetWorkOrderForm());
-  on(elements.refreshWorkOrdersButton, "click", renderWorkOrdersPanel);
+  onAction(elements.refreshWorkOrdersButton, renderWorkOrdersPanel, { done: "Actualizado", working: "Actualizando..." });
   on(elements.workOrderStatusFilter, "change", renderWorkOrdersPanel);
   on(elements.workOrderClient, "change", renderWorkOrderCranePicker);
-  on(elements.saveWorkOrderButton, "click", saveWorkOrderFromForm);
+  onAction(elements.saveWorkOrderButton, saveWorkOrderFromForm, { done: "Guardado" });
   on(elements.clearWorkOrderFormButton, "click", () => resetWorkOrderForm());
   on(elements.closeClientsMapButton, "click", openSystemHome);
-  on(elements.refreshClientsMapButton, "click", renderClientsMap);
+  onAction(elements.refreshClientsMapButton, renderClientsMap, { done: "Actualizado", working: "Actualizando..." });
   on(elements.clientsMapSearch, "input", renderClientsMap);
   on(elements.clientsMapStatusFilter, "change", renderClientsMap);
   on(elements.closeAuditLogButton, "click", openSystemHome);
-  on(elements.refreshAuditLogButton, "click", renderAuditLogPanel);
+  onAction(elements.refreshAuditLogButton, renderAuditLogPanel, { done: "Actualizado", working: "Actualizando..." });
   on(elements.auditLogFilter, "change", renderAuditLogPanel);
   on(elements.clearAuditLogButton, "click", clearAuditLogWithConfirmation);
   elements.openCompanyCraneRegistryButton.addEventListener("click", openCompanyCraneRegistry);
@@ -837,26 +983,30 @@ function setupAppActions() {
   wireCompanyControlTabs();
   elements.openMaintenancePanelButton.addEventListener("click", openMaintenancePanel);
   on(elements.closeSyncCenterButton, "click", openSystemHome);
-  on(elements.refreshSyncCenterButton, "click", renderSyncCenter);
-  on(elements.syncDataOnlyButton, "click", syncCloudDataOnly);
-  on(elements.syncEvidenceOnlyButton, "click", syncEvidenceOnlyToCloud);
+  onAction(elements.refreshSyncCenterButton, renderSyncCenter, { done: "Actualizado", working: "Actualizando..." });
+  onAction(elements.syncDataOnlyButton, syncCloudDataOnly, { working: "Sincronizando...", confirm: false });
+  onAction(elements.syncEvidenceOnlyButton, syncEvidenceOnlyToCloud, { working: "Sincronizando...", confirm: false });
   on(elements.forceDownloadEvidenceButton, "click", forceDownloadEvidenceFromCloud);
   on(elements.showPendingEvidenceButton, "click", toggleSyncPendingDetails);
   on(elements.purgeCloudSyncedLocalPhotosButton, "click", purgeCloudSyncedLocalEvidence);
   elements.syncCenterContent?.addEventListener("click", (event) => {
-    if (event.target.closest("[data-dismiss-sync-conflicts]")) {
-      dismissSyncConflicts();
+    const dismissButton = event.target.closest("[data-dismiss-sync-conflicts]");
+    if (dismissButton) {
+      runButtonAction(dismissButton, async () => {
+        await dismissSyncConflicts();
+        return true;
+      }, { done: "Revisado" });
     }
   });
   elements.openConsolidatedHistoryButton.addEventListener("click", openConsolidatedHistory);
   elements.closeSettingsButton.addEventListener("click", openSystemHome);
-  elements.saveSettingsButton.addEventListener("click", saveSettingsFromForm);
-  elements.resetSettingsButton.addEventListener("click", resetSettingsToDefaults);
-  elements.addSettingsPolipastoButton.addEventListener("click", addPolipastoToSettingsList);
-  elements.addSettingsCraneTypeButton.addEventListener("click", addCraneTypeToSettingsList);
+  onAction(elements.saveSettingsButton, saveSettingsFromForm, { done: "Guardado" });
+  onAction(elements.resetSettingsButton, resetSettingsToDefaults, { done: "Restaurado" });
+  onAction(elements.addSettingsPolipastoButton, addPolipastoToSettingsList, { done: "Agregado" });
+  onAction(elements.addSettingsCraneTypeButton, addCraneTypeToSettingsList, { done: "Agregado" });
   elements.cloudSignInButton.addEventListener("click", cloudSignInFromForm);
   elements.cloudSignOutButton.addEventListener("click", cloudSignOutFromForm);
-  elements.syncCompaniesCranesButton.addEventListener("click", syncCloudDataOnly);
+  onAction(elements.syncCompaniesCranesButton, syncCloudDataOnly, { working: "Sincronizando...", confirm: false });
   on(document.getElementById("settingsImportInspectionButton"), "click", () => elements.importInspectionInput.click());
   on(document.getElementById("settingsExportInspectionButton"), "click", exportCurrentInspection);
   on(document.getElementById("settingsImportFullBackupButton"), "click", () => elements.importFullBackupInput.click());
@@ -865,22 +1015,15 @@ function setupAppActions() {
   on(document.getElementById("settingsPurgePhotosButton"), "click", purgeStoredHeavyPhotos);
   on(document.getElementById("settingsOpenAuditLogButton"), "click", openAuditLogPanel);
   elements.closeMaintenancePanelButton.addEventListener("click", openSystemHome);
-  elements.refreshMaintenancePanelButton.addEventListener("click", async () => {
-    await renderMaintenancePanel();
-    await showAppDialog({
-      title: "Mantenimiento actualizado",
-      message: "La informacion del panel de mantenimiento se actualizo correctamente.",
-      actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
-    });
-  });
+  onAction(elements.refreshMaintenancePanelButton, renderMaintenancePanel, { done: "Actualizado", working: "Actualizando..." });
   elements.closeCompanyCraneRegistryButton.addEventListener("click", openSystemHome);
-  elements.refreshCompanyCraneRegistryButton.addEventListener("click", renderCompanyCraneRegistry);
-  elements.syncCompanyRegistryButton.addEventListener("click", syncCompanyRegistryFromReports);
+  onAction(elements.refreshCompanyCraneRegistryButton, renderCompanyCraneRegistry, { done: "Actualizado", working: "Actualizando..." });
+  onAction(elements.syncCompanyRegistryButton, syncCompanyRegistryFromReports, { working: "Sincronizando...", done: "Sincronizado" });
   elements.deleteCompanyRegistryButton.addEventListener("click", deleteCurrentCompanyRegistry);
   elements.startCompanyServiceButton.addEventListener("click", startServiceForSelectedCompany);
   elements.newCompanyCraneButton.addEventListener("click", () => openCompanyCraneForm());
   elements.cancelCompanyCraneButton.addEventListener("click", closeCompanyCraneForm);
-  elements.saveCompanyCraneButton.addEventListener("click", saveCompanyCraneFromForm);
+  onAction(elements.saveCompanyCraneButton, saveCompanyCraneFromForm, { done: "Guardado" });
   elements.closeCompanyCraneFindingsButton.addEventListener("click", closeCompanyCraneFindingsModal);
   elements.companyCraneFindingsPanel.addEventListener("click", (event) => {
     if (event.target === elements.companyCraneFindingsPanel) {
@@ -911,9 +1054,9 @@ function setupAppActions() {
   elements.registryLastMaintenance.addEventListener("change", updateRegistryNextMaintenanceFromLast);
   elements.companyRegistrySearch.addEventListener("input", renderCompanyRegistryClientCards);
   elements.selectCompanyRegistrySearchButton.addEventListener("click", () => selectCompanyRegistryClient(elements.companyRegistrySearch.value));
-  elements.addCompanyContactButton.addEventListener("click", addCompanyContactForCurrentCompany);
-  elements.saveCompanyLocationButton.addEventListener("click", saveCompanyLocationForCurrentCompany);
-  on(elements.applyCompanyMapsUrlButton, "click", applyCompanyMapsUrlToCoordinates);
+  onAction(elements.addCompanyContactButton, addCompanyContactForCurrentCompany, { done: "Agregado" });
+  onAction(elements.saveCompanyLocationButton, saveCompanyLocationForCurrentCompany, { done: "Guardado" });
+  onAction(elements.applyCompanyMapsUrlButton, applyCompanyMapsUrlToCoordinates, { done: "Aplicado" });
   on(elements.companyLocationMapsUrl, "paste", () => {
     window.setTimeout(() => applyCompanyMapsUrlToCoordinates({ silent: true }), 0);
   });
@@ -924,8 +1067,8 @@ function setupAppActions() {
   });
   elements.companyMaintenanceFrequency.addEventListener("change", saveCompanyMaintenanceFrequency);
   elements.closeConsolidatedHistoryButton.addEventListener("click", openSystemHome);
-  elements.refreshConsolidatedHistoryButton.addEventListener("click", renderConsolidatedHistory);
-  elements.exportConsolidatedHistoryButton.addEventListener("click", exportConsolidatedHistoryExcel);
+  onAction(elements.refreshConsolidatedHistoryButton, renderConsolidatedHistory, { done: "Actualizado", working: "Actualizando..." });
+  onAction(elements.exportConsolidatedHistoryButton, exportConsolidatedHistoryExcel, { done: "Exportado" });
   elements.consolidatedClientFilter.addEventListener("input", renderConsolidatedHistory);
   elements.clearConsolidatedClientFilterButton.addEventListener("click", () => {
     elements.consolidatedClientFilter.value = "";
@@ -1304,10 +1447,10 @@ function setupMobileNavigation() {
   elements.mobileMoreButton.addEventListener("click", toggleMobileMorePanel);
   elements.mobileCloseMoreButton.addEventListener("click", closeMobileMorePanel);
   elements.mobileSyncButton.addEventListener("click", syncCloudDataOnly);
-  elements.mobileSaveButton.addEventListener("click", async () => {
+  onAction(elements.mobileSaveButton, async () => {
     closeMobileMorePanel();
-    await persistInspection();
-  });
+    return persistInspection();
+  }, { done: "Guardado" });
   if (elements.mobileDashboardButton) {
     elements.mobileDashboardButton.addEventListener("click", () => {
       closeMobileMorePanel();
@@ -1393,68 +1536,14 @@ async function renderSystemHome() {
       dateFrom: "",
       dateTo: ""
     });
-    const maintenanceRisk = metrics.maintenance.overdue + metrics.maintenance.soon;
-    const compliance = calculateDashboardMaintenanceCompliance(metrics.maintenance);
-    elements.homeStatsGrid.innerHTML = [
-      renderHomeStat("Clientes", metrics.clients, "Activos en catalogo"),
-      renderHomeStat("Equipos", metrics.cranes, "Identidades registradas"),
-      renderHomeStat("Servicios mes", metrics.reportsThisMonth, "Servicios capturados"),
-      renderHomeStat("Riesgo", maintenanceRisk, `${metrics.maintenance.overdue} vencidas`),
-      renderHomeStat("Hallazgo comun", getTopEntryValue(metrics.topFindings), getTopEntryLabel(metrics.topFindings) || "Sin datos"),
-      renderHomeStat("Cumplimiento", `${compliance}%`, "Mantenimiento al dia")
-    ].join("");
-    elements.homeCriticalList.innerHTML = renderHomePriorityList(metrics);
+    renderHomeBoard(metrics);
   } catch (error) {
-    elements.homeStatsGrid.innerHTML = '<div class="inline-empty-state">No se pudieron calcular los indicadores.</div>';
-    elements.homeCriticalList.innerHTML = `<div class="inline-empty-state">${escapeHtml(error.message || "Error desconocido")}</div>`;
-  }
-}
-
-function renderHomeStat(label, value, hint) {
-  return `
-    <article class="home-stat-card">
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(String(value || 0))}</strong>
-      <small>${escapeHtml(hint || "")}</small>
-    </article>
-  `;
-}
-
-function renderHomePriorityList(metrics) {
-  const priorities = [
-    {
-      title: "Mantenimiento vencido",
-      value: metrics.maintenance.overdue,
-      text: metrics.maintenance.overdue ? "Revisar panel de mantenimiento" : "Sin vencidas registradas",
-      tone: metrics.maintenance.overdue ? "danger" : "ok"
-    },
-    {
-      title: "Empresas criticas",
-      value: metrics.criticalCompanies.length,
-      text: getTopEntryLabel(metrics.criticalCompanies) || "Sin concentracion de riesgo",
-      tone: metrics.criticalCompanies.length ? "warning" : "ok"
-    },
-    {
-      title: "Hallazgos criticos/altos",
-      value: metrics.highSeverityFindings,
-      text: metrics.highSeverityFindings ? "Validar correcciones pendientes" : "Sin severidad alta detectada",
-      tone: metrics.highSeverityFindings ? "danger" : "ok"
-    },
-    {
-      title: "Proximo servicio",
-      value: metrics.maintenance.next.length ? formatDate(metrics.maintenance.next[0].date) : "Sin fecha",
-      text: metrics.maintenance.next.length ? metrics.maintenance.next[0].label : "Completar fechas en Empresas y equipos",
-      tone: metrics.maintenance.next.length && metrics.maintenance.next[0].days <= 30 ? "warning" : "ok"
+    elements.homeStatsGrid.innerHTML = `<div class="inline-empty-state">No se pudieron calcular los indicadores. ${escapeHtml(error.message || "Error desconocido")}</div>`;
+    if (elements.homeBoardCharts) {
+      elements.homeBoardCharts.innerHTML = "";
     }
-  ];
-
-  return priorities.map((item) => `
-    <article class="home-priority-card is-${item.tone}">
-      <span>${escapeHtml(item.title)}</span>
-      <strong>${escapeHtml(String(item.value))}</strong>
-      <small>${escapeHtml(item.text)}</small>
-    </article>
-  `).join("");
+    elements.homeCriticalList.innerHTML = "";
+  }
 }
 
 function openFieldMode() {
@@ -1616,63 +1705,7 @@ function isCompletionValueFilled(value) {
 }
 
 function renderServiceStepContent() {
-  renderServiceChecklistStep();
-  renderServiceFindingsStep();
-  renderServiceEvidenceStep();
-  renderServiceSummaryStep();
   renderServicePdfStep();
-  wireServiceStepDynamicActions();
-}
-
-function renderServiceChecklistStep() {
-  if (!elements.serviceChecklistStepContent) {
-    return;
-  }
-  elements.serviceChecklistStepContent.innerHTML = renderEquipmentStepCards({
-    emptyText: "Agrega un equipo para capturar o revisar su checklist.",
-    buttonLabel: "Abrir checklist",
-    targetStep: "checklist",
-    metric: (equipment) => equipment.checklistImage ? "Checklist adjunto" : "Sin imagen adjunta"
-  });
-}
-
-function renderServiceFindingsStep() {
-  if (!elements.serviceFindingsStepContent) {
-    return;
-  }
-  elements.serviceFindingsStepContent.innerHTML = renderEquipmentStepCards({
-    emptyText: "Agrega un equipo para registrar hallazgos.",
-    buttonLabel: "Abrir hallazgos",
-    targetStep: "findings",
-    metric: (equipment) => `${(equipment.findings || []).length} hallazgo(s)`
-  });
-}
-
-function renderServiceEvidenceStep() {
-  if (!elements.serviceEvidenceStepContent) {
-    return;
-  }
-  elements.serviceEvidenceStepContent.innerHTML = renderEquipmentStepCards({
-    emptyText: "Agrega un equipo para capturar evidencias fotograficas.",
-    buttonLabel: "Abrir evidencias",
-    targetStep: "evidence",
-    metric: (equipment) => {
-      const findingPhotos = (equipment.findings || []).reduce((sum, finding) => sum + (finding.photos || []).length, 0);
-      return `${(equipment.servicePhotos || []).length + findingPhotos + (equipment.checklistImage ? 1 : 0)} evidencia(s)`;
-    }
-  });
-}
-
-function renderServiceSummaryStep() {
-  if (!elements.serviceSummaryStepContent) {
-    return;
-  }
-  elements.serviceSummaryStepContent.innerHTML = renderEquipmentStepCards({
-    emptyText: "Agrega un equipo para cerrar condicion, mantenimiento y recomendaciones.",
-    buttonLabel: "Abrir resumen",
-    targetStep: "summary",
-    metric: (equipment) => equipment.overallCondition || "Sin condicion"
-  });
 }
 
 function renderServicePdfStep() {
@@ -1698,53 +1731,8 @@ function renderServicePdfStep() {
       <button class="primary-button" type="button" data-service-pdf>Generar PDF</button>
     </div>
   `;
-  elements.servicePdfStepContent.querySelector("[data-service-save]")?.addEventListener("click", persistInspection);
+  onAction(elements.servicePdfStepContent.querySelector("[data-service-save]"), persistInspection, { done: "Guardado" });
   elements.servicePdfStepContent.querySelector("[data-service-pdf]")?.addEventListener("click", generatePdfReport);
-}
-
-function renderEquipmentStepCards(options) {
-  if (!currentEquipments.length) {
-    return `
-      <div class="inline-empty-state">
-        ${escapeHtml(options.emptyText)}
-        <div class="service-empty-action">
-          <button class="secondary-button" type="button" data-service-add-equipment>Agregar equipo</button>
-        </div>
-      </div>
-    `;
-  }
-
-  return currentEquipments.map((equipment, index) => {
-    const normalized = normalizeEquipment(equipment);
-    return `
-      <article class="service-step-card">
-        <div>
-          <span>Equipo ${index + 1}</span>
-          <strong>${escapeHtml(normalized.equipmentName || normalized.craneType || "Equipo sin nombre")}</strong>
-          <small>${escapeHtml(normalized.craneType || "Tipo no capturado")} | ${escapeHtml(options.metric(normalized))}</small>
-        </div>
-        <button class="secondary-button" type="button" data-open-equipment-step="${escapeHtml(options.targetStep)}" data-equipment-id="${escapeHtml(normalized.id)}">${escapeHtml(options.buttonLabel)}</button>
-      </article>
-    `;
-  }).join("");
-}
-
-function wireServiceStepDynamicActions() {
-  document.querySelectorAll("[data-service-add-equipment]").forEach((button) => {
-    if (button.dataset.wired) {
-      return;
-    }
-    button.dataset.wired = "true";
-    button.addEventListener("click", () => openEquipmentEditor());
-  });
-
-  document.querySelectorAll("[data-open-equipment-step]").forEach((button) => {
-    if (button.dataset.wired) {
-      return;
-    }
-    button.dataset.wired = "true";
-    button.addEventListener("click", () => openEquipmentEditor(button.dataset.equipmentId, { section: button.dataset.openEquipmentStep }));
-  });
 }
 
 function focusInspectionField(field) {
@@ -1758,7 +1746,6 @@ function focusInspectionField(field) {
 }
 
 function openFieldCameraCapture() {
-  openInspectionStep("evidence");
   const targetEquipmentId = currentEquipments[0] && currentEquipments[0].id;
   openEquipmentEditor(targetEquipmentId, { section: "evidence" });
   setTimeout(() => {
@@ -1903,6 +1890,20 @@ function showView(view) {
   if (view === "inspection") {
     renderServiceStepContent();
   }
+  playViewEnterAnimation();
+}
+
+// Reinicia la animacion de entrada en la seccion que quedo visible.
+function playViewEnterAnimation() {
+  const view = Array.from(document.querySelectorAll(".app-view"))
+    .find((element) => !element.classList.contains("hidden"));
+  if (!view) {
+    return;
+  }
+  view.classList.remove("is-entering");
+  void view.offsetWidth;
+  view.classList.add("is-entering");
+  view.addEventListener("animationend", () => view.classList.remove("is-entering"), { once: true });
 }
 
 function getPresenceSectionLabel(view) {
@@ -2194,6 +2195,7 @@ async function persistInspection() {
   });
   await renderSavedReports();
   queueDataSync("servicio guardado");
+  window.notifyFeedback?.("save");
   return inspection;
 }
 
@@ -2271,6 +2273,16 @@ async function exportCurrentInspection() {
 }
 
 async function renderSavedReports() {
+  if (elements.savedReports && !elements.savedReports.children.length) {
+    elements.savedReports.innerHTML = `
+      <div class="skeleton-list" aria-hidden="true">
+        <div class="skeleton-line is-short"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line"></div>
+      </div>
+    `;
+  }
   const records = await getAllInspections();
   elements.savedReports.innerHTML = "";
   elements.savedReportsSummary.innerHTML = "";
@@ -2518,9 +2530,7 @@ function wireSavedReportActionButtons() {
       return;
     }
     button.dataset.savedActionWired = "true";
-    button.addEventListener("click", async () => {
-      await duplicateInspection(button.dataset.duplicateId);
-    });
+    onAction(button, () => duplicateInspection(button.dataset.duplicateId), { done: "Duplicado" });
   });
 
   elements.savedReports.querySelectorAll("[data-export-id]").forEach((button) => {
@@ -2528,12 +2538,14 @@ function wireSavedReportActionButtons() {
       return;
     }
     button.dataset.savedActionWired = "true";
-    button.addEventListener("click", async () => {
+    onAction(button, async () => {
       const record = await getInspection(button.dataset.exportId);
-      if (record) {
-        downloadInspectionJson(normalizeInspection(record));
+      if (!record) {
+        return false;
       }
-    });
+      downloadInspectionJson(normalizeInspection(record));
+      return true;
+    }, { done: "Exportado" });
   });
 }
 
@@ -2795,17 +2807,22 @@ function wireHistoryCascadeActionButtons() {
   elements.historyCascadePanel.querySelectorAll("[data-duplicate-id]").forEach((button) => {
     button.addEventListener("click", async () => {
       await duplicateInspection(button.dataset.duplicateId);
+      // El panel se cierra y con el se va el boton, asi que la confirmacion
+      // visual no alcanzaria a verse: queda el tono.
+      window.notifyFeedback?.("save");
       hideHistoryCascade();
     });
   });
 
   elements.historyCascadePanel.querySelectorAll("[data-export-id]").forEach((button) => {
-    button.addEventListener("click", async () => {
+    onAction(button, async () => {
       const record = await getInspection(button.dataset.exportId);
-      if (record) {
-        downloadInspectionJson(normalizeInspection(record));
+      if (!record) {
+        return false;
       }
-    });
+      downloadInspectionJson(normalizeInspection(record));
+      return true;
+    }, { done: "Exportado" });
   });
 }
 

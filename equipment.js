@@ -40,16 +40,67 @@ function openEquipmentEditor(equipmentId, options = {}) {
   focusEquipmentEditorSection(options.section);
 }
 
-function focusEquipmentEditorSection(section) {
-  if (!section) {
-    return;
+// El editor media mas de 4,000 pixeles con todo apilado. Ahora sus siete
+// bloques viven en cinco pestanas, con el mismo componente que usa Ajustes.
+let activeEquipmentSection = "equipment";
+
+function setupEquipmentEditorTabs() {
+  document.querySelectorAll("[data-editor-tab]").forEach((button) => {
+    button.addEventListener("click", () => setEquipmentEditorSection(button.dataset.editorTab, { scroll: true }));
+  });
+  // Sin esto los siete bloques quedarian visibles hasta el primer cambio de
+  // pestana, que es justo lo que se queria evitar.
+  setEquipmentEditorSection("equipment");
+}
+
+function setEquipmentEditorSection(sectionId = "equipment", options = {}) {
+  activeEquipmentSection = sectionId || "equipment";
+
+  document.querySelectorAll("[data-editor-tab]").forEach((button) => {
+    const isActive = button.dataset.editorTab === activeEquipmentSection;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+
+  // Los tres bloques de datos del equipo comparten seccion y se muestran juntos.
+  document.querySelectorAll("[data-editor-section]").forEach((panel) => {
+    panel.classList.toggle("hidden", panel.dataset.editorSection !== activeEquipmentSection);
+  });
+
+  updateEquipmentEditorTabBadges();
+
+  if (options.scroll) {
+    elements.equipmentEditorView?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
-  setTimeout(() => {
-    const target = document.querySelector(`[data-editor-section="${section}"]`);
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// Cada pestana avisa lo que lleva dentro, para no tener que abrirlas a ciegas.
+function updateEquipmentEditorTabBadges() {
+  const setBadge = (tab, text) => {
+    const button = document.querySelector(`[data-editor-tab="${tab}"]`);
+    if (!button) {
+      return;
     }
-  }, 120);
+    let badge = button.querySelector(".editor-tab-count");
+    if (!text) {
+      badge?.remove();
+      return;
+    }
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "editor-tab-count";
+      button.appendChild(badge);
+    }
+    badge.textContent = text;
+  };
+
+  setBadge("findings", currentEquipmentFindings.length ? String(currentEquipmentFindings.length) : "");
+  setBadge("evidence", currentEquipmentServicePhotos.length ? String(currentEquipmentServicePhotos.length) : "");
+  setBadge("checklist", currentChecklistImage ? "1" : "");
+}
+
+function focusEquipmentEditorSection(section) {
+  setEquipmentEditorSection(section || "equipment");
 }
 
 function loadEquipmentIntoEditor(equipment) {
@@ -224,6 +275,7 @@ async function addFindingPhotoFiles(files) {
   const encoded = await Promise.all(imageFiles.map((file) => imageFileToOptimizedPhoto(file, getPhotoConfig().maxSize)));
   editingPhotos = editingPhotos.concat(encoded);
   renderEditingPhotos();
+  window.notifyFeedback?.("capture");
 }
 
 async function addServicePhotoFiles(files) {
@@ -235,6 +287,7 @@ async function addServicePhotoFiles(files) {
   const encoded = await Promise.all(imageFiles.map((file) => imageFileToOptimizedPhoto(file, getPhotoConfig().maxSize)));
   currentEquipmentServicePhotos = currentEquipmentServicePhotos.concat(encoded);
   renderServicePhotos();
+  window.notifyFeedback?.("capture");
 }
 
 async function addChecklistImageFile(files) {
@@ -248,6 +301,7 @@ async function addChecklistImageFile(files) {
     ...(await imageFileToOptimizedPhoto(file, getPhotoConfig().checklistMaxSize))
   };
   renderChecklistImageStatus();
+  window.notifyFeedback?.("save");
 }
 
 function setupImageDropZone(dropZone, onFiles, options = {}) {
@@ -355,7 +409,7 @@ function buildPhotoThumb(photo, onRemove) {
 function saveFindingFromEditor() {
   if (!elements.findingEditorForm.reportValidity()) {
     elements.findingEditorForm.reportValidity();
-    return;
+    return false;
   }
 
   const findingId = elements.editingFindingId.value || createId();
@@ -382,11 +436,16 @@ function saveFindingFromEditor() {
 
   renderFindingsList();
   closeFindingEditor();
+  // Un hallazgo critico avisa distinto: es lo que no debe pasar desapercibido.
+  window.notifyFeedback?.(getFindingSeverity(finding) === "critical" ? "critical" : "save");
+
+  return true;
 }
 
 function renderFindingsList() {
   elements.findingsList.innerHTML = "";
   refreshOverallConditionFromFindings();
+  updateEquipmentEditorTabBadges();
 
   if (!currentEquipmentFindings.length) {
     elements.findingsList.innerHTML = '<div class="inline-empty-state">Todavia no hay hallazgos capturados para este equipo. Usa el boton de Anadir Hallazgo para registrar uno.</div>';
@@ -474,7 +533,7 @@ function restoreAutomaticOverallCondition() {
 function saveEquipmentFromEditor() {
   if (!elements.equipmentEditorForm.reportValidity()) {
     elements.equipmentEditorForm.reportValidity();
-    return;
+    return false;
   }
 
   updateNextInspectionFromMaintenanceDate();
@@ -528,6 +587,8 @@ function saveEquipmentFromEditor() {
     scheduleInspectionAutoSave("equipo guardado");
   }
   closeEquipmentEditor();
+
+  return true;
 }
 
 function renderEquipmentList() {
@@ -541,10 +602,28 @@ function renderEquipmentList() {
     return;
   }
 
+  const movingEquipment = movingEquipmentId
+    ? currentEquipments.find((item) => item.id === movingEquipmentId)
+    : null;
+  if (movingEquipment) {
+    const aviso = document.createElement("div");
+    aviso.className = "placement-hint";
+    aviso.innerHTML = `<strong>Moviendo: ${escapeHtml(normalizeEquipment(movingEquipment).equipmentName || "Equipo")}</strong><span>Elige el lugar donde quieres colocarlo</span>`;
+    elements.equipmentList.appendChild(aviso);
+  }
+
   currentEquipments.forEach((equipment, index) => {
     const normalized = normalizeEquipment(equipment);
+
+    if (movingEquipment && normalized.id !== movingEquipmentId) {
+      elements.equipmentList.appendChild(
+        buildPlacementSlot(`Colocar aquí, antes de ${escapeHtml(normalized.equipmentName || `Equipo ${index + 1}`)}`,
+          () => placeMovingEquipment(normalized.id, "before"))
+      );
+    }
+
     const shell = document.createElement("div");
-    shell.className = "list-card-shell equipment-list-card-shell";
+    shell.className = `list-card-shell equipment-list-card-shell${normalized.id === movingEquipmentId ? " is-moving" : ""}`;
     shell.draggable = true;
     shell.dataset.equipmentId = normalized.id;
     shell.title = "Arrastra para cambiar el orden";
@@ -593,11 +672,30 @@ function renderEquipmentList() {
       deleteEquipment(normalized.id);
     });
 
+    const moveButton = document.createElement("button");
+    moveButton.type = "button";
+    moveButton.className = "ghost-button equipment-move-button";
+    moveButton.textContent = normalized.id === movingEquipmentId ? "Cancelar" : "Mover";
+    moveButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleMovingEquipment(normalized.id);
+    });
+
     shell.appendChild(includeLabel);
     shell.appendChild(card);
+    shell.appendChild(moveButton);
     shell.appendChild(deleteButton);
     elements.equipmentList.appendChild(shell);
   });
+
+  if (movingEquipment) {
+    const ultimo = currentEquipments[currentEquipments.length - 1];
+    if (ultimo && ultimo.id !== movingEquipmentId) {
+      elements.equipmentList.appendChild(
+        buildPlacementSlot("Colocar aquí, al final", () => placeMovingEquipment(ultimo.id, "after"))
+      );
+    }
+  }
 
   if (typeof renderServiceStepContent === "function") {
     renderServiceStepContent();
@@ -646,6 +744,36 @@ function handleEquipmentDragLeave(event) {
   if (!event.currentTarget.contains(event.relatedTarget)) {
     clearEquipmentDropIndicator(event.currentTarget);
   }
+}
+
+let movingEquipmentId = "";
+
+function toggleMovingEquipment(equipmentId) {
+  movingEquipmentId = movingEquipmentId === equipmentId ? "" : equipmentId;
+  renderEquipmentList();
+}
+
+function placeMovingEquipment(targetEquipmentId, position) {
+  const sourceId = movingEquipmentId;
+  movingEquipmentId = "";
+  if (!sourceId || sourceId === targetEquipmentId) {
+    renderEquipmentList();
+    return;
+  }
+  reorderEquipment(sourceId, targetEquipmentId, position);
+  window.notifyFeedback?.("save");
+}
+
+function buildPlacementSlot(label, onPlace) {
+  const slot = document.createElement("button");
+  slot.type = "button";
+  slot.className = "placement-slot";
+  slot.innerHTML = `<span>${label}</span>`;
+  slot.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onPlace();
+  });
+  return slot;
 }
 
 function handleEquipmentDrop(event, targetEquipmentId) {

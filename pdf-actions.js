@@ -26,9 +26,11 @@ async function generatePdfReport() {
 
   try {
     await openReportPdfWindow(selectedInspection, popup);
+    window.notifyFeedback?.("success");
   } catch (error) {
     console.error("Error al generar PDF", error);
     popup.close();
+    window.notifyFeedback?.("error");
     const detail = error && error.message ? error.message : String(error || "Error desconocido");
     if (typeof showAppDialog === "function") {
       await showAppDialog({
@@ -74,8 +76,7 @@ async function optimizeEquipmentImagesForPdf(equipment) {
   const checklistImage = checklistSource
     ? {
         ...equipment.checklistImage,
-        dataUrl: await optimizeDataUrlImage(checklistSource, REPORT_PDF_CHECKLIST_MAX_SIZE),
-        thumbnailOnly: isPhotoThumbnailOnly(equipment.checklistImage)
+        dataUrl: await optimizeDataUrlImage(checklistSource, REPORT_PDF_CHECKLIST_MAX_SIZE, REPORT_PDF_CHECKLIST_QUALITY)
       }
     : equipment.checklistImage;
 

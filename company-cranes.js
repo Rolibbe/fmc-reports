@@ -332,8 +332,10 @@ function renderCompanyServiceRecentItem(record) {
   `;
 }
 
-async function buildCompanyCraneMaintenanceLookup(client, cranes) {
-  const records = (await getAllInspections()).map(normalizeInspection);
+async function buildCompanyCraneMaintenanceLookup(client, cranes, options = {}) {
+  const records = Array.isArray(options.records)
+    ? options.records
+    : (await getAllInspections()).map(normalizeInspection);
   const frequencyMonths = Number(getCompanyMaintenanceFrequency(client)) || getDefaultMaintenanceFrequencyMonths();
   const lookup = new Map();
 
@@ -447,7 +449,10 @@ function getMaintenanceCycleProgress(maintenance) {
     : Math.min(100, Math.max(8, Math.round((elapsedDays / totalDays) * 100)));
   const cycleThird = totalDays / 3;
 
-  if (daysRemaining < 0 || elapsedDays >= cycleThird * 2) {
+  if (daysRemaining < 0) {
+    return { status: "overdue", className: "maintenance-overdue", label: "Vencida", percent };
+  }
+  if (elapsedDays >= cycleThird * 2) {
     return { status: "soon", className: "maintenance-red", label: "Por vencer", percent };
   }
   if (elapsedDays >= cycleThird) {
@@ -552,11 +557,27 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map(), s
   `;
   const track = elements.companyCraneList.querySelector("[data-company-crane-track]");
 
+  const movingCrane = movingCompanyCraneId
+    ? cranes.find((item) => item.id === movingCompanyCraneId)
+    : null;
+  if (movingCrane) {
+    const aviso = document.createElement("div");
+    aviso.className = "placement-hint";
+    aviso.innerHTML = `<strong>Moviendo: ${escapeHtml(movingCrane.craneId || movingCrane.type || "Grua")}</strong><span>Elige el lugar donde quieres colocarla</span>`;
+    track.appendChild(aviso);
+  }
+
   cranes.forEach((crane) => {
+    if (movingCrane && crane.id !== movingCompanyCraneId) {
+      track.appendChild(
+        buildPlacementSlot(`Colocar aquí, antes de ${escapeHtml(crane.craneId || crane.type || "esta grua")}`,
+          () => placeMovingCompanyCrane(crane.id, "before"))
+      );
+    }
     const maintenance = maintenanceLookup.get(crane.id) || null;
     const health = calculateCraneHealth(client, crane, maintenance, { highSeverityCount: severityLookup.get(crane.id) || 0 });
     const card = document.createElement("article");
-    card.className = `company-crane-card ${health.className}`;
+    card.className = `company-crane-card ${health.className}${crane.id === movingCompanyCraneId ? " is-moving" : ""}`;
     card.dataset.companyCraneId = crane.id;
     card.addEventListener("dragover", handleCompanyCraneDragOver);
     card.addEventListener("dragleave", handleCompanyCraneDragLeave);
@@ -592,6 +613,7 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map(), s
       <p class="company-crane-open-hint">Clic para abrir ficha maestra</p>
       <div class="company-crane-actions">
         <button class="secondary-button" type="button" data-edit-company-crane-id="${escapeHtml(crane.id)}">Editar</button>
+        <button class="ghost-button" type="button" data-move-company-crane-id="${escapeHtml(crane.id)}">${crane.id === movingCompanyCraneId ? "Cancelar" : "Mover"}</button>
         <button class="ghost-button" type="button" data-delete-company-crane-id="${escapeHtml(crane.id)}">Quitar</button>
       </div>
     `;
@@ -601,8 +623,24 @@ function renderCompanyCraneList(client, cranes, maintenanceLookup = new Map(), s
     track.appendChild(card);
   });
 
+  if (movingCrane) {
+    const ultima = cranes[cranes.length - 1];
+    if (ultima && ultima.id !== movingCompanyCraneId) {
+      track.appendChild(
+        buildPlacementSlot("Colocar aquí, al final", () => placeMovingCompanyCrane(ultima.id, "after"))
+      );
+    }
+  }
+
   elements.companyCraneList.querySelectorAll("[data-edit-company-crane-id]").forEach((button) => {
     button.addEventListener("click", () => openCompanyCraneForm(button.dataset.editCompanyCraneId));
+  });
+
+  elements.companyCraneList.querySelectorAll("[data-move-company-crane-id]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleMovingCompanyCrane(button.dataset.moveCompanyCraneId);
+    });
   });
 
   elements.companyCraneList.querySelectorAll("[data-delete-company-crane-id]").forEach((button) => {
@@ -690,6 +728,7 @@ async function openCompanyCraneMasterFromMaintenance(clientName, craneId, tab = 
 }
 
 async function closeCompanyCraneFindingsModal() {
+  editingChecklistHistoryId = "";
   const { client, craneId, tab } = activeCompanyCraneMaster;
   if (tab === "checklist" && client && craneId) {
     await persistVisibleCompanyCraneChecklistDraft(client, craneId);
@@ -1017,7 +1056,22 @@ function renderCompanyCraneChecklistTab(client, crane) {
     return '<div class="inline-empty-state">No se encontro el catalogo de checklist. Revisa que checklist-config.js este cargado.</div>';
   }
 
+  const editando = editingChecklistHistoryId
+    ? checklistHistory.find((entry) => entry.id === editingChecklistHistoryId)
+    : null;
+
   return `
+    ${editando ? `
+    <div class="checklist-editing-banner">
+      <div>
+        <strong>Editando el checklist guardado del ${escapeHtml(formatDate(editando.savedAt) || editando.savedAt || "")}</strong>
+        <span>Los cambios se guardaran sobre ese registro, no se creara uno nuevo.</span>
+      </div>
+      <div class="checklist-editing-actions">
+        <button class="ghost-button" type="button" data-cancel-checklist-edit>Salir sin guardar</button>
+        <button class="primary-button" type="button" data-commit-checklist-edit>Guardar cambios</button>
+      </div>
+    </div>` : ""}
     <div class="crane-master-mini-summary">
       <article class="history-stat"><span>Bien</span><strong data-crane-checklist-summary="good">${totals.good}</strong></article>
       <article class="history-stat"><span>N/A</span><strong data-crane-checklist-summary="na">${totals.na}</strong></article>
@@ -1038,7 +1092,9 @@ function renderCompanyCraneChecklistTab(client, crane) {
         <button class="secondary-button" type="button" data-clear-crane-checklist>Limpiar checklist</button>
       </div>
     </div>
-    ${renderCraneChecklistExcelSheet(catalog, checklistState, client, crane)}
+    ${isCompactChecklistViewport()
+      ? renderCraneChecklistCompactView(catalog, checklistState, totals)
+      : renderCraneChecklistExcelSheet(catalog, checklistState, client, crane)}
     ${renderCraneChecklistHistory(checklistHistory)}
   `;
 }
@@ -1081,18 +1137,152 @@ function renderCraneChecklistHistory(history) {
       </div>
       <div class="crane-checklist-history-list">
         ${entries.map((entry) => `
-          <article>
+          <article class="${entry.id && entry.id === editingChecklistHistoryId ? "is-editing" : ""}">
             <div class="crane-checklist-history-info">
               <strong>${escapeHtml(entry.folio || "Sin folio")}</strong>
               <span>${escapeHtml(formatDate(entry.savedAt) || entry.savedAt || "")}</span>
-              <small>Bien ${Number(entry.totals?.good) || 0} | N/A ${Number(entry.totals?.na) || 0} | Mal ${Number(entry.totals?.bad) || 0}</small>
+              <small>Bien ${Number(entry.totals?.good) || 0} | N/A ${Number(entry.totals?.na) || 0} | Mal ${Number(entry.totals?.bad) || 0}${entry.updatedAt ? " | editado" : ""}</small>
             </div>
-            <button class="secondary-button checklist-history-pdf-button" type="button" data-pdf-saved-checklist="${escapeHtml(entry.id || "")}">PDF</button>
+            <div class="checklist-history-actions">
+              <button class="ghost-button" type="button" data-edit-saved-checklist="${escapeHtml(entry.id || "")}">Editar</button>
+              <button class="secondary-button checklist-history-pdf-button" type="button" data-pdf-saved-checklist="${escapeHtml(entry.id || "")}">PDF</button>
+            </div>
           </article>
         `).join("")}
       </div>
     </section>
   `;
+}
+
+// El checklist son 116 puntos en 16 categorias. La hoja de Excel de tres
+// columnas es util en escritorio, donde se transcribe el formato de papel,
+// pero en telefono es inservible. Ahi se usa esta vista: categorias plegadas,
+// filtros y acciones por lote.
+//
+// Nada se quita del DOM al filtrar ni al plegar, solo se oculta con CSS:
+// persistVisibleCompanyCraneChecklistDraft reconstruye el estado leyendo los
+// radios marcados, asi que un elemento retirado del DOM seria una respuesta
+// borrada.
+function isCompactChecklistViewport() {
+  if (typeof window.matchMedia !== "function") {
+    return false;
+  }
+  // Tambien en tableta: la hoja de tres columnas del Excel sirve para
+  // transcribir el papel con raton, no para responder 116 puntos con el dedo.
+  return window.matchMedia("(max-width: 820px)").matches
+    || window.matchMedia("(pointer: coarse)").matches;
+}
+
+function groupCraneChecklistByCategory(catalog) {
+  const groups = new Map();
+  catalog.forEach((item) => {
+    const category = item.category || "Checklist";
+    if (!groups.has(category)) {
+      groups.set(category, []);
+    }
+    groups.get(category).push(item);
+  });
+  return Array.from(groups.entries());
+}
+
+function summarizeChecklistItems(items, checklistState) {
+  return items.reduce((totals, item) => {
+    const status = getCraneChecklistStatus(checklistState, item.id);
+    totals[status || "pending"] += 1;
+    return totals;
+  }, { good: 0, na: 0, bad: 0, pending: 0 });
+}
+
+function renderChecklistCountChip(tone, value, title) {
+  return value
+    ? `<i class="is-${tone}" title="${escapeHtml(title)}">${value}</i>`
+    : "";
+}
+
+function renderCraneChecklistCompactView(catalog, checklistState, totals) {
+  const groups = groupCraneChecklistByCategory(catalog);
+
+  const filtro = (id, label, count) => `
+    <button class="checklist-filter-chip${id === "all" ? " is-active" : ""}" type="button" data-checklist-filter="${id}">
+      ${escapeHtml(label)}<span>${count}</span>
+    </button>
+  `;
+
+  return `
+    <div class="checklist-compact" data-checklist-filter-active="all">
+      <div class="checklist-filter" role="group" aria-label="Filtrar puntos del checklist">
+        ${filtro("all", "Todos", totals.total)}
+        ${filtro("pending", "Pendientes", totals.pending)}
+        ${filtro("bad", "No conformes", totals.bad)}
+      </div>
+
+      <button class="secondary-button checklist-bulk-all" type="button" data-checklist-bulk-all
+        ${totals.pending ? "" : "disabled"}>
+        ${totals.pending
+          ? `Marcar ${totals.pending} pendiente(s) como Bien`
+          : "No quedan puntos pendientes"}
+      </button>
+
+      <div class="checklist-groups">
+        ${groups.map(([category, items]) => {
+          const counts = summarizeChecklistItems(items, checklistState);
+          return `
+            <article class="checklist-cat is-collapsed" data-checklist-category="${escapeHtml(category)}">
+              <button class="checklist-cat-head" type="button" data-checklist-toggle aria-expanded="false">
+                <span class="checklist-cat-name">${escapeHtml(category)}</span>
+                <span class="checklist-cat-counts" data-checklist-category-counts>
+                  ${renderChecklistCountChip("good", counts.good, "Bien")}
+                  ${renderChecklistCountChip("na", counts.na, "No aplica")}
+                  ${renderChecklistCountChip("bad", counts.bad, "Mal")}
+                  ${renderChecklistCountChip("pending", counts.pending, "Pendientes")}
+                </span>
+                <span class="checklist-cat-caret" aria-hidden="true"></span>
+              </button>
+              <div class="checklist-cat-body">
+                <button class="ghost-button checklist-bulk-cat" type="button"
+                  data-checklist-bulk-category="${escapeHtml(category)}" ${counts.pending ? "" : "disabled"}>
+                  ${counts.pending ? `Marcar ${counts.pending} pendiente(s) como Bien` : "Categoria completa"}
+                </button>
+                ${items.map((item) => renderCraneChecklistItem(item, getCraneChecklistStatus(checklistState, item.id))).join("")}
+              </div>
+            </article>
+          `;
+        }).join("")}
+      </div>
+    </div>
+
+    <div class="checklist-sticky-bar">
+      <span data-crane-checklist-progress-mini>${totals.completed}/${totals.total}</span>
+      <button class="primary-button" type="button" data-save-crane-checklist>Guardar checklist</button>
+    </div>
+  `;
+}
+
+// Rellena de una sola escritura los puntos que siguen sin responder. No pisa
+// lo ya contestado: lo normal es marcar todo bien y luego corregir los pocos
+// que no lo estan, y al reves se perderia el trabajo hecho.
+async function markPendingChecklistItemsAsGood(client, crane, category) {
+  const catalog = getCraneChecklistCatalog();
+  const findings = readActiveCraneFindings();
+  const key = buildCraneChecklistKey(client, crane.id);
+  const current = findings[key] || {};
+  const objetivo = category
+    ? catalog.filter((item) => (item.category || "Checklist") === category)
+    : catalog;
+
+  const pendientes = objetivo.filter((item) => !getCraneChecklistStatus(current, item.id));
+  if (!pendientes.length) {
+    return 0;
+  }
+
+  findings[key] = { ...current };
+  pendientes.forEach((item) => {
+    findings[key][item.id] = { status: "good", description: getCraneChecklistDescription(current, item.id) };
+  });
+  findings[key]._updatedAt = new Date().toISOString();
+  await writeActiveCraneFindings(findings);
+  queueDataSync("checklist maestro actualizado");
+  return pendientes.length;
 }
 
 function renderCraneChecklistGroups(catalog, checklistState) {
@@ -1126,7 +1316,7 @@ function renderCraneChecklistItem(item, status) {
   const name = `checklist-status-${item.id}`;
   const label = `${item.number}. ${item.title}${item.clause ? ` - ${item.clause}` : ""}`;
   return `
-    <article class="crane-checklist-item ${status ? `is-${escapeHtml(status)}` : ""}">
+    <article class="crane-checklist-item ${status ? `is-${escapeHtml(status)}` : ""}" data-checklist-status="${escapeHtml(status || "pending")}">
       <div class="crane-checklist-item-title">
         <strong>${escapeHtml(label)}</strong>
         ${item.measure ? `<span>${escapeHtml(item.measure)}</span>` : ""}
@@ -1338,11 +1528,59 @@ function wireCompanyCraneChecklistChecks(client, crane) {
     });
   }
 
-  const saveButton = elements.companyCraneFindingsList.querySelector("[data-save-crane-checklist]");
-  if (saveButton) {
-    saveButton.addEventListener("click", async () => {
-      await persistVisibleCompanyCraneChecklistDraft(client, crane.id);
-      await saveCompanyCraneChecklistSnapshot(client, crane);
+  // En movil hay dos botones de guardar: el de la barra y el fijo de abajo.
+  elements.companyCraneFindingsList.querySelectorAll("[data-save-crane-checklist]").forEach((saveButton) => {
+    saveButton.addEventListener("click", (event) => {
+      runButtonAction(event.currentTarget, async () => {
+        await persistVisibleCompanyCraneChecklistDraft(client, crane.id);
+        await saveCompanyCraneChecklistSnapshot(client, crane);
+        return true;
+      }, { done: "Guardado" });
+    });
+  });
+
+  elements.companyCraneFindingsList.querySelectorAll("[data-edit-saved-checklist]").forEach((button) => {
+    button.addEventListener("click", () => startEditingSavedChecklist(client, crane, button.dataset.editSavedChecklist));
+  });
+
+  const commitButton = elements.companyCraneFindingsList.querySelector("[data-commit-checklist-edit]");
+  if (commitButton) {
+    onAction(commitButton, () => commitSavedChecklistEdit(client, crane), { done: "Guardado" });
+  }
+
+  const cancelEditButton = elements.companyCraneFindingsList.querySelector("[data-cancel-checklist-edit]");
+  if (cancelEditButton) {
+    cancelEditButton.addEventListener("click", () => cancelSavedChecklistEdit(client, crane));
+  }
+
+  const compact = elements.companyCraneFindingsList.querySelector(".checklist-compact");
+  if (compact) {
+    compact.querySelectorAll("[data-checklist-filter]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        compact.dataset.checklistFilterActive = chip.dataset.checklistFilter;
+        compact.querySelectorAll("[data-checklist-filter]").forEach((other) => {
+          other.classList.toggle("is-active", other === chip);
+        });
+      });
+    });
+
+    compact.querySelectorAll("[data-checklist-toggle]").forEach((head) => {
+      head.addEventListener("click", () => {
+        const card = head.closest(".checklist-cat");
+        const collapsed = card.classList.toggle("is-collapsed");
+        head.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      });
+    });
+
+    compact.querySelectorAll("[data-checklist-bulk-all], [data-checklist-bulk-category]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        const cambiados = await markPendingChecklistItemsAsGood(client, crane, button.dataset.checklistBulkCategory || "");
+        if (cambiados && typeof notifyFeedback === "function") {
+          notifyFeedback("save");
+        }
+        await renderCompanyCraneMasterModal();
+      });
     });
   }
 
@@ -1417,6 +1655,8 @@ function wireCompanyCraneChecklistChecks(client, crane) {
       delete findings[buildCraneChecklistMetaKey(client, crane.id)];
       await writeActiveCraneFindings(findings);
       queueDataSync("checklist maestro limpiado");
+      // El modal se vuelve a dibujar y el boton se va con el; queda el tono.
+      window.notifyFeedback?.("save");
       activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
       await renderCompanyCraneMasterModal();
     });
@@ -1478,6 +1718,10 @@ function updateCraneChecklistInputVisualState(input) {
       element.classList.add(`is-${status}`);
     }
   });
+
+  if (itemCard) {
+    itemCard.dataset.checklistStatus = status || "pending";
+  }
 }
 
 function refreshCraneChecklistCounters(client, crane) {
@@ -1500,6 +1744,25 @@ function refreshCraneChecklistCounters(client, crane) {
   if (progress) {
     progress.textContent = `${totals.completed}/${totals.total} puntos revisados`;
   }
+
+  root.querySelectorAll("[data-crane-checklist-progress-mini]").forEach((target) => {
+    target.textContent = `${totals.completed}/${totals.total}`;
+  });
+
+  root.querySelectorAll("[data-checklist-category]").forEach((card) => {
+    const category = card.dataset.checklistCategory || "";
+    const items = catalog.filter((item) => (item.category || "Checklist") === category);
+    const counts = summarizeChecklistItems(items, checklistState);
+    const target = card.querySelector("[data-checklist-category-counts]");
+    if (target) {
+      target.innerHTML = [
+        renderChecklistCountChip("good", counts.good, "Bien"),
+        renderChecklistCountChip("na", counts.na, "No aplica"),
+        renderChecklistCountChip("bad", counts.bad, "Mal"),
+        renderChecklistCountChip("pending", counts.pending, "Pendientes")
+      ].join("");
+    }
+  });
 
   root.querySelectorAll("[data-crane-checklist-category-count]").forEach((target) => {
     const category = target.dataset.craneChecklistCategoryCount || "";
@@ -1670,8 +1933,23 @@ function wireCompanyCraneFilesTab(client, crane) {
   if (addButton && fileInput) {
     addButton.addEventListener("click", () => fileInput.click());
     fileInput.addEventListener("change", async () => {
-      await addPermanentFilesToCrane(client, crane.id, Array.from(fileInput.files || []));
+      const archivos = Array.from(fileInput.files || []);
       fileInput.value = "";
+      if (!archivos.length) {
+        return;
+      }
+      addButton.classList.add("is-working");
+      try {
+        await addPermanentFilesToCrane(client, crane.id, archivos);
+        addButton.classList.remove("is-working");
+        confirmButton(addButton, archivos.length > 1 ? "Agregados" : "Agregado");
+        window.notifyFeedback?.("save");
+      } catch (error) {
+        addButton.classList.remove("is-working");
+        confirmButton(addButton, "No se pudo", "error");
+        window.notifyFeedback?.("error");
+        console.error("No se pudo agregar el archivo", error);
+      }
     });
   }
 
@@ -1898,6 +2176,99 @@ function readCompanyCraneChecklistHistory(client, craneId) {
   return readActiveCraneFindings()[buildCraneChecklistHistoryKey(client, craneId)] || [];
 }
 
+// Editar un checklist del historial. El registro guardado se carga como el
+// checklist activo de la grua, se corrige con la misma pantalla de siempre y
+// al terminar se escribe de vuelta sobre ese mismo registro, sin duplicarlo.
+let editingChecklistHistoryId = "";
+
+async function startEditingSavedChecklist(client, crane, entryId) {
+  const entry = readCompanyCraneChecklistHistory(client, crane.id).find((item) => item.id === entryId);
+  if (!entry) {
+    return;
+  }
+
+  const confirmado = typeof showConfirmModal === "function"
+    ? await showConfirmModal({
+      title: "Editar checklist guardado",
+      message: `Se cargara el checklist del ${formatDate(entry.savedAt) || entry.savedAt} para corregirlo. El checklist activo de esta grua sera reemplazado por esa version.`,
+      confirmLabel: "Cargar y editar"
+    })
+    : window.confirm("Se reemplazara el checklist activo con la version guardada. Continuar?");
+  if (!confirmado) {
+    return;
+  }
+
+  const findings = readActiveCraneFindings();
+  const checklistKey = buildCraneChecklistKey(client, crane.id);
+  findings[checklistKey] = (entry.items || []).reduce((state, item) => {
+    if (item?.id && ["good", "na", "bad"].includes(item.status)) {
+      state[item.id] = { status: item.status, description: item.description || "" };
+    }
+    return state;
+  }, { _updatedAt: new Date().toISOString() });
+  findings[buildCraneChecklistMetaKey(client, crane.id)] = {
+    ...readCompanyCraneChecklistMeta(client, crane.id),
+    folio: entry.folio || "",
+    updatedAt: new Date().toISOString()
+  };
+  await writeActiveCraneFindings(findings);
+
+  editingChecklistHistoryId = entryId;
+  activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
+  await renderCompanyCraneMasterModal();
+}
+
+async function commitSavedChecklistEdit(client, crane) {
+  const entryId = editingChecklistHistoryId;
+  if (!entryId) {
+    return false;
+  }
+
+  await persistVisibleCompanyCraneChecklistDraft(client, crane.id);
+
+  const catalog = getCraneChecklistCatalog();
+  const checklistState = readCompanyCraneChecklistState(client, crane.id);
+  const meta = readCompanyCraneChecklistMeta(client, crane.id);
+  const findings = readActiveCraneFindings();
+  const historyKey = buildCraneChecklistHistoryKey(client, crane.id);
+  const history = Array.isArray(findings[historyKey]) ? findings[historyKey] : [];
+  const indice = history.findIndex((item) => item.id === entryId);
+  if (indice < 0) {
+    editingChecklistHistoryId = "";
+    return false;
+  }
+
+  findings[historyKey] = history.map((item, i) => i !== indice ? item : {
+    ...item,
+    folio: meta.folio || item.folio || "",
+    totals: summarizeCraneChecklist(catalog, checklistState),
+    updatedAt: new Date().toISOString(),
+    items: catalog
+      .map((catalogItem) => ({
+        id: catalogItem.id,
+        number: catalogItem.number,
+        title: catalogItem.title,
+        category: catalogItem.category || "",
+        status: getCraneChecklistStatus(checklistState, catalogItem.id),
+        description: getCraneChecklistDescription(checklistState, catalogItem.id)
+      }))
+      .filter((catalogItem) => catalogItem.status)
+  });
+
+  await writeActiveCraneFindings(findings);
+  queueDataSync("checklist guardado editado");
+  editingChecklistHistoryId = "";
+  activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
+  await renderCompanyCraneMasterModal();
+  return true;
+}
+
+async function cancelSavedChecklistEdit(client, crane) {
+  editingChecklistHistoryId = "";
+  activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
+  await renderCompanyCraneMasterModal();
+}
+
 async function saveCompanyCraneChecklistSnapshot(client, crane) {
   const catalog = getCraneChecklistCatalog();
   const checklistState = readCompanyCraneChecklistState(client, crane.id);
@@ -2099,13 +2470,13 @@ function saveCompanyCraneFromForm() {
       message: "Tu rol actual no permite guardar cambios en equipos maestros.",
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
-    return;
+    return false;
   }
 
   const client = normalizeClientName(elements.companyRegistryClient.value);
   if (!client) {
     window.alert("Selecciona una empresa antes de guardar el equipo.");
-    return;
+    return false;
   }
 
   const registry = readCompanyCraneRegistry();
@@ -2151,6 +2522,8 @@ function saveCompanyCraneFromForm() {
   closeCompanyCraneForm();
   renderCompanyCraneRegistry();
   queueDataSync("equipo maestro guardado");
+
+  return true;
 }
 
 async function deleteCompanyCrane(craneId) {
@@ -2343,6 +2716,24 @@ function handleCompanyCraneDragLeave(event) {
   if (!event.currentTarget.contains(event.relatedTarget)) {
     clearEquipmentDropIndicator(event.currentTarget);
   }
+}
+
+let movingCompanyCraneId = "";
+
+function toggleMovingCompanyCrane(craneId) {
+  movingCompanyCraneId = movingCompanyCraneId === craneId ? "" : craneId;
+  renderCompanyCraneRegistry();
+}
+
+function placeMovingCompanyCrane(targetCraneId, position) {
+  const sourceId = movingCompanyCraneId;
+  movingCompanyCraneId = "";
+  if (!sourceId || sourceId === targetCraneId) {
+    renderCompanyCraneRegistry();
+    return;
+  }
+  reorderCompanyCrane(sourceId, targetCraneId, position);
+  window.notifyFeedback?.("save");
 }
 
 function handleCompanyCraneDrop(event, targetCraneId) {
@@ -2715,7 +3106,7 @@ async function saveCompanyLocationForCurrentCompany() {
       message: "Elige una empresa antes de guardar su ubicacion.",
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
-    return;
+    return false;
   }
 
   const location = normalizeCompanyLocation({
@@ -2732,7 +3123,7 @@ async function saveCompanyLocationForCurrentCompany() {
       message: "Revisa latitud y longitud. Deben ser numeros, por ejemplo 32.6245 y -115.4523.",
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
-    return;
+    return false;
   }
 
   selectCompanyRegistryClient(client, { render: false });
@@ -2752,6 +3143,8 @@ async function saveCompanyLocationForCurrentCompany() {
       tone: "ok"
     });
   }
+
+  return true;
 }
 
 function clearCompanyLocationInputs() {
@@ -2812,7 +3205,7 @@ async function addCompanyContactForCurrentCompany() {
   const client = normalizeClientName(elements.companyRegistryClient.value || elements.companyRegistrySearch.value);
   if (!client) {
     window.alert("Selecciona una empresa antes de agregar contactos.");
-    return;
+    return false;
   }
 
   const name = (elements.companyContactName.value || "").trim();
@@ -2820,7 +3213,7 @@ async function addCompanyContactForCurrentCompany() {
   const phone = (elements.companyContactPhone.value || "").trim();
   if (!name && !email && !phone) {
     window.alert("Escribe al menos un dato del contacto.");
-    return;
+    return false;
   }
 
   selectCompanyRegistryClient(client, { render: false });
@@ -2840,6 +3233,8 @@ async function addCompanyContactForCurrentCompany() {
   renderCompanyContacts(client);
   renderCompanyCraneRegistry();
   queueDataSync("contacto de empresa guardado");
+
+  return true;
 }
 
 async function deleteCompanyContact(client, contactId) {

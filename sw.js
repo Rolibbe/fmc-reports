@@ -1,4 +1,4 @@
-const CACHE_NAME = "crane-inspection-cache-v167";
+const CACHE_NAME = "crane-inspection-cache-v183";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -17,12 +17,16 @@ const APP_ASSETS = [
   "./maintenance-panel.js",
   "./clients-map.js",
   "./dashboard.js",
+  "./home-panel.js",
   "./supabase-config.js",
   "./cloud-sync.js",
   "./presence.js",
   "./app.js",
   "./report-generator.js",
   "./client-portal.js",
+  "./theme-config.js",
+  "./feedback.js",
+  "./action-feedback.js",
   "./report-template-config.js",
   "./finding-catalog-config.js",
   "./condition-severity-config.js",

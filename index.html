@@ -7,7 +7,20 @@
   <title>Servicios FMC</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="logo.png" type="image/png">
-  <link rel="stylesheet" href="styles.css?v=167">
+  <link rel="stylesheet" href="styles.css?v=183">
+  <script>
+    // Tema guardado en este dispositivo, aplicado antes del primer pintado.
+    (function () {
+      try {
+        var saved = localStorage.getItem("fmc-app-theme");
+        if (saved === "grafito" || saved === "arena") {
+          document.documentElement.setAttribute("data-theme", saved);
+        }
+      } catch (error) {
+        // Sin almacenamiento local se queda el tema por defecto.
+      }
+    })();
+  </script>
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -64,7 +77,7 @@
     </div>
   </section>
 
-  <span id="appVersionBadge" class="app-version-badge">Version 1.3.73</span>
+  <span id="appVersionBadge" class="app-version-badge">Version 1.3.89</span>
 
   <div id="appShell" class="app-shell">
     <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
@@ -156,7 +169,10 @@
       <div class="mobile-brand">
         <span>FMC</span>
         <div>
-          <strong>Servicios</strong>
+          <div class="mobile-brand-title">
+            <strong>Servicios</strong>
+            <span id="mobileAppVersion" class="mobile-version"></span>
+          </div>
           <small id="mobileCloudStatus">Nube sin sesion</small>
         </div>
       </div>
@@ -273,61 +289,22 @@
 
     <main class="main-content">
       <section class="panel app-view hidden" id="homeView">
-        <div class="system-home-actions">
-          <button id="homeNewReportButton" class="primary-button" type="button">Nuevo servicio</button>
-          <button id="homeFieldModeButton" class="secondary-button" type="button">Modo campo</button>
-        </div>
-
-        <div id="homeStatsGrid" class="home-stats-grid"></div>
-
-        <div class="home-module-grid" aria-label="Modulos principales">
-          <button id="homeDashboardButton" class="home-module-card" type="button">
-            <span>01</span>
-            <strong>Dashboard</strong>
-            <small>Indicadores, graficas y empresas criticas.</small>
-          </button>
-          <button id="homeClientsButton" class="home-module-card" type="button">
-            <span>02</span>
-            <strong>Empresas y equipos</strong>
-            <small>Base de datos por empresa, fichas tecnicas y checklist.</small>
-          </button>
-          <button id="homeReportsButton" class="home-module-card" type="button">
-            <span>03</span>
-            <strong>Servicios</strong>
-            <small>Historial por empresa, servicio y reporte PDF.</small>
-          </button>
-          <button id="homeMaintenanceButton" class="home-module-card" type="button">
-            <span>04</span>
-            <strong>Mantenimiento</strong>
-            <small>Vencidas, por vencer y sin fecha.</small>
-          </button>
-          <button id="homeWorkOrdersButton" class="home-module-card" type="button">
-            <span>05</span>
-            <strong>Agenda</strong>
-            <small>Ordenes de trabajo y servicios programados.</small>
-          </button>
-          <button id="homeSyncButton" class="home-module-card" type="button">
-            <span>06</span>
-            <strong>Sincronizacion</strong>
-            <small>Datos, evidencias, pendientes y errores.</small>
-          </button>
-          <button id="homeSettingsButton" class="home-module-card" type="button">
-            <span>07</span>
-            <strong>Configuracion</strong>
-            <small>Clientes, polipastos, PDF, roles y respaldos.</small>
-          </button>
-        </div>
-
-        <section class="home-critical-panel">
-          <div class="section-header">
-            <div>
-              <p class="eyebrow">Atencion rapida</p>
-              <h3>Prioridades del dia</h3>
-            </div>
+        <header class="home-board-header">
+          <div>
+            <p class="eyebrow">Panel principal</p>
+            <h2>Resumen ejecutivo</h2>
+            <p id="homeBoardPeriod" class="page-subtitle"></p>
+          </div>
+          <div class="home-board-actions">
+            <button id="homeNewReportButton" class="primary-button" type="button">Nuevo servicio</button>
+            <button id="homeFieldModeButton" class="secondary-button" type="button">Modo campo</button>
             <button id="homeRefreshButton" class="ghost-button" type="button">Actualizar</button>
           </div>
-          <div id="homeCriticalList" class="home-critical-list"></div>
-        </section>
+        </header>
+
+        <div id="homeStatsGrid" class="home-kpi-row"></div>
+        <div id="homeBoardCharts" class="home-board-charts"></div>
+        <div id="homeCriticalList" class="home-board-rankings"></div>
       </section>
 
       <section class="panel app-view hidden client-portal-view" id="clientPortalView">
@@ -515,29 +492,6 @@
                 </div>
               </section>
 
-              <section class="subpanel service-step-panel" data-service-step-panel="asset">
-                <div class="section-header">
-                  <div>
-                    <p class="eyebrow">Tipo de equipo</p>
-                    <h3>Linea del servicio</h3>
-                  </div>
-                </div>
-                <div class="grid two-column">
-                  <label>
-                    Linea de servicio
-                    <select id="assetType" name="assetType">
-                      <option value="cranes">Gruas</option>
-                      <option value="racks">Racks</option>
-                      <option value="other">Otro / futuro modulo</option>
-                    </select>
-                  </label>
-                  <div class="service-step-note">
-                    <strong>Base del flujo</strong>
-                    <span>Esta seleccion define si el servicio se captura como gruas, racks o un modulo futuro.</span>
-                  </div>
-                </div>
-              </section>
-
               <section class="subpanel service-step-panel" data-service-step-panel="service">
                 <div class="section-header">
                   <div>
@@ -551,6 +505,7 @@
                     <input id="reportNumber" name="reportNumber" type="text" placeholder="Ej. 26-140">
                   </label>
                   <input id="serviceMode" name="serviceMode" type="hidden" value="preventive">
+                  <input id="assetType" name="assetType" type="hidden" value="cranes">
                   <label>
                     Descripcion del servicio
                     <select id="serviceType" name="serviceType">
@@ -582,46 +537,6 @@
                 <div id="equipmentList" class="findings-list"></div>
               </section>
 
-              <section class="subpanel service-step-panel" data-service-step-panel="checklist">
-                <div class="section-header">
-                  <div>
-                    <p class="eyebrow">Checklist</p>
-                    <h3>Revision por equipo</h3>
-                  </div>
-                </div>
-                <div id="serviceChecklistStepContent" class="service-step-cards"></div>
-              </section>
-
-              <section class="subpanel service-step-panel" data-service-step-panel="findings">
-                <div class="section-header">
-                  <div>
-                    <p class="eyebrow">Hallazgos</p>
-                    <h3>No conformidades detectadas</h3>
-                  </div>
-                </div>
-                <div id="serviceFindingsStepContent" class="service-step-cards"></div>
-              </section>
-
-              <section class="subpanel service-step-panel" data-service-step-panel="evidence">
-                <div class="section-header">
-                  <div>
-                    <p class="eyebrow">Evidencias</p>
-                    <h3>Fotos y checklist escaneado</h3>
-                  </div>
-                </div>
-                <div id="serviceEvidenceStepContent" class="service-step-cards"></div>
-              </section>
-
-              <section class="subpanel service-step-panel" data-service-step-panel="summary">
-                <div class="section-header">
-                  <div>
-                    <p class="eyebrow">Resumen</p>
-                    <h3>Condicion general y recomendaciones</h3>
-                  </div>
-                </div>
-                <div id="serviceSummaryStepContent" class="service-step-cards"></div>
-              </section>
-
               <section class="subpanel service-step-panel" data-service-step-panel="pdf">
                 <div class="section-header">
                   <div>
@@ -648,10 +563,19 @@
             <p class="eyebrow">Equipo</p>
             <h2 id="equipmentEditorTitle">Nuevo equipo</h2>
           </div>
-          <div class="toolbar">
+          <div class="toolbar thumb-bar">
             <button id="cancelEquipmentButton" class="ghost-button" type="button">Cancelar</button>
             <button id="saveEquipmentButton" class="primary-button" type="button">Guardar Equipo</button>
           </div>
+        </div>
+
+        <div class="settings-section-tabs editor-section-tabs" role="tablist" aria-label="Secciones del equipo">
+          <button class="settings-section-tab" type="button" data-editor-tab="equipment">Equipo</button>
+          <button class="settings-section-tab" type="button" data-editor-tab="hoist">Polipasto</button>
+          <button class="settings-section-tab" type="button" data-editor-tab="checklist">Checklist</button>
+          <button class="settings-section-tab" type="button" data-editor-tab="findings">Hallazgos</button>
+          <button class="settings-section-tab" type="button" data-editor-tab="evidence">Evidencia</button>
+          <button class="settings-section-tab" type="button" data-editor-tab="summary">Resumen</button>
         </div>
 
         <form id="equipmentEditorForm">
@@ -713,7 +637,7 @@
             </div>
           </section>
 
-          <section class="subpanel editor-subpanel" data-editor-section="equipment">
+          <section class="subpanel editor-subpanel" data-editor-section="hoist">
             <div class="section-header">
               <div>
                 <p class="eyebrow">Datos del polipasto</p>
@@ -860,7 +784,7 @@
             <p class="eyebrow">Hallazgo</p>
             <h2 id="findingEditorTitle">Nuevo hallazgo</h2>
           </div>
-          <div class="toolbar">
+          <div class="toolbar thumb-bar">
             <button id="cancelFindingButton" class="ghost-button" type="button">Cancelar</button>
             <button id="saveFindingButton" class="primary-button" type="button">Guardar el Hallazgo</button>
           </div>
@@ -1185,6 +1109,17 @@
           </section>
 
           <section class="subpanel" data-settings-section-panel="general">
+            <p class="eyebrow">Apariencia</p>
+            <h3>Tema de color</h3>
+            <p class="field-hint">Se aplica al instante en todas las secciones y se guarda solo en este dispositivo.</p>
+            <div id="appThemePicker" class="theme-picker"></div>
+
+            <h3>Avisos de la app</h3>
+            <p class="field-hint">Confirmaciones para lo que no alcanzas a ver: evidencia guardada, hallazgo critico, sincronizacion y errores. Nunca suena en un boton comun.</p>
+            <div id="feedbackControls" class="feedback-controls"></div>
+          </section>
+
+          <section class="subpanel" data-settings-section-panel="general">
             <p class="eyebrow">Mantenimiento y textos</p>
             <div class="grid two-column">
               <label>
@@ -1250,7 +1185,7 @@
               </label>
               <label>
                 Tamano maximo checklist
-                <input id="settingsChecklistMaxSize" type="number" min="900" max="2200" step="50">
+                <input id="settingsChecklistMaxSize" type="number" min="900" max="2600" step="50">
               </label>
               <label>
                 Calidad
@@ -1585,30 +1520,34 @@
     <button id="mobileMoreButton" type="button"><span>...</span>Mas</button>
   </nav>
 
-  <script src="report-template-config.js?v=167"></script>
-  <script src="finding-catalog-config.js?v=167"></script>
-  <script src="condition-severity-config.js?v=167"></script>
-  <script src="checklist-config.js?v=167"></script>
-  <script src="findings.js?v=167"></script>
-  <script src="ui-modals.js?v=167"></script>
-  <script src="crane-checklist-ui.js?v=167"></script>
-  <script src="crane-checklist-pdf.js?v=167"></script>
-  <script src="company-cranes.js?v=167"></script>
-  <script src="equipment.js?v=167"></script>
-  <script src="pdf-actions.js?v=167"></script>
-  <script src="backup.js?v=167"></script>
-  <script src="storage.js?v=167"></script>
-  <script src="settings.js?v=167"></script>
-  <script src="operations.js?v=167"></script>
-  <script src="maintenance-panel.js?v=167"></script>
-  <script src="clients-map.js?v=167"></script>
-  <script src="dashboard.js?v=167"></script>
-  <script src="report-generator.js?v=167"></script>
-  <script src="client-portal.js?v=167"></script>
-  <script src="supabase-config.js?v=167"></script>
-  <script src="cloud-sync.js?v=167"></script>
-  <script src="presence.js?v=167"></script>
-  <script src="app.js?v=167"></script>
+  <script src="theme-config.js?v=183"></script>
+  <script src="feedback.js?v=183"></script>
+  <script src="action-feedback.js?v=183"></script>
+  <script src="report-template-config.js?v=183"></script>
+  <script src="finding-catalog-config.js?v=183"></script>
+  <script src="condition-severity-config.js?v=183"></script>
+  <script src="checklist-config.js?v=183"></script>
+  <script src="findings.js?v=183"></script>
+  <script src="ui-modals.js?v=183"></script>
+  <script src="crane-checklist-ui.js?v=183"></script>
+  <script src="crane-checklist-pdf.js?v=183"></script>
+  <script src="company-cranes.js?v=183"></script>
+  <script src="equipment.js?v=183"></script>
+  <script src="pdf-actions.js?v=183"></script>
+  <script src="backup.js?v=183"></script>
+  <script src="storage.js?v=183"></script>
+  <script src="settings.js?v=183"></script>
+  <script src="operations.js?v=183"></script>
+  <script src="maintenance-panel.js?v=183"></script>
+  <script src="clients-map.js?v=183"></script>
+  <script src="dashboard.js?v=183"></script>
+  <script src="home-panel.js?v=183"></script>
+  <script src="report-generator.js?v=183"></script>
+  <script src="client-portal.js?v=183"></script>
+  <script src="supabase-config.js?v=183"></script>
+  <script src="cloud-sync.js?v=183"></script>
+  <script src="presence.js?v=183"></script>
+  <script src="app.js?v=183"></script>
 </body>
 </html>
 

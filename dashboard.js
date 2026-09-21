@@ -109,6 +109,7 @@ function buildDashboardMetrics(data) {
   const technicianCounts = {};
   const serviceTypeCounts = {};
   const monthCounts = {};
+  const criticalMonthCounts = {};
   const craneFindingCounts = {};
   const checklistBadCounts = {};
   const highSeverityByClient = {};
@@ -127,7 +128,8 @@ function buildDashboardMetrics(data) {
     const client = normalizeClientName(inspection.plantName) || "Sin cliente";
     incrementCount(serviceTypeCounts, inspection.serviceType || "Sin servicio");
     incrementCount(technicianCounts, inspection.technicianName || "Sin tecnico");
-    incrementCount(monthCounts, getDashboardMonthKey(inspection.inspectionDate));
+    const inspectionMonth = getDashboardMonthKey(inspection.inspectionDate);
+    incrementCount(monthCounts, inspectionMonth);
     (inspection.equipments || []).forEach((equipment) => {
       totalEquipments += 1;
       incrementCount(conditionCounts, equipment.overallCondition || "Sin estado");
@@ -141,6 +143,7 @@ function buildDashboardMetrics(data) {
         incrementCount(craneFindingCounts, craneKey);
         if (typeof isHighSeverityFinding === "function" && isHighSeverityFinding(finding)) {
           incrementCount(highSeverityByClient, client);
+          incrementCount(criticalMonthCounts, inspectionMonth);
           highSeverityFindings += 1;
         }
         totalFindings += 1;
@@ -191,6 +194,7 @@ function buildDashboardMetrics(data) {
     topTechnician: topEntries(technicianCounts, 1),
     services: topEntries(serviceTypeCounts, 6),
     monthTrend: months.map((month) => ({ label: formatDashboardMonth(month), value: monthCounts[month] || 0 })),
+    criticalTrend: months.map((month) => ({ label: formatDashboardMonth(month), value: criticalMonthCounts[month] || 0 })),
     topCranesByFindings: topEntries(craneFindingCounts, 8),
     criticalCompanies: topEntries(criticalCompanyCounts, 8),
     checklistRisk: topEntries(checklistBadCounts, 8),

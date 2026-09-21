@@ -709,6 +709,7 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
     if (!silent) {
       const hasPendingEvidence = Boolean(localReportRows.evidence?.warnings?.length);
       const hasConflicts = uniqueConflicts.length > 0;
+      window.notifyFeedback?.(hasPendingEvidence || hasConflicts ? "error" : "success");
       const conflictText = hasConflicts
         ? `\n\nPosible edicion simultanea: ${uniqueConflicts.length} reporte(s) fueron editados en este dispositivo y tambien en otro antes de sincronizar, y se aplico la version mas reciente. Revisa: ${uniqueConflicts.map((item) => item.reportNumber).slice(0, 8).join(", ")}.`
         : "";
@@ -727,6 +728,7 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
       markCloudDataPending(options.source || "sincronizacion pendiente");
       throw error;
     }
+    window.notifyFeedback?.("error");
     await showAppDialog({
       title: "No se pudo sincronizar",
       message: "La app sigue funcionando localmente. Revisa sesion, internet o permisos de Supabase.",

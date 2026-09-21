@@ -59,7 +59,7 @@ function addQuickFindingsFromInput() {
   const numbers = parseQuickFindingNumbers(rawValue);
   if (!numbers.length) {
     window.alert("Escribe el numero del hallazgo que quieres agregar.");
-    return;
+    return false;
   }
 
   const missingNumbers = [];
@@ -83,6 +83,9 @@ function addQuickFindingsFromInput() {
   if (missingNumbers.length) {
     window.alert(`No encontre hallazgos con numero: ${missingNumbers.join(", ")}.`);
   }
+
+  // Solo se confirma si de verdad entro algun hallazgo.
+  return addedFindings.length > 0;
 }
 
 function parseQuickFindingNumbers(value) {

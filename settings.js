@@ -12,7 +12,8 @@ const DEFAULT_APP_SETTINGS = {
   defaultMaintenanceFrequency: 6,
   fixedRecommendationText: SETTINGS_DEFAULT_RECOMMENDATION_TEXT,
   photoMaxSize: 1150,
-  checklistMaxSize: 1500,
+  checklistMaxSize: 2000,
+  checklistResolutionRaisedAt: "",
   photoQuality: 0.62,
   userRoles: {},
   clientAccess: {},
@@ -38,7 +39,29 @@ async function initializeAppSettings() {
     appSettingsCache = normalizeAppSettings(null);
   }
   await seedCraneTypesIfNeverConfigured();
+  await raiseChecklistResolutionOnce();
   applyPdfTemplateSettings();
+}
+
+// El checklist se capturaba a 1500 px y el texto fino no se alcanzaba a leer
+// impreso. Se sube una sola vez, y solo si el valor seguia siendo el anterior
+// por defecto: a quien lo haya ajustado a mano no se le toca.
+async function raiseChecklistResolutionOnce() {
+  if (appSettingsCache.checklistResolutionRaisedAt) {
+    return;
+  }
+  const migrated = {
+    ...appSettingsCache,
+    checklistMaxSize: appSettingsCache.checklistMaxSize === 1500
+      ? DEFAULT_APP_SETTINGS.checklistMaxSize
+      : appSettingsCache.checklistMaxSize,
+    checklistResolutionRaisedAt: new Date().toISOString()
+  };
+  try {
+    await writeAppSettings(migrated);
+  } catch (error) {
+    appSettingsCache = normalizeAppSettings(migrated);
+  }
 }
 
 // La lista de tipos de grua se siembra una sola vez. A partir de ahi la unica
@@ -86,7 +109,8 @@ function normalizeAppSettings(settings) {
     defaultMaintenanceFrequency: clampNumber(source.defaultMaintenanceFrequency, 1, 12, DEFAULT_APP_SETTINGS.defaultMaintenanceFrequency),
     fixedRecommendationText: String(source.fixedRecommendationText || DEFAULT_APP_SETTINGS.fixedRecommendationText),
     photoMaxSize: clampNumber(source.photoMaxSize, 700, 1800, DEFAULT_APP_SETTINGS.photoMaxSize),
-    checklistMaxSize: clampNumber(source.checklistMaxSize, 900, 2200, DEFAULT_APP_SETTINGS.checklistMaxSize),
+    checklistMaxSize: clampNumber(source.checklistMaxSize, 900, 2600, DEFAULT_APP_SETTINGS.checklistMaxSize),
+    checklistResolutionRaisedAt: source.checklistResolutionRaisedAt || "",
     photoQuality: clampNumber(source.photoQuality, 0.35, 0.9, DEFAULT_APP_SETTINGS.photoQuality),
     userRoles: normalizeUserRoles(source.userRoles),
     clientAccess: normalizeClientAccess(source.clientAccess),
@@ -447,7 +471,7 @@ async function saveSettingsFromForm() {
       message: "Tu rol actual no permite modificar la configuracion.",
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
-    return;
+    return false;
   }
 
   const previousClients = normalizeClientNames(await readClientPlantsFromFile());
@@ -464,7 +488,7 @@ async function saveSettingsFromForm() {
       ]
     });
     if (result !== "delete") {
-      return;
+      return false;
     }
   }
   for (const client of removedClients) {
@@ -528,6 +552,8 @@ async function saveSettingsFromForm() {
       : "",
     actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
   });
+
+  return true;
 }
 
 function addPolipastoToSettingsList() {
@@ -573,7 +599,7 @@ async function resetSettingsToDefaults() {
       message: "Tu rol actual no permite restaurar la configuracion.",
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
-    return;
+    return false;
   }
 
   const result = await showAppDialog({
@@ -585,7 +611,7 @@ async function resetSettingsToDefaults() {
     ]
   });
   if (result !== "reset") {
-    return;
+    return false;
   }
   await writeAppSettings({
     ...DEFAULT_APP_SETTINGS,
@@ -597,6 +623,8 @@ async function resetSettingsToDefaults() {
   await loadClientPlantOptions();
   await loadPolipastoOptions();
   await loadCraneTypeOptions();
+
+  return true;
 }
 
 async function loadPolipastoOptions() {
