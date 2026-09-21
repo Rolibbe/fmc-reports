@@ -406,6 +406,10 @@ function buildPhotoThumb(photo, onRemove) {
   return wrapper;
 }
 
+function resetFindingPlacement() {
+  movingFindingId = "";
+}
+
 function saveFindingFromEditor() {
   if (!elements.findingEditorForm.reportValidity()) {
     elements.findingEditorForm.reportValidity();
@@ -442,6 +446,41 @@ function saveFindingFromEditor() {
   return true;
 }
 
+let movingFindingId = "";
+
+function toggleMovingFinding(findingId) {
+  movingFindingId = movingFindingId === findingId ? "" : findingId;
+  renderFindingsList();
+}
+
+function placeMovingFinding(targetFindingId, position) {
+  const sourceId = movingFindingId;
+  movingFindingId = "";
+  if (!sourceId || sourceId === targetFindingId) {
+    renderFindingsList();
+    return;
+  }
+  reorderFinding(sourceId, targetFindingId, position);
+  window.notifyFeedback?.("save");
+}
+
+function reorderFinding(sourceFindingId, targetFindingId, position) {
+  const sourceIndex = currentEquipmentFindings.findIndex((item) => item.id === sourceFindingId);
+  if (sourceIndex < 0) {
+    renderFindingsList();
+    return;
+  }
+
+  const [moved] = currentEquipmentFindings.splice(sourceIndex, 1);
+  const targetIndex = currentEquipmentFindings.findIndex((item) => item.id === targetFindingId);
+  if (targetIndex < 0) {
+    currentEquipmentFindings.push(moved);
+  } else {
+    currentEquipmentFindings.splice(position === "after" ? targetIndex + 1 : targetIndex, 0, moved);
+  }
+  renderFindingsList();
+}
+
 function renderFindingsList() {
   elements.findingsList.innerHTML = "";
   refreshOverallConditionFromFindings();
@@ -452,9 +491,26 @@ function renderFindingsList() {
     return;
   }
 
+  const movingFinding = movingFindingId
+    ? currentEquipmentFindings.find((item) => item.id === movingFindingId)
+    : null;
+  if (movingFinding) {
+    const aviso = document.createElement("div");
+    aviso.className = "placement-hint";
+    aviso.innerHTML = `<strong>Moviendo: ${escapeHtml(movingFinding.category || "Hallazgo")}</strong><span>Elige el lugar donde quieres colocarlo</span>`;
+    elements.findingsList.appendChild(aviso);
+  }
+
   currentEquipmentFindings.forEach((finding, index) => {
+    if (movingFinding && finding.id !== movingFindingId) {
+      elements.findingsList.appendChild(
+        buildPlacementSlot(`Colocar aquí, antes del hallazgo ${index + 1}`,
+          () => placeMovingFinding(finding.id, "before"))
+      );
+    }
+
     const shell = document.createElement("div");
-    shell.className = "list-card-shell";
+    shell.className = `list-card-shell${finding.id === movingFindingId ? " is-moving" : ""}`;
     const card = document.createElement("button");
     card.type = "button";
     card.className = "finding-list-card";
@@ -479,10 +535,29 @@ function renderFindingsList() {
       deleteFinding(finding.id);
     });
 
+    const moveButton = document.createElement("button");
+    moveButton.type = "button";
+    moveButton.className = "ghost-button equipment-move-button";
+    moveButton.textContent = finding.id === movingFindingId ? "Cancelar" : "Mover";
+    moveButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleMovingFinding(finding.id);
+    });
+
     shell.appendChild(card);
+    shell.appendChild(moveButton);
     shell.appendChild(deleteButton);
     elements.findingsList.appendChild(shell);
   });
+
+  if (movingFinding) {
+    const ultimo = currentEquipmentFindings[currentEquipmentFindings.length - 1];
+    if (ultimo && ultimo.id !== movingFindingId) {
+      elements.findingsList.appendChild(
+        buildPlacementSlot("Colocar aquí, al final", () => placeMovingFinding(ultimo.id, "after"))
+      );
+    }
+  }
 }
 
 function setOverallConditionValue(value) {

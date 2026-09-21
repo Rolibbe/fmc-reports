@@ -22,8 +22,15 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.89";
+const APP_VERSION = "1.3.90";
 const APP_RELEASE_NOTES = {
+  "1.3.90": {
+    title: "Actualizacion 1.3.90",
+    summary: [
+      "Los hallazgos de cada equipo se pueden reacomodar con el mismo boton Mover de los equipos y las gruas.",
+      "El orden define la numeracion del reporte y el orden de las paginas de evidencia del PDF."
+    ]
+  },
   "1.3.89": {
     title: "Actualizacion 1.3.89",
     summary: [
