@@ -2199,7 +2199,7 @@ textarea[readonly] {
 }
 
 .equipment-list-card-shell {
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .list-card-shell[draggable="true"] {
@@ -7446,11 +7446,11 @@ body[data-access-mode="client"] .main-content {
   }
 
   .list-card-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .equipment-list-card-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .list-card-shell.drop-before::before,
@@ -9008,4 +9008,120 @@ button.is-failed::before {
 .crane-checklist-history-list article.is-editing {
   border-color: var(--accent);
   background: var(--accent-soft);
+}
+
+
+/* ---------------------------------------------------------------------
+   Nivel de sonido
+--------------------------------------------------------------------- */
+.feedback-level-group {
+  display: grid;
+  gap: 8px;
+}
+
+.feedback-level-title {
+  margin: 0;
+  color: var(--brand);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.feedback-level-option input {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.feedback-level-option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+
+/* ---------------------------------------------------------------------
+   Menu de la tarjeta y equipo finalizado
+   Un solo boton por tarjeta libera el ancho que antes se repartian la
+   casilla del PDF, Mover y Eliminar.
+--------------------------------------------------------------------- */
+.card-menu-button {
+  width: 46px;
+  min-width: 46px;
+  align-self: stretch;
+  min-height: 48px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.card-menu-button:hover,
+.card-menu-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.list-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.list-card-heading p {
+  margin: 0;
+  min-width: 0;
+}
+
+.equipment-status-tag {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.equipment-status-tag.is-completed {
+  background: rgb(22 163 74 / 0.14);
+  color: #15803d;
+}
+
+/* Franja verde al costado: se distingue de un vistazo en una lista larga sin
+   convertir la pantalla en un bloque de color. */
+.list-card-shell.is-completed .finding-list-card {
+  border-left: 4px solid #16a34a;
+}
+
+.equipment-progress {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.equipment-progress strong {
+  color: var(--brand);
+  font-size: 0.95rem;
+}
+
+.equipment-progress.is-complete {
+  border-color: rgb(22 163 74 / 0.45);
+  background: rgb(22 163 74 / 0.1);
+}
+
+.equipment-progress.is-complete strong {
+  color: #15803d;
 }

@@ -22,8 +22,31 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.90";
+const APP_VERSION = "1.3.93";
 const APP_RELEASE_NOTES = {
+  "1.3.93": {
+    title: "Actualizacion 1.3.93",
+    summary: [
+      "El boton de descarga de Empresas y equipos ahora se llama Descargar listado de equipos."
+    ]
+  },
+  "1.3.92": {
+    title: "Actualizacion 1.3.92",
+    summary: [
+      "Nuevo boton Descargar listado de equipos en Empresas y equipos: baja la lista en Excel.",
+      "El archivo trae Id, Area, Tipo de grua, Capacidad estructura, Capacidad polipasto, Voltaje, Marca, Modelo y Numero de serie.",
+      "Se puede bajar solo la empresa activa o todas, y cuando son varias se agrega la columna de Empresa."
+    ]
+  },
+  "1.3.91": {
+    title: "Actualizacion 1.3.91",
+    summary: [
+      "El sonido ahora tiene tres niveles en Ajustes: Apagado, Solo importantes y Todo.",
+      "En el nivel Todo suena un clic corto en cada boton y un tono al elegir una opcion del checklist, una pestana o una casilla.",
+      "Cada tarjeta de equipo y de hallazgo tiene un solo boton de acciones en lugar de Mover, Eliminar y la casilla del PDF.",
+      "Los equipos se pueden marcar como finalizados: llevan franja verde, sello y un contador de cuantos van."
+    ]
+  },
   "1.3.90": {
     title: "Actualizacion 1.3.90",
     summary: [
@@ -635,6 +658,7 @@ const elements = {
   consolidatedHistoryTable: document.getElementById("consolidatedHistoryTable"),
   closeCompanyCraneRegistryButton: document.getElementById("closeCompanyCraneRegistryButton"),
   refreshCompanyCraneRegistryButton: document.getElementById("refreshCompanyCraneRegistryButton"),
+  exportCompanyCraneRegistryButton: document.getElementById("exportCompanyCraneRegistryButton"),
   syncCompanyRegistryButton: document.getElementById("syncCompanyRegistryButton"),
   deleteCompanyRegistryButton: document.getElementById("deleteCompanyRegistryButton"),
   startCompanyServiceButton: document.getElementById("startCompanyServiceButton"),
@@ -1025,6 +1049,7 @@ function setupAppActions() {
   onAction(elements.refreshMaintenancePanelButton, renderMaintenancePanel, { done: "Actualizado", working: "Actualizando..." });
   elements.closeCompanyCraneRegistryButton.addEventListener("click", openSystemHome);
   onAction(elements.refreshCompanyCraneRegistryButton, renderCompanyCraneRegistry, { done: "Actualizado", working: "Actualizando..." });
+  onAction(elements.exportCompanyCraneRegistryButton, exportCompanyCraneRegistryExcel, { done: "Descargado", working: "Armando...", tone: "success" });
   onAction(elements.syncCompanyRegistryButton, syncCompanyRegistryFromReports, { working: "Sincronizando...", done: "Sincronizado" });
   elements.deleteCompanyRegistryButton.addEventListener("click", deleteCurrentCompanyRegistry);
   elements.startCompanyServiceButton.addEventListener("click", startServiceForSelectedCompany);

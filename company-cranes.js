@@ -38,6 +38,132 @@ function setActiveCompanyControlTab(tab) {
   });
 }
 
+
+// --------------------------------------------------------------------------
+// Descarga del padron de equipos.
+//
+// El archivo se arma como el concentrado general que ya existe: una tabla HTML
+// con las marcas de Excel, guardada como .xls. Excel la abre nativamente y no
+// hace falta cargar ninguna libreria, que en una app que trabaja sin internet
+// en planta seria justo lo que no puede fallar.
+//
+// Las columnas son las que pidieron, en ese orden. La de Empresa solo aparece
+// cuando el archivo trae mas de una, porque si no sobra.
+// --------------------------------------------------------------------------
+const COMPANY_CRANE_EXPORT_COLUMNS = [
+  { key: "craneId", label: "Id" },
+  { key: "area", label: "Area" },
+  { key: "type", label: "Tipo de grua" },
+  { key: "structureCapacity", label: "Capacidad estructura" },
+  { key: "hoistCapacity", label: "Capacidad polipasto" },
+  { key: "voltage", label: "Voltaje" },
+  { key: "brand", label: "Marca" },
+  { key: "model", label: "Modelo" },
+  { key: "serialNumber", label: "Numero de serie" }
+];
+
+function collectCompanyCraneExportRows(clientNames) {
+  const registry = readCompanyCraneRegistry();
+  return clientNames.flatMap((clientName) => (registry[clientName] || []).map((crane) => ({
+    client: clientName,
+    crane
+  })));
+}
+
+async function exportCompanyCraneRegistryExcel() {
+  const registry = readCompanyCraneRegistry();
+  const empresas = Object.keys(registry)
+    .filter((clientName) => !isDeletedCompanyName(clientName))
+    .filter((clientName) => (registry[clientName] || []).length)
+    .sort((a, b) => a.localeCompare(b, "es"));
+
+  if (!empresas.length) {
+    await showModal({
+      eyebrow: "Listado de equipos",
+      title: "Todavia no hay equipos",
+      message: "Ninguna empresa tiene equipos registrados. Agrega al menos uno para poder descargar la lista.",
+      actions: [{ id: "ok", label: "Entendido", variant: "primary" }]
+    });
+    return false;
+  }
+
+  const activo = normalizeClientName(elements.companyRegistryClient.value);
+  const totalEquipos = empresas.reduce((suma, clientName) => suma + registry[clientName].length, 0);
+
+  let seleccionados = empresas;
+  // Con una sola empresa no hay nada que preguntar.
+  if (empresas.includes(activo) && empresas.length > 1) {
+    const eleccion = await showModal({
+      eyebrow: "Listado de equipos",
+      title: "Equipos registrados",
+      message: "Elige que va a llevar el archivo.",
+      actions: [
+        { id: "client", label: `Solo ${activo} (${registry[activo].length})`, variant: "primary" },
+        { id: "all", label: `Todas las empresas (${totalEquipos})`, variant: "secondary" },
+        { id: "cancel", label: "Cancelar", variant: "ghost" }
+      ]
+    });
+    if (eleccion !== "client" && eleccion !== "all") {
+      return false;
+    }
+    seleccionados = eleccion === "client" ? [activo] : empresas;
+  }
+
+  const filas = collectCompanyCraneExportRows(seleccionados);
+  if (!filas.length) {
+    return false;
+  }
+
+  const variasEmpresas = seleccionados.length > 1;
+  const workbook = buildCompanyCraneExcelWorkbook(filas, {
+    withClientColumn: variasEmpresas,
+    title: variasEmpresas ? "EQUIPOS REGISTRADOS" : `EQUIPOS REGISTRADOS - ${seleccionados[0].toUpperCase()}`
+  });
+  const sufijo = variasEmpresas ? "todas-las-empresas" : (createEntitySlug(seleccionados[0]) || "empresa");
+  downloadTextFile(
+    workbook,
+    `equipos-registrados-${sufijo}-${new Date().toISOString().slice(0, 10)}.xls`,
+    "application/vnd.ms-excel;charset=utf-8"
+  );
+  return true;
+}
+
+function buildCompanyCraneExcelWorkbook(rows, options = {}) {
+  const columnas = options.withClientColumn
+    ? [{ key: "client", label: "Empresa" }, ...COMPANY_CRANE_EXPORT_COLUMNS]
+    : COMPANY_CRANE_EXPORT_COLUMNS;
+  const generadoEl = formatDate(new Date().toISOString().slice(0, 10));
+
+  const celda = (fila, columna) => {
+    const valor = columna.key === "client" ? fila.client : (fila.crane || {})[columna.key];
+    return `<td>${escapeExcelHtml(valor || "")}</td>`;
+  };
+
+  return `\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Equipos</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+  <style>
+    body { font-family: Calibri, Arial, sans-serif; }
+    table { border-collapse: collapse; }
+    th, td { border: 1px solid #000000; padding: 5px 7px; font-size: 11pt; vertical-align: middle; mso-number-format:"\\@"; }
+    th { background: #b7f7c6; font-weight: 700; text-align: center; white-space: nowrap; }
+    td { background: #ffffff; }
+    .title { background: #ffffff; border: none; font-size: 14pt; font-weight: 700; text-align: left; }
+    .meta { background: #ffffff; border: none; color: #666666; font-size: 10pt; }
+  </style>
+</head>
+<body>
+  <table>
+    <tr><td class="title" colspan="${columnas.length}">${escapeExcelHtml(options.title || "EQUIPOS REGISTRADOS")}</td></tr>
+    <tr><td class="meta" colspan="${columnas.length}">Generado: ${escapeExcelHtml(generadoEl)} | Equipos: ${rows.length}</td></tr>
+    <tr>${columnas.map((columna) => `<th>${escapeExcelHtml(columna.label)}</th>`).join("")}</tr>
+    ${rows.map((fila) => `<tr>${columnas.map((columna) => celda(fila, columna)).join("")}</tr>`).join("")}
+  </table>
+</body>
+</html>`;
+}
+
 async function openCompanyCraneRegistry() {
   await populateCompanyRegistryClientOptions();
 

@@ -448,6 +448,41 @@ function saveFindingFromEditor() {
 
 let movingFindingId = "";
 
+async function openFindingActionsMenu(findingId) {
+  const finding = currentEquipmentFindings.find((item) => item.id === findingId);
+  if (!finding) {
+    return;
+  }
+
+  const accion = await showModal({
+    eyebrow: "Hallazgo",
+    title: finding.category || "Hallazgo",
+    message: finding.description || finding.incidence || "Sin descripcion capturada.",
+    actions: [
+      { id: "move", label: "Mover de lugar", variant: "primary" },
+      { id: "delete", label: "Eliminar hallazgo", variant: "danger" },
+      { id: "cancel", label: "Cerrar", variant: "ghost" }
+    ]
+  });
+
+  if (accion === "move") {
+    toggleMovingFinding(findingId);
+    return;
+  }
+  if (accion === "delete") {
+    const confirmado = await showConfirmModal({
+      title: "Eliminar hallazgo",
+      message: `Se quitara el hallazgo de ${finding.category || "este equipo"} y sus fotos.`,
+      confirmLabel: "Eliminar",
+      confirmVariant: "danger"
+    });
+    if (confirmado) {
+      deleteFinding(findingId);
+      window.notifyFeedback?.("save");
+    }
+  }
+}
+
 function toggleMovingFinding(findingId) {
   movingFindingId = movingFindingId === findingId ? "" : findingId;
   renderFindingsList();
@@ -526,27 +561,22 @@ function renderFindingsList() {
     `;
     card.addEventListener("click", () => openFindingEditor(finding.id));
 
-    const deleteButton = document.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.className = "danger-button";
-    deleteButton.textContent = "Eliminar";
-    deleteButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      deleteFinding(finding.id);
-    });
-
-    const moveButton = document.createElement("button");
-    moveButton.type = "button";
-    moveButton.className = "ghost-button equipment-move-button";
-    moveButton.textContent = finding.id === movingFindingId ? "Cancelar" : "Mover";
-    moveButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      toggleMovingFinding(finding.id);
-    });
+    const accionesButton = finding.id === movingFindingId
+      ? (() => {
+          const cancelar = document.createElement("button");
+          cancelar.type = "button";
+          cancelar.className = "ghost-button equipment-move-button";
+          cancelar.textContent = "Cancelar";
+          cancelar.addEventListener("click", (event) => {
+            event.stopPropagation();
+            toggleMovingFinding(finding.id);
+          });
+          return cancelar;
+        })()
+      : buildCardMenuButton("Acciones del hallazgo", () => openFindingActionsMenu(finding.id));
 
     shell.appendChild(card);
-    shell.appendChild(moveButton);
-    shell.appendChild(deleteButton);
+    shell.appendChild(accionesButton);
     elements.findingsList.appendChild(shell);
   });
 
@@ -677,6 +707,12 @@ function renderEquipmentList() {
     return;
   }
 
+  const terminados = currentEquipments.filter(isEquipmentCompleted).length;
+  const avance = document.createElement("div");
+  avance.className = `equipment-progress${terminados === currentEquipments.length ? " is-complete" : ""}`;
+  avance.innerHTML = `<strong>${terminados} de ${currentEquipments.length}</strong><span>equipo(s) finalizado(s)</span>`;
+  elements.equipmentList.appendChild(avance);
+
   const movingEquipment = movingEquipmentId
     ? currentEquipments.find((item) => item.id === movingEquipmentId)
     : null;
@@ -697,8 +733,9 @@ function renderEquipmentList() {
       );
     }
 
+    const terminado = isEquipmentCompleted(normalized);
     const shell = document.createElement("div");
-    shell.className = `list-card-shell equipment-list-card-shell${normalized.id === movingEquipmentId ? " is-moving" : ""}`;
+    shell.className = `list-card-shell equipment-list-card-shell${normalized.id === movingEquipmentId ? " is-moving" : ""}${terminado ? " is-completed" : ""}`;
     shell.draggable = true;
     shell.dataset.equipmentId = normalized.id;
     shell.title = "Arrastra para cambiar el orden";
@@ -708,25 +745,19 @@ function renderEquipmentList() {
     shell.addEventListener("drop", (event) => handleEquipmentDrop(event, normalized.id));
     shell.addEventListener("dragend", handleEquipmentDragEnd);
 
-    const includeLabel = document.createElement("label");
-    includeLabel.className = "equipment-report-toggle";
-    includeLabel.innerHTML = `
-      <input type="checkbox" ${normalized.includeInReport ? "checked" : ""} data-include-equipment-id="${escapeHtml(normalized.id)}">
-      <span>PDF</span>
-    `;
-    includeLabel.querySelector("[data-include-equipment-id]").addEventListener("change", (event) => {
-      updateEquipmentReportInclusion(normalized.id, event.target.checked);
-    });
-
     const card = document.createElement("button");
     card.type = "button";
     card.className = "finding-list-card";
     card.innerHTML = `
-      <p><strong>Equipo ${index + 1}: ${escapeHtml(normalized.equipmentName || normalized.craneType || "Equipo sin nombre")}</strong></p>
+      <div class="list-card-heading">
+        <p><strong>Equipo ${index + 1}: ${escapeHtml(normalized.equipmentName || normalized.craneType || "Equipo sin nombre")}</strong></p>
+        <span class="equipment-status-tag${terminado ? " is-completed" : ""}">${terminado ? "Finalizado" : "Pendiente"}</span>
+      </div>
       <div class="finding-meta">
         <span>${escapeHtml(normalized.craneType || "Tipo no capturado")}</span>
         <span>${normalized.findings.length} hallazgo(s)</span>
         <span>${normalized.servicePhotos.length} evidencia(s)</span>
+        <span>${normalized.includeInReport ? "En el PDF" : "Fuera del PDF"}</span>
       </div>
       <p>${escapeHtml(buildEquipmentCardSummary(normalized))}</p>
     `;
@@ -738,28 +769,24 @@ function renderEquipmentList() {
       openEquipmentEditor(normalized.id);
     });
 
-    const deleteButton = document.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.className = "danger-button";
-    deleteButton.textContent = "Eliminar";
-    deleteButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      deleteEquipment(normalized.id);
-    });
+    // Mientras algo se esta moviendo, el menu se vuelve el boton de cancelar:
+    // es lo unico que hace falta en ese momento.
+    const accionesButton = normalized.id === movingEquipmentId
+      ? (() => {
+          const cancelar = document.createElement("button");
+          cancelar.type = "button";
+          cancelar.className = "ghost-button equipment-move-button";
+          cancelar.textContent = "Cancelar";
+          cancelar.addEventListener("click", (event) => {
+            event.stopPropagation();
+            toggleMovingEquipment(normalized.id);
+          });
+          return cancelar;
+        })()
+      : buildCardMenuButton("Acciones del equipo", () => openEquipmentActionsMenu(normalized.id));
 
-    const moveButton = document.createElement("button");
-    moveButton.type = "button";
-    moveButton.className = "ghost-button equipment-move-button";
-    moveButton.textContent = normalized.id === movingEquipmentId ? "Cancelar" : "Mover";
-    moveButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      toggleMovingEquipment(normalized.id);
-    });
-
-    shell.appendChild(includeLabel);
     shell.appendChild(card);
-    shell.appendChild(moveButton);
-    shell.appendChild(deleteButton);
+    shell.appendChild(accionesButton);
     elements.equipmentList.appendChild(shell);
   });
 
@@ -1150,8 +1177,105 @@ function normalizeEquipment(equipment) {
     serviceSummary: source.serviceSummary || "",
     recommendations: source.recommendations || getFixedRecommendationText(),
     servicePhotos: Array.isArray(source.servicePhotos) ? source.servicePhotos.map(normalizePhotoEntry) : [],
-    checklistImage: normalizeChecklistImage(source.checklistImage)
+    checklistImage: normalizeChecklistImage(source.checklistImage),
+    completedAt: source.completedAt || ""
   };
+}
+
+function isEquipmentCompleted(equipment) {
+  return Boolean(equipment && equipment.completedAt);
+}
+
+function toggleEquipmentCompleted(equipmentId) {
+  currentEquipments = currentEquipments.map((equipment) => {
+    if (equipment.id !== equipmentId) {
+      return equipment;
+    }
+    return {
+      ...equipment,
+      completedAt: equipment.completedAt ? "" : new Date().toISOString()
+    };
+  });
+  renderEquipmentList();
+  if (typeof scheduleInspectionAutoSave === "function") {
+    scheduleInspectionAutoSave("equipo finalizado");
+  }
+}
+
+// --------------------------------------------------------------------------
+// Un solo boton por tarjeta en lugar de tres. Antes la tarjeta competia por el
+// ancho con la casilla del PDF, Mover y Eliminar, y en telefono Eliminar se
+// brincaba a otro renglon. De paso Eliminar deja de estar a un dedo de
+// distancia de la tarjeta, que en campo conviene.
+// --------------------------------------------------------------------------
+async function openEquipmentActionsMenu(equipmentId) {
+  const equipment = currentEquipments.find((item) => item.id === equipmentId);
+  if (!equipment) {
+    return;
+  }
+
+  const normalized = normalizeEquipment(equipment);
+  const accion = await showModal({
+    eyebrow: "Equipo",
+    title: normalized.equipmentName || normalized.craneType || "Equipo",
+    message: buildEquipmentCardSummary(normalized),
+    actions: [
+      {
+        id: "complete",
+        label: isEquipmentCompleted(normalized) ? "Quitar finalizado" : "Marcar como finalizado",
+        variant: isEquipmentCompleted(normalized) ? "secondary" : "primary"
+      },
+      { id: "move", label: "Mover de lugar", variant: "secondary" },
+      {
+        id: "pdf",
+        label: normalized.includeInReport ? "Quitar del PDF" : "Incluir en el PDF",
+        variant: "secondary"
+      },
+      { id: "delete", label: "Eliminar equipo", variant: "danger" },
+      { id: "cancel", label: "Cerrar", variant: "ghost" }
+    ]
+  });
+
+  if (accion === "complete") {
+    toggleEquipmentCompleted(normalized.id);
+    window.notifyFeedback?.("save");
+    return;
+  }
+  if (accion === "move") {
+    toggleMovingEquipment(normalized.id);
+    return;
+  }
+  if (accion === "pdf") {
+    updateEquipmentReportInclusion(normalized.id, !normalized.includeInReport);
+    renderEquipmentList();
+    return;
+  }
+  if (accion === "delete") {
+    const confirmado = await showConfirmModal({
+      title: "Eliminar equipo",
+      message: `Se quitara ${normalized.equipmentName || "este equipo"} del reporte, con sus hallazgos y evidencias.`,
+      confirmLabel: "Eliminar",
+      confirmVariant: "danger"
+    });
+    if (confirmado) {
+      deleteEquipment(normalized.id);
+      window.notifyFeedback?.("save");
+    }
+  }
+}
+
+function buildCardMenuButton(label, onOpen) {
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.className = "card-menu-button";
+  boton.setAttribute("aria-label", label);
+  boton.title = label;
+  boton.innerHTML = '<span aria-hidden="true">&#8942;</span>';
+  boton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onOpen();
+  });
+  return boton;
 }
 
 function fileToDataUrl(file) {
