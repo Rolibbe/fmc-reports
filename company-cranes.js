@@ -854,9 +854,12 @@ async function openCompanyCraneMasterFromMaintenance(clientName, craneId, tab = 
 }
 
 async function closeCompanyCraneFindingsModal() {
+  const estabaEditando = Boolean(editingChecklistHistoryId);
   editingChecklistHistoryId = "";
   const { client, craneId, tab } = activeCompanyCraneMaster;
-  if (tab === "checklist" && client && craneId) {
+  if (estabaEditando) {
+    await restoreChecklistEditBackup();
+  } else if (tab === "checklist" && client && craneId) {
     await persistVisibleCompanyCraneChecklistDraft(client, craneId);
   }
   activeCompanyCraneMaster = { client: "", craneId: "", tab: "data" };
@@ -1642,7 +1645,7 @@ function wireCompanyCraneChecklistChecks(client, crane) {
 
   const folioInput = elements.companyCraneFindingsList.querySelector("[data-crane-checklist-folio]");
   if (folioInput) {
-    folioInput.addEventListener("input", async () => {
+    folioInput.addEventListener("change", async () => {
       const findings = readActiveCraneFindings();
       findings[buildCraneChecklistMetaKey(client, crane.id)] = {
         ...readCompanyCraneChecklistMeta(client, crane.id),
@@ -1798,7 +1801,7 @@ async function persistVisibleCompanyCraneChecklistDraft(client, craneId) {
   const findings = readActiveCraneFindings();
   const checklistKey = buildCraneChecklistKey(client, craneId);
   const currentState = findings[checklistKey] || {};
-  const draft = {};
+  const draft = { ...currentState };
 
   root.querySelectorAll("[data-crane-checklist-id]:checked").forEach((input) => {
     const itemId = input.dataset.craneChecklistId;
@@ -2306,6 +2309,40 @@ function readCompanyCraneChecklistHistory(client, craneId) {
 // checklist activo de la grua, se corrige con la misma pantalla de siempre y
 // al terminar se escribe de vuelta sobre ese mismo registro, sin duplicarlo.
 let editingChecklistHistoryId = "";
+let checklistEditBackup = null;
+
+function clonePlainValue(value) {
+  return value === undefined || value === null ? null : JSON.parse(JSON.stringify(value));
+}
+
+// Devuelve el checklist activo tal como estaba antes de cargar la version del
+// historial. Sin esto, cancelar dejaba puesta la version vieja.
+async function restoreChecklistEditBackup() {
+  const backup = checklistEditBackup;
+  checklistEditBackup = null;
+  if (!backup) {
+    return false;
+  }
+
+  const findings = readActiveCraneFindings();
+  const checklistKey = buildCraneChecklistKey(backup.client, backup.craneId);
+  const metaKey = buildCraneChecklistMetaKey(backup.client, backup.craneId);
+
+  if (backup.checklist) {
+    findings[checklistKey] = backup.checklist;
+  } else {
+    delete findings[checklistKey];
+  }
+  if (backup.meta) {
+    findings[metaKey] = backup.meta;
+  } else {
+    delete findings[metaKey];
+  }
+
+  await writeActiveCraneFindings(findings);
+  queueDataSync("edicion de checklist cancelada");
+  return true;
+}
 
 async function startEditingSavedChecklist(client, crane, entryId) {
   const entry = readCompanyCraneChecklistHistory(client, crane.id).find((item) => item.id === entryId);
@@ -2326,6 +2363,16 @@ async function startEditingSavedChecklist(client, crane, entryId) {
 
   const findings = readActiveCraneFindings();
   const checklistKey = buildCraneChecklistKey(client, crane.id);
+
+  // Copia de seguridad antes de pisar el checklist activo con la version vieja.
+  checklistEditBackup = {
+    client,
+    craneId: crane.id,
+    entryId,
+    checklist: clonePlainValue(findings[checklistKey]),
+    meta: clonePlainValue(findings[buildCraneChecklistMetaKey(client, crane.id)])
+  };
+
   findings[checklistKey] = (entry.items || []).reduce((state, item) => {
     if (item?.id && ["good", "na", "bad"].includes(item.status)) {
       state[item.id] = { status: item.status, description: item.description || "" };
@@ -2383,6 +2430,8 @@ async function commitSavedChecklistEdit(client, crane) {
 
   await writeActiveCraneFindings(findings);
   queueDataSync("checklist guardado editado");
+  // Se guardo: ya no hay nada que devolver.
+  checklistEditBackup = null;
   editingChecklistHistoryId = "";
   activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
   await renderCompanyCraneMasterModal();
@@ -2391,6 +2440,7 @@ async function commitSavedChecklistEdit(client, crane) {
 
 async function cancelSavedChecklistEdit(client, crane) {
   editingChecklistHistoryId = "";
+  await restoreChecklistEditBackup();
   activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
   await renderCompanyCraneMasterModal();
 }
@@ -2476,7 +2526,7 @@ function splitActiveCraneFindingKey(key) {
 }
 
 function readActiveCraneFindings() {
-  return getCachedMasterData("activeCraneFindings");
+  return { ...getCachedMasterData("activeCraneFindings") };
 }
 
 function writeActiveCraneFindings(findings) {
@@ -2754,13 +2804,32 @@ async function deleteCurrentCompanyRegistry() {
   queueDataSync("empresa eliminada");
 }
 
-async function deleteCompanyLocalData(client) {
+async function deleteCompanyLocalData(client, options = {}) {
   const normalizedClient = normalizeClientName(client);
   if (!normalizedClient) {
     return;
   }
 
   const registry = readCompanyCraneRegistry();
+
+  // Cuando el borrado llega de la nube no hay nadie tocando un boton, asi que
+  // si no se registra aqui no queda rastro en ninguna parte.
+  if (options.source === "cloud") {
+    const gruas = (registry[normalizedClient] || []).length;
+    const servicios = (await getAllInspections())
+      .map(normalizeInspection)
+      .filter((record) => normalizeClientName(record.plantName) === normalizedClient).length;
+    addAuditLogEntry({
+      action: "deleted",
+      entityType: "company",
+      entityId: createCloudCompanyId(normalizedClient),
+      title: `Sincronizacion borro la empresa ${normalizedClient}`,
+      client: normalizedClient,
+      before: { cranes: gruas, reports: servicios },
+      after: null,
+      details: `Se eliminaron ${gruas} grua(s) con sus checklists y ${servicios} servicio(s) guardado(s) porque la empresa venia marcada como borrada en la nube. Se puede quitar de la papelera para volver a usar el nombre.`
+    });
+  }
   (registry[normalizedClient] || []).forEach((crane) => markCompanyCraneDeleted(normalizedClient, crane));
   delete registry[normalizedClient];
   writeCompanyCraneRegistry(registry);

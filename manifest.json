@@ -1,10 +1,41 @@
 {
-  "name": "Inspecciones de Gruas",
-  "short_name": "Gruas",
+  "id": "/servicios-fmc",
+  "name": "Servicios FMC - Inspecciones de Gruas",
+  "short_name": "Servicios FMC",
+  "description": "Checklists, servicios y reportes de gruas y polipastos, con o sin senal.",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#f5f1e8",
-  "theme_color": "#0f4c5c",
+  "orientation": "any",
+  "background_color": "#e8e6dc",
+  "theme_color": "#1b2126",
   "lang": "es-MX",
-  "icons": []
+  "dir": "ltr",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }

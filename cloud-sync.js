@@ -1578,7 +1578,7 @@ async function mergeCloudCompanyCraneRows(companies, cranes) {
         source: "cloud",
         deletedAt: company.deleted_at
       });
-      await deleteCompanyLocalData(client);
+      await deleteCompanyLocalData(client, { source: "cloud" });
       delete registry[client];
       delete frequencies[client];
       delete contactsByCompany[client];

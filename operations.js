@@ -66,6 +66,154 @@ function compactAuditSnapshot(value) {
   return copy;
 }
 
+
+// ---------------------------------------------------------------------------
+// Papelera
+//
+// Borrar una empresa o una grua deja una lapida local que ademas se sube a la
+// nube. Esa lapida es permanente: cada aparato que sincroniza vuelve a borrar
+// lo mismo, y un respaldo restaurado se vuelve a perder en la siguiente
+// sincronizacion. Peor, el identificador de empresa se calcula del nombre, asi
+// que volver a crear una empresa borrada la deja invisible.
+//
+// Esta pantalla permite quitar la lapida. No devuelve los datos por si sola:
+// libera el nombre para que un respaldo o una captura nueva se queden.
+// ---------------------------------------------------------------------------
+function openTrashPanel() {
+  showView("trash");
+  renderTrashPanel();
+}
+
+function readTrashEntries() {
+  const empresas = Object.values(readDeletedCompanies() || {}).map((entry) => ({
+    kind: "company",
+    id: entry.id,
+    title: normalizeClientName(entry.client || ""),
+    subtitle: "Empresa",
+    deletedAt: entry.deletedAt || ""
+  }));
+
+  const gruas = Object.values(readDeletedCompanyCranes() || {}).map((entry) => ({
+    kind: "crane",
+    id: entry.id,
+    title: entry.crane?.craneId || entry.crane?.type || "Grua sin tag",
+    subtitle: `Grua de ${normalizeClientName(entry.client || "") || "empresa no capturada"}`,
+    deletedAt: entry.deletedAt || ""
+  }));
+
+  return empresas.concat(gruas)
+    .filter((entry) => entry.id)
+    .sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt)));
+}
+
+function renderTrashPanel() {
+  if (!elements.trashList) {
+    return;
+  }
+
+  const entries = readTrashEntries();
+  const empresas = entries.filter((entry) => entry.kind === "company").length;
+
+  if (elements.trashSummary) {
+    elements.trashSummary.innerHTML = `
+      <article class="ops-stat"><span>Empresas</span><strong>${empresas}</strong></article>
+      <article class="ops-stat"><span>Gruas</span><strong>${entries.length - empresas}</strong></article>
+    `;
+  }
+
+  if (!entries.length) {
+    elements.trashList.innerHTML = '<div class="inline-empty-state">La papelera esta vacia. Nada quedo marcado como borrado en este dispositivo.</div>';
+    return;
+  }
+
+  elements.trashList.innerHTML = entries.map((entry) => `
+    <article class="trash-entry">
+      <div>
+        <strong>${escapeHtml(entry.title)}</strong>
+        <span>${escapeHtml(entry.subtitle)}</span>
+        <small>Borrado el ${escapeHtml(formatDateTime(entry.deletedAt) || entry.deletedAt || "fecha no registrada")}</small>
+      </div>
+      <button class="secondary-button" type="button" data-restore-trash="${escapeHtml(entry.kind)}" data-restore-id="${escapeHtml(entry.id)}">Quitar de la papelera</button>
+    </article>
+  `).join("");
+
+  elements.trashList.querySelectorAll("[data-restore-trash]").forEach((button) => {
+    onAction(button, () => restoreTrashEntry(button.dataset.restoreTrash, button.dataset.restoreId), {
+      done: "Restaurado",
+      working: "Restaurando..."
+    });
+  });
+}
+
+async function restoreTrashEntry(kind, id) {
+  const entry = readTrashEntries().find((item) => item.kind === kind && item.id === id);
+  if (!entry) {
+    return false;
+  }
+
+  const confirmado = await showConfirmModal({
+    eyebrow: "Papelera",
+    title: `Quitar de la papelera: ${entry.title}`,
+    message: "Se quita la marca de borrado para que el nombre se pueda volver a usar y para que un respaldo restaurado ya no se pierda al sincronizar.",
+    details: "Esto por si solo no devuelve los datos. Si ya se perdieron, despues de quitar la marca hay que restaurar un respaldo o volver a capturarlos.",
+    confirmLabel: "Quitar la marca"
+  });
+  if (!confirmado) {
+    return false;
+  }
+
+  if (kind === "company") {
+    const deletedCompanies = readDeletedCompanies();
+    delete deletedCompanies[id];
+    writeDeletedCompanies(deletedCompanies);
+    await clearCloudDeletedFlag("companies", id);
+  } else {
+    const deletedCranes = readDeletedCompanyCranes();
+    delete deletedCranes[id];
+    writeDeletedCompanyCranes(deletedCranes);
+    await clearCloudDeletedFlag("cranes", id);
+  }
+
+  addAuditLogEntry({
+    action: "updated",
+    entityType: kind === "company" ? "company" : "crane",
+    entityId: id,
+    title: `Quito de la papelera ${entry.title}`,
+    client: kind === "company" ? entry.title : "",
+    before: { deletedAt: entry.deletedAt },
+    after: null,
+    details: "Se quito la marca de borrado. El nombre vuelve a estar disponible."
+  });
+
+  renderTrashPanel();
+  return true;
+}
+
+// Si la marca se queda en la nube, la siguiente sincronizacion la baja otra vez
+// y vuelve a borrar. Por eso hay que limpiarla alla tambien.
+async function clearCloudDeletedFlag(table, id) {
+  if (typeof hasCloudConnectionReady !== "function" || !hasCloudConnectionReady()) {
+    return false;
+  }
+  try {
+    await cloudFetch(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ deleted_at: null, updated_at: new Date().toISOString() })
+    });
+    return true;
+  } catch (error) {
+    // Sin conexion la marca local ya quedo fuera; la de la nube se tiene que
+    // volver a quitar cuando haya senal.
+    if (typeof showToast === "function") {
+      showToast({
+        title: "Falta limpiar la nube",
+        message: "La marca se quito en este dispositivo, pero no se pudo quitar en la nube. Vuelve a intentarlo con mejor senal antes de sincronizar."
+      });
+    }
+    return false;
+  }
+}
+
 function openAuditLogPanel() {
   showView("auditLog");
   renderAuditLogPanel();

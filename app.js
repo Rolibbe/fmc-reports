@@ -22,8 +22,51 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.93";
+const APP_VERSION = "1.3.98";
 const APP_RELEASE_NOTES = {
+  "1.3.98": {
+    title: "Actualizacion 1.3.98",
+    summary: [
+      "Nueva imagen: tema Taller, con papel claro, barras negras, filo naranja y esquinas rectas.",
+      "El tema anterior sigue disponible con el nombre Acero, en Ajustes > Apariencia.",
+      "La forma de las tarjetas y los botones ahora cambia junto con el tema, no solo el color."
+    ]
+  },
+  "1.3.97": {
+    title: "Actualizacion 1.3.97",
+    summary: [
+      "En telefono, el boton Anterior ya no queda tapado por la fila de pasos del servicio.",
+      "Los cuatro pasos del servicio se ven completos en telefono; antes el paso PDF quedaba fuera de la pantalla.",
+      "El titulo de cada seccion ya no se parte en dos lineas cuando la barra de botones es larga."
+    ]
+  },
+  "1.3.96": {
+    title: "Actualizacion 1.3.96",
+    summary: [
+      "La app ya se puede instalar en el telefono como una aplicacion, con el icono de FMC.",
+      "El folio del checklist se guarda al terminar de escribirlo, no en cada tecla.",
+      "La base de datos usa una sola conexion en vez de abrir una nueva en cada operacion."
+    ]
+  },
+  "1.3.95": {
+    title: "Actualizacion 1.3.95",
+    summary: [
+      "Salir sin guardar al editar un checklist del historial ahora si devuelve el checklist que habia. Antes dejaba puesta la version vieja.",
+      "Cerrar la ficha de la grua a media edicion hace lo mismo que salir sin guardar.",
+      "El checklist ya no se reescribe con lo que haya en pantalla: se mezcla con lo guardado, asi que ningun punto se pierde por no estar dibujado.",
+      "Los datos en memoria ya no se destruyen antes de guardarse: si el dispositivo falla al escribir, la informacion sigue completa."
+    ]
+  },
+  "1.3.94": {
+    title: "Actualizacion 1.3.94",
+    summary: [
+      "La app ya no puede arrancar con una mezcla de archivos nuevos y viejos: cada archivo se identifica con su numero de version exacto.",
+      "El arranque ahora sale de la memoria del dispositivo, no de la red. Con senal mala la app abre igual de rapido.",
+      "Nueva Papelera en Ajustes: muestra las empresas y gruas marcadas como borradas y permite quitarles la marca.",
+      "Mientras esa marca siga puesta, el nombre no se puede volver a usar y un respaldo restaurado se vuelve a perder al sincronizar.",
+      "Cuando una sincronizacion borra una empresa, ahora queda registrado en la bitacora con cuantas gruas y servicios se llevo."
+    ]
+  },
   "1.3.93": {
     title: "Actualizacion 1.3.93",
     summary: [
@@ -505,6 +548,11 @@ const elements = {
   workOrdersView: document.getElementById("workOrdersView"),
   clientsMapView: document.getElementById("clientsMapView"),
   auditLogView: document.getElementById("auditLogView"),
+  trashView: document.getElementById("trashView"),
+  trashSummary: document.getElementById("trashSummary"),
+  trashList: document.getElementById("trashList"),
+  refreshTrashButton: document.getElementById("refreshTrashButton"),
+  closeTrashButton: document.getElementById("closeTrashButton"),
   inspectionView: document.getElementById("inspectionView"),
   equipmentEditorView: document.getElementById("equipmentEditorView"),
   findingEditorView: document.getElementById("findingEditorView"),
@@ -1045,6 +1093,9 @@ function setupAppActions() {
   on(document.getElementById("settingsExportBackupWithPhotosButton"), "click", () => exportFullBackup({ includePhotos: true }));
   on(document.getElementById("settingsPurgePhotosButton"), "click", purgeStoredHeavyPhotos);
   on(document.getElementById("settingsOpenAuditLogButton"), "click", openAuditLogPanel);
+  on(document.getElementById("settingsOpenTrashButton"), "click", openTrashPanel);
+  on(elements.closeTrashButton, "click", openSystemHome);
+  onAction(elements.refreshTrashButton, renderTrashPanel, { done: "Actualizado", working: "Actualizando..." });
   elements.closeMaintenancePanelButton.addEventListener("click", openSystemHome);
   onAction(elements.refreshMaintenancePanelButton, renderMaintenancePanel, { done: "Actualizado", working: "Actualizando..." });
   elements.closeCompanyCraneRegistryButton.addEventListener("click", openSystemHome);
@@ -1908,6 +1959,9 @@ function showView(view) {
   }
   if (elements.auditLogView) {
     elements.auditLogView.classList.toggle("hidden", view !== "auditLog");
+  }
+  if (elements.trashView) {
+    elements.trashView.classList.toggle("hidden", view !== "trash");
   }
   elements.inspectionView.classList.toggle("hidden", view !== "inspection");
   elements.equipmentEditorView.classList.toggle("hidden", view !== "equipment");

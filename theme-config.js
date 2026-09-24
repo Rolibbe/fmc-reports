@@ -9,13 +9,20 @@
 // puedan usar temas distintos.
 
 const APP_THEME_STORAGE_KEY = "fmc-app-theme";
-const DEFAULT_APP_THEME = "acero";
+const DEFAULT_APP_THEME = "taller";
 
 const APP_THEMES = [
   {
+    id: "taller",
+    name: "Taller",
+    description: "Papel claro con relieve, barras negras y filo naranja. Esquinas rectas y rotulos tecnicos. Es la linea actual de la app.",
+    themeColor: "#1b2126",
+    swatches: ["#1b2126", "#f5821f", "#e8e6dc", "#f6f5ef", "#9c9a8e"]
+  },
+  {
     id: "acero",
     name: "Acero",
-    description: "Azul industrial profundo con el naranja del logo como acento. Es la linea actual de la app, depurada.",
+    description: "El azul industrial que uso la app hasta la version 1.3.97, con esquinas redondeadas y sombra suave.",
     themeColor: "#0b3a56",
     swatches: ["#0b3a56", "#10556a", "#f5821f", "#eef3f7", "#ffffff"]
   },
@@ -68,11 +75,7 @@ function applyAppTheme(themeId, options = {}) {
   const theme = getAppTheme(themeId);
   const root = document.documentElement;
 
-  if (theme.id === DEFAULT_APP_THEME) {
-    root.removeAttribute("data-theme");
-  } else {
-    root.setAttribute("data-theme", theme.id);
-  }
+  root.setAttribute("data-theme", theme.id);
 
   const themeColorTag = document.querySelector('meta[name="theme-color"]');
   if (themeColorTag) {

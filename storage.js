@@ -89,8 +89,14 @@ function clearLegacyJsonValue(key) {
   }
 }
 
+let databasePromise = null;
+
 function openDatabase() {
-  return new Promise((resolve, reject) => {
+  if (databasePromise) {
+    return databasePromise;
+  }
+
+  databasePromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = () => {
@@ -103,16 +109,34 @@ function openDatabase() {
       }
     };
 
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      // Si otra pestana necesita subir de version, esta hay que soltarla o la
+      // deja bloqueada. La siguiente operacion vuelve a abrir.
+      db.onversionchange = () => {
+        db.close();
+        databasePromise = null;
+      };
+      db.onclose = () => {
+        databasePromise = null;
+      };
+      resolve(db);
+    };
+
+    request.onerror = () => {
+      databasePromise = null;
+      reject(request.error);
+    };
   });
+
+  return databasePromise;
 }
 
 async function withStore(mode, callback) {
   return withObjectStore(STORE_NAME, mode, callback);
 }
 
-async function withObjectStore(storeName, mode, callback) {
+async function runStoreOperation(storeName, mode, callback) {
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
@@ -122,7 +146,23 @@ async function withObjectStore(storeName, mode, callback) {
 
     transaction.oncomplete = () => resolve(request ? request.result : undefined);
     transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
   });
+}
+
+async function withObjectStore(storeName, mode, callback) {
+  try {
+    return await runStoreOperation(storeName, mode, callback);
+  } catch (error) {
+    // Si la conexion quedo cerrada, se reabre una vez y se reintenta. Sin esto,
+    // reusar la conexion haria fallar todo lo que venga despues.
+    const cerrada = error && (error.name === "InvalidStateError" || error.name === "TransactionInactiveError");
+    if (!cerrada) {
+      throw error;
+    }
+    databasePromise = null;
+    return runStoreOperation(storeName, mode, callback);
+  }
 }
 
 async function putInspection(record) {
