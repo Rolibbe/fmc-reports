@@ -1241,12 +1241,14 @@ function renderCompanyCraneLogTab(client, crane) {
   const abiertos = rows.filter((entry) => entry.status === "open");
   const reportados = rows.filter((entry) => entry.status === "claimed");
   const corregidos = rows.filter((entry) => entry.status === "fixed");
+  const descartados = rows.filter((entry) => entry.status === "discarded");
 
   return `
     <div class="crane-master-mini-summary">
       <article class="history-stat"><span>Abiertos</span><strong>${abiertos.length}</strong></article>
       <article class="history-stat"><span>Por verificar</span><strong>${reportados.length}</strong></article>
       <article class="history-stat"><span>Corregidos</span><strong>${corregidos.length}</strong></article>
+      ${descartados.length ? `<article class="history-stat"><span>Descartados</span><strong>${descartados.length}</strong></article>` : ""}
     </div>
     ${rows.length
       ? `<div class="finding-log-list">${rows.map(renderFindingLogCard).join("")}</div>`
@@ -1257,7 +1259,7 @@ function renderCompanyCraneLogTab(client, crane) {
 function renderFindingLogCard(entry) {
   const critico = getCraneFindingSeverity(entry) === "critical";
   const titulo = removeFindingCatalogNumber(entry.incidence) || entry.category || "Hallazgo";
-  const acciones = entry.status === "fixed"
+  const acciones = isCraneFindingClosed(entry)
     ? `<button class="ghost-button" type="button" data-finding-log-reopen="${escapeHtml(entry.id)}">Reabrir</button>`
     : `
       <button class="ghost-button" type="button" data-finding-log-worsened="${escapeHtml(entry.id)}">Empeoro</button>
@@ -1265,6 +1267,7 @@ function renderFindingLogCard(entry) {
         ? `<button class="ghost-button" type="button" data-finding-log-claim="${escapeHtml(entry.id)}">Reportar atendido</button>`
         : ""}
       <button class="primary-button" type="button" data-finding-log-fix="${escapeHtml(entry.id)}">Verificar corregido</button>
+      <button class="ghost-button" type="button" data-finding-log-discard="${escapeHtml(entry.id)}">Se marco por error</button>
     `;
 
   return `
@@ -1282,6 +1285,7 @@ function renderFindingLogCard(entry) {
       </p>
       ${entry.claimedNote ? `<p class="finding-log-note">${escapeHtml(entry.claimedNote)}</p>` : ""}
       ${entry.fixedNote ? `<p class="finding-log-note">${escapeHtml(entry.fixedNote)}</p>` : ""}
+      ${entry.discardedNote ? `<p class="finding-log-note">${escapeHtml(entry.discardedNote)}</p>` : ""}
       <div class="finding-log-actions">${acciones}</div>
     </article>
   `;
@@ -1289,8 +1293,22 @@ function renderFindingLogCard(entry) {
 
 function describeFindingLogTimeline(entry) {
   const partes = [];
-  if (entry.status === "fixed") {
-    partes.push(`Corregido el ${formatDate(entry.fixedAt) || "-"}`);
+  if (entry.status === "discarded") {
+    partes.push(`Descartado el ${formatDate(entry.discardedAt) || "-"}`);
+    partes.push("se habia marcado por error");
+    if (entry.discardedBy) {
+      partes.push(entry.discardedBy);
+    }
+  } else if (entry.status === "fixed") {
+    partes.push(entry.fixedReason === "na"
+      ? `Ya no aplica desde el ${formatDate(entry.fixedAt) || "-"}`
+      : `Corregido el ${formatDate(entry.fixedAt) || "-"}`);
+    if (entry.fixedReason !== "na" && entry.fixedSource) {
+      partes.push(entry.fixedSource === "client" ? "lo atendio el cliente" : "lo atendio FMC");
+    }
+    if (entry.timesSeen > 1) {
+      partes.push(`estuvo abierto en ${entry.timesSeen} servicios`);
+    }
     if (entry.fixedBy) {
       partes.push(entry.fixedBy);
     }
@@ -1310,6 +1328,23 @@ function describeFindingLogTimeline(entry) {
   return partes.join(" \u00b7 ");
 }
 
+// Quien atendio el hallazgo. Se pregunta siempre que se cierra uno, porque es
+// justo lo que el cliente quiere ver en el reporte: que arreglamos nosotros y
+// que arreglo el.
+async function preguntarQuienCorrigio() {
+  const respuesta = await showAppDialog({
+    eyebrow: "Hallazgo",
+    title: "Quien lo atendio",
+    message: "Queda registrado en la bitacora de la grua y sale en el reporte.",
+    actions: [
+      { id: "cancel", label: "Cancelar", variant: "ghost" },
+      { id: "client", label: "El cliente", variant: "secondary" },
+      { id: "fmc", label: "FMC", variant: "primary" }
+    ]
+  });
+  return respuesta === "fmc" || respuesta === "client" ? respuesta : "";
+}
+
 function wireCompanyCraneLogTab(client, crane) {
   const raiz = elements.companyCraneFindingsList;
   if (!raiz || raiz.dataset.findingLogWired === "true") {
@@ -1318,12 +1353,12 @@ function wireCompanyCraneLogTab(client, crane) {
   raiz.dataset.findingLogWired = "true";
 
   raiz.addEventListener("click", async (event) => {
-    const boton = event.target.closest("[data-finding-log-fix], [data-finding-log-claim], [data-finding-log-worsened], [data-finding-log-reopen]");
+    const boton = event.target.closest("[data-finding-log-fix], [data-finding-log-claim], [data-finding-log-worsened], [data-finding-log-reopen], [data-finding-log-discard]");
     if (!boton) {
       return;
     }
 
-    const { findingLogFix, findingLogClaim, findingLogWorsened, findingLogReopen } = boton.dataset;
+    const { findingLogFix, findingLogClaim, findingLogWorsened, findingLogReopen, findingLogDiscard } = boton.dataset;
 
     if (findingLogWorsened) {
       await markCraneFindingWorsened(findingLogWorsened);
@@ -1341,6 +1376,10 @@ function wireCompanyCraneLogTab(client, crane) {
       }
       await claimCraneFinding(findingLogClaim, { note: nota, source: "fmc" });
     } else if (findingLogFix) {
+      const quien = await preguntarQuienCorrigio();
+      if (!quien) {
+        return;
+      }
       const nota = await showPromptModal({
         eyebrow: "Hallazgo",
         title: "Verificar como corregido",
@@ -1352,7 +1391,22 @@ function wireCompanyCraneLogTab(client, crane) {
       if (nota === null) {
         return;
       }
-      await fixCraneFinding(findingLogFix, { note: nota });
+      await fixCraneFinding(findingLogFix, { note: nota, source: quien });
+    } else if (findingLogDiscard) {
+      // Se separa de "corregido" a proposito: si se marco por error, no hubo
+      // ningun trabajo que presumir ni que cobrar.
+      const nota = await showPromptModal({
+        eyebrow: "Hallazgo",
+        title: "Se marco por error",
+        message: "El hallazgo sale de la lista de pendientes y NO queda como corregido, porque nunca existio. Se conserva en la bitacora con esta nota.",
+        placeholder: "Que paso (opcional)",
+        saveLabel: "Descartar",
+        cancelLabel: "Cancelar"
+      });
+      if (nota === null) {
+        return;
+      }
+      await discardCraneFinding(findingLogDiscard, { note: nota });
     } else if (findingLogReopen) {
       const seguro = await showConfirmModal({
         eyebrow: "Hallazgo",
@@ -1420,6 +1474,7 @@ function renderCompanyCraneChecklistTab(client, crane) {
   const editando = editingChecklistHistoryId
     ? checklistHistory.find((entry) => entry.id === editingChecklistHistoryId)
     : null;
+  const sinConfirmar = getUnconfirmedPreloadedItems(client, crane.id);
 
   return `
     ${editando ? `
@@ -1431,6 +1486,13 @@ function renderCompanyCraneChecklistTab(client, crane) {
       <div class="checklist-editing-actions">
         <button class="ghost-button" type="button" data-cancel-checklist-edit>Salir sin guardar</button>
         <button class="primary-button" type="button" data-commit-checklist-edit>Guardar cambios</button>
+      </div>
+    </div>` : ""}
+    ${sinConfirmar.length ? `
+    <div class="checklist-preloaded-banner">
+      <div>
+        <strong>${sinConfirmar.length} punto(s) vienen de la visita anterior</strong>
+        <span>Llegaron marcados en Mal porque siguen abiertos. Confirma cada uno antes de guardar: dejalo en Mal si sigue igual, o marcalo Bien si ya se atendio.</span>
       </div>
     </div>` : ""}
     <div class="crane-master-mini-summary">
@@ -1450,6 +1512,7 @@ function renderCompanyCraneChecklistTab(client, crane) {
           <input data-crane-checklist-folio type="text" value="${escapeHtml(checklistMeta.folio || "")}" placeholder="Ej. CHK-001">
         </label>
         <button class="primary-button" type="button" data-save-crane-checklist>Guardar checklist</button>
+        <button class="secondary-button" type="button" data-start-crane-checklist>Iniciar checklist nuevo</button>
         <button class="secondary-button" type="button" data-clear-crane-checklist>Limpiar checklist</button>
       </div>
     </div>
@@ -1839,6 +1902,103 @@ function getCraneChecklistDescription(checklistState, itemId) {
   return value && typeof value === "object" ? String(value.description || "") : "";
 }
 
+// --------------------------------------------------------------------------
+// El checklist y la bitacora, conectados
+//
+// Antes eran dos mundos: el checklist guardaba "punto 47 en Mal" y la bitacora
+// guardaba hallazgos, pero nadie los unia. Un hallazgo detectado en el
+// checklist moria ahi y habia que volver a capturarlo cada visita.
+//
+// Los dos catalogos comparten la numeracion 1-116, asi que el punto 47 del
+// checklist y el hallazgo 47 de la bitacora son el mismo problema.
+// --------------------------------------------------------------------------
+
+// Traduce un punto del checklist al hallazgo de catalogo que le corresponde.
+function buildLedgerDataFromChecklistItem(item, description) {
+  const incidencia = `${item.number}. ${item.title}`;
+  const catalogItem = typeof findingCatalogIndex !== "undefined"
+    ? findingCatalogIndex.find((entry) => entry.number === String(item.number))
+    : null;
+  return {
+    number: String(item.number),
+    category: catalogItem ? catalogItem.category : (item.category || "Checklist"),
+    incidence: catalogItem ? catalogItem.incidence : incidencia,
+    note: description || ""
+  };
+}
+
+// Un punto del checklist cambio de estado. Aqui se decide que pasa con el
+// hallazgo de la grua.
+async function syncChecklistItemToFindingLog(client, crane, itemId, status, description) {
+  if (typeof openCraneFinding !== "function") {
+    return null;
+  }
+  const item = getCraneChecklistCatalog().find((entry) => entry.id === itemId);
+  if (!item) {
+    return null;
+  }
+
+  const abierto = findOpenCraneFindingByNumber(client, crane.id, String(item.number));
+
+  if (status === "bad") {
+    // openCraneFinding no duplica: si ya estaba abierto, solo lo vuelve a ver.
+    const datos = buildLedgerDataFromChecklistItem(item, description);
+    await openCraneFinding({
+      ...datos,
+      client,
+      craneId: crane.id,
+      serviceId: readCompanyCraneChecklistMeta(client, crane.id).serviceId || ""
+    });
+    return "abierto";
+  }
+
+  if (!abierto) {
+    return null;
+  }
+
+  if (status === "na") {
+    await fixCraneFinding(abierto.id, {
+      reason: "na",
+      note: "El punto dejo de aplicar a este equipo."
+    });
+    return "noAplica";
+  }
+
+  if (status === "good") {
+    const quien = await preguntarQuienCorrigio();
+    if (!quien) {
+      // Sin respuesta no se cierra nada: el hallazgo sigue abierto y el punto
+      // se queda en Bien, que es una contradiccion visible a proposito.
+      return null;
+    }
+    const nota = await showPromptModal({
+      eyebrow: "Hallazgo",
+      title: "Cerrar el hallazgo",
+      message: `El punto ${item.number} venia abierto desde el ${formatDate(abierto.openedAt) || "servicio anterior"}. Al marcarlo Bien se cierra.`,
+      placeholder: "Que se hizo (opcional)",
+      cancelLabel: "Cancelar",
+      saveLabel: "Cerrar hallazgo"
+    });
+    if (nota === null) {
+      return null;
+    }
+    await fixCraneFinding(abierto.id, { note: nota, source: quien });
+    return "corregido";
+  }
+
+  return null;
+}
+
+// Deja constancia de que este punto se reviso en el checklist de hoy. Sin esto
+// no se puede distinguir "lo revise y sigue mal" de "ni lo toque".
+function markChecklistItemTouched(findings, client, craneId, itemId) {
+  const metaKey = buildCraneChecklistMetaKey(client, craneId);
+  const meta = findings[metaKey] || {};
+  const tocados = new Set(Array.isArray(meta.touchedItemIds) ? meta.touchedItemIds : []);
+  tocados.add(itemId);
+  findings[metaKey] = { ...meta, touchedItemIds: Array.from(tocados) };
+}
+
 function wireCompanyCraneChecklistChecks(client, crane) {
   elements.companyCraneFindingsList.querySelectorAll("[data-crane-checklist-id]").forEach((input) => {
     input.addEventListener("change", async () => {
@@ -1850,8 +2010,11 @@ function wireCompanyCraneChecklistChecks(client, crane) {
       const description = previous && typeof previous === "object" ? previous.description || "" : "";
       findings[key][itemId] = { status: input.value, description };
       findings[key]._updatedAt = new Date().toISOString();
+      markChecklistItemTouched(findings, client, crane.id, itemId);
       await writeActiveCraneFindings(findings);
       queueDataSync("checklist maestro actualizado");
+
+      await syncChecklistItemToFindingLog(client, crane, itemId, input.value, description);
 
       if (input.value === "bad") {
         const item = getCraneChecklistCatalog().find((entry) => entry.id === itemId);
@@ -1867,6 +2030,14 @@ function wireCompanyCraneChecklistChecks(client, crane) {
           latestFindings[key]._updatedAt = new Date().toISOString();
           await writeActiveCraneFindings(latestFindings);
           queueDataSync("descripcion de checklist actualizada");
+
+          // La descripcion es lo que el cliente lee; tiene que llegar al
+          // hallazgo, no quedarse solo en el checklist.
+          const item = getCraneChecklistCatalog().find((entry) => entry.id === itemId);
+          const abierto = item ? findOpenCraneFindingByNumber(client, crane.id, String(item.number)) : null;
+          if (abierto && typeof persistCraneFinding === "function") {
+            await persistCraneFinding({ ...abierto, note: nextDescription });
+          }
         }
       }
 
@@ -1894,11 +2065,31 @@ function wireCompanyCraneChecklistChecks(client, crane) {
     saveButton.addEventListener("click", (event) => {
       runButtonAction(event.currentTarget, async () => {
         await persistVisibleCompanyCraneChecklistDraft(client, crane.id);
+
+        // Un punto que venia abierto y nadie toco no se puede dar por revisado.
+        const sinRevisar = getUnconfirmedPreloadedItems(client, crane.id);
+        if (sinRevisar.length) {
+          await showAppDialog({
+            eyebrow: "Checklist",
+            title: "Faltan puntos por confirmar",
+            message: `Hay ${sinRevisar.length} hallazgo(s) que venian abiertos de la visita anterior y todavia no se revisan en este checklist. Marcalos aunque sea para dejarlos igual.`,
+            details: sinRevisar.slice(0, 10).map((item) => `${item.number}. ${item.title}`).join("\n")
+              + (sinRevisar.length > 10 ? `\n...y ${sinRevisar.length - 10} mas` : ""),
+            actions: [{ id: "ok", label: "Ir a revisarlos", variant: "primary" }]
+          });
+          return false;
+        }
+
         await saveCompanyCraneChecklistSnapshot(client, crane);
         return true;
       }, { done: "Guardado" });
     });
   });
+
+  const startButton = elements.companyCraneFindingsList.querySelector("[data-start-crane-checklist]");
+  if (startButton) {
+    onAction(startButton, () => startNewCraneChecklist(client, crane), { done: "Iniciado" });
+  }
 
   elements.companyCraneFindingsList.querySelectorAll("[data-edit-saved-checklist]").forEach((button) => {
     button.addEventListener("click", () => startEditingSavedChecklist(client, crane, button.dataset.editSavedChecklist));
@@ -2677,7 +2868,109 @@ async function cancelSavedChecklistEdit(client, crane) {
   await renderCompanyCraneMasterModal();
 }
 
-async function saveCompanyCraneChecklistSnapshot(client, crane) {
+// --------------------------------------------------------------------------
+// Un checklist por servicio
+//
+// Antes habia un solo checklist que se editaba encima de si mismo para
+// siempre. Ahora cada visita abre el suyo: el anterior se archiva y el nuevo
+// nace con los hallazgos que siguieron abiertos ya marcados en Mal.
+//
+// Es la diferencia entre "recordar" y "volver a capturar": el tecnico llega y
+// la grua ya le dice lo que quedo pendiente.
+// --------------------------------------------------------------------------
+
+function getOpenChecklistItemIdsFromLedger(client, crane) {
+  if (typeof getCraneFindingLog !== "function") {
+    return [];
+  }
+  const catalogo = getCraneChecklistCatalog();
+  const porNumero = new Map(catalogo.map((item) => [String(item.number), item]));
+  return getCraneFindingLog(client, crane.id, { onlyOpen: true })
+    .map((entry) => ({ entry, item: porNumero.get(String(entry.number)) }))
+    .filter((par) => par.item);
+}
+
+async function startNewCraneChecklist(client, crane) {
+  const estadoActual = readCompanyCraneChecklistState(client, crane.id);
+  const tieneDatos = Object.keys(estadoActual).some((k) => !k.startsWith("_"));
+  const pendientes = getOpenChecklistItemIdsFromLedger(client, crane);
+
+  const seguro = await showConfirmModal({
+    eyebrow: "Checklist",
+    title: "Iniciar el checklist de este servicio",
+    message: tieneDatos
+      ? "El checklist actual se guarda en el historial y se abre uno nuevo para esta visita."
+      : "Se abre un checklist nuevo para esta visita.",
+    details: pendientes.length
+      ? `Va a llegar precargado con ${pendientes.length} hallazgo(s) que siguen abiertos, ya marcados en Mal:\n`
+        + pendientes.slice(0, 8).map((p) => `${p.item.number}. ${p.item.title}`).join("\n")
+        + (pendientes.length > 8 ? `\n...y ${pendientes.length - 8} mas` : "")
+      : "Esta grua no tiene hallazgos abiertos, asi que el checklist arranca limpio.",
+    confirmLabel: "Iniciar",
+    cancelLabel: "Cancelar"
+  });
+  if (!seguro) {
+    return false;
+  }
+
+  // Lo de hoy se archiva antes de abrir lo nuevo, o se perderia.
+  if (tieneDatos) {
+    await saveCompanyCraneChecklistSnapshot(client, crane, { silencioso: true });
+  }
+
+  const findings = readActiveCraneFindings();
+  const nuevoEstado = {};
+  pendientes.forEach(({ entry, item }) => {
+    nuevoEstado[item.id] = { status: "bad", description: entry.note || "" };
+  });
+  nuevoEstado._updatedAt = new Date().toISOString();
+  findings[buildCraneChecklistKey(client, crane.id)] = nuevoEstado;
+
+  const metaPrevia = readCompanyCraneChecklistMeta(client, crane.id);
+  findings[buildCraneChecklistMetaKey(client, crane.id)] = {
+    folio: "",
+    startedAt: new Date().toISOString(),
+    startedBy: typeof getCloudUserEmail === "function" ? getCloudUserEmail() || "" : "",
+    // Los puntos precargados hay que confirmarlos antes de poder cerrar.
+    preloadedItemIds: pendientes.map((p) => p.item.id),
+    touchedItemIds: [],
+    serviceId: metaPrevia.serviceId || "",
+    updatedAt: new Date().toISOString()
+  };
+
+  await writeActiveCraneFindings(findings);
+  queueDataSync("checklist nuevo iniciado");
+
+  activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
+  await renderCompanyCraneMasterModal();
+  if (typeof showToast === "function") {
+    showToast({
+      title: "Checklist iniciado",
+      message: pendientes.length
+        ? `${pendientes.length} punto(s) llegaron precargados en Mal. Confirma cada uno.`
+        : "Checklist limpio, listo para llenar.",
+      tone: "success"
+    });
+  }
+  return true;
+}
+
+// Los puntos que llegaron precargados y todavia nadie ha tocado en esta visita.
+function getUnconfirmedPreloadedItems(client, craneId) {
+  const meta = readCompanyCraneChecklistMeta(client, craneId);
+  const precargados = Array.isArray(meta.preloadedItemIds) ? meta.preloadedItemIds : [];
+  if (!precargados.length) {
+    return [];
+  }
+  const tocados = new Set(Array.isArray(meta.touchedItemIds) ? meta.touchedItemIds : []);
+  const catalogo = getCraneChecklistCatalog();
+  return precargados
+    .filter((id) => !tocados.has(id))
+    .map((id) => catalogo.find((item) => item.id === id))
+    .filter(Boolean);
+}
+
+async function saveCompanyCraneChecklistSnapshot(client, crane, opciones = {}) {
   const catalog = getCraneChecklistCatalog();
   const checklistState = readCompanyCraneChecklistState(client, crane.id);
   const meta = readCompanyCraneChecklistMeta(client, crane.id);
@@ -2727,6 +3020,9 @@ async function saveCompanyCraneChecklistSnapshot(client, crane) {
   };
   await writeActiveCraneFindings(findings);
   queueDataSync("historial de checklist guardado");
+  if (opciones.silencioso) {
+    return;
+  }
   activeCompanyCraneMaster = { client, craneId: crane.id, tab: "checklist" };
   await renderCompanyCraneMasterModal();
   if (typeof showToast === "function") {
@@ -3855,25 +4151,64 @@ async function handleCompanyCraneSelection() {
   }
 }
 
+// Convierte un hallazgo de la bitacora en un hallazgo de reporte.
+function createFindingFromLedgerEntry(entry) {
+  const catalogItem = typeof findingCatalogIndex !== "undefined"
+    ? findingCatalogIndex.find((item) => item.number === String(entry.number))
+    : null;
+
+  if (catalogItem) {
+    const finding = createFindingFromCatalogItem(catalogItem);
+    return {
+      ...finding,
+      ledgerFindingId: entry.id,
+      description: entry.note || finding.description
+    };
+  }
+
+  // Hallazgo libre: no tiene numero de catalogo, pero vive igual en la grua.
+  return {
+    id: createId(),
+    ledgerFindingId: entry.id,
+    category: entry.category || "Hallazgo",
+    incidence: entry.incidence || "",
+    description: entry.note || "",
+    recommendation: "",
+    photos: []
+  };
+}
+
+// Lo que sigue pendiente en esta grua, venga del checklist o escrito a mano.
 async function promptLoadActiveCraneFindingsIntoReport(client, crane) {
-  const badChecklistItems = getBadCraneChecklistItems(client, crane.id);
-  if (!badChecklistItems.length) {
+  if (typeof getCraneFindingLog !== "function") {
+    return;
+  }
+  const abiertos = getCraneFindingLog(client, crane.id, { onlyOpen: true });
+  if (!abiertos.length) {
     return;
   }
 
-  const missingFindings = badChecklistItems.filter((item) => !currentEquipmentFindings.some((finding) => (
-    finding.checklistItemId === item.id
-    || removeFindingCatalogNumber(finding.incidence) === removeFindingCatalogNumber(`${item.number}. ${item.title}`)
+  const faltantes = abiertos.filter((entry) => !currentEquipmentFindings.some((finding) => (
+    finding.ledgerFindingId === entry.id
+    || (entry.number && getFindingChecklistNumber(finding) === String(entry.number))
   )));
-  if (!missingFindings.length) {
+  if (!faltantes.length) {
     return;
   }
+
+  const describir = (entry) => {
+    const titulo = removeFindingCatalogNumber(entry.incidence) || entry.category || "Hallazgo";
+    const encabezado = entry.number ? `${entry.number}. ${titulo}` : titulo;
+    const antiguedad = entry.timesSeen > 1 ? ` (abierto en ${entry.timesSeen} servicios)` : "";
+    return `${encabezado}${antiguedad}${entry.note ? `\n  ${entry.note}` : ""}`;
+  };
 
   const result = await showAppDialog({
-    eyebrow: "Hallazgos activos",
-    title: "Cargar hallazgos de esta grua",
-    message: `Esta grua tiene ${missingFindings.length} hallazgo(s) marcado(s) como Mal en el checklist.`,
-    details: missingFindings.slice(0, 8).map((item) => `${item.number}. ${item.title}${item.checklistDescription ? `\n  ${item.checklistDescription}` : ""}`).join("\n"),
+    eyebrow: "Bitacora de la grua",
+    title: "Cargar los hallazgos pendientes",
+    message: `Esta grua arrastra ${faltantes.length} hallazgo(s) sin corregir. Se agregan al reporte de hoy para que el cliente los vea otra vez.`,
+    details: faltantes.slice(0, 8).map(describir).join("\n")
+      + (faltantes.length > 8 ? `\n...y ${faltantes.length - 8} mas` : ""),
     actions: [
       { id: "cancel", label: "Cancelar", variant: "ghost" },
       { id: "load", label: "Cargar al reporte", variant: "primary" }
@@ -3884,7 +4219,7 @@ async function promptLoadActiveCraneFindingsIntoReport(client, crane) {
     return;
   }
 
-  currentEquipmentFindings = currentEquipmentFindings.concat(missingFindings.map(createFindingFromChecklistItem));
+  currentEquipmentFindings = currentEquipmentFindings.concat(faltantes.map(createFindingFromLedgerEntry));
   renderFindingsList();
 }
 

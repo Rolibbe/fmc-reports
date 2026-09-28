@@ -14,13 +14,24 @@
 // bloque unico. Es a proposito: el bloque unico es justo lo que hace lento y
 // fragil al checklist, y no habia por que repetir el error.
 
-const FINDING_LOG_STATUSES = ["open", "claimed", "fixed"];
+const FINDING_LOG_STATUSES = ["open", "claimed", "fixed", "discarded"];
 
 const FINDING_LOG_STATUS_LABEL = {
   open: "Abierto",
   claimed: "Reportado como atendido",
-  fixed: "Corregido"
+  fixed: "Corregido",
+  discarded: "Descartado"
 };
+
+// Un hallazgo sale de la lista de pendientes por dos caminos muy distintos y
+// conviene no confundirlos nunca:
+//   "fixed"     existio y se atendio. Cuenta como trabajo hecho.
+//   "discarded" se marco por error. No existio, asi que no cuenta como nada.
+const FINDING_LOG_CLOSED_STATUSES = ["fixed", "discarded"];
+
+function isCraneFindingClosed(entry) {
+  return FINDING_LOG_CLOSED_STATUSES.includes(entry?.status);
+}
 
 // Cache en memoria para poder pintar sin esperar a IndexedDB. Las escrituras
 // si van de una en una al almacen.
@@ -43,6 +54,10 @@ function normalizeCraneFinding(record) {
     craneId,
     scope: buildCraneFindingScope(client, craneId),
     number: String(source.number || ""),
+    // Los hallazgos escritos a mano no tienen numero de catalogo. Se
+    // identifican por su texto normalizado, para no duplicarlos visita tras
+    // visita cuando se redacta casi igual.
+    signature: source.signature || "",
     category: source.category || "",
     incidence: source.incidence || "",
     note: source.note || "",
@@ -63,6 +78,13 @@ function normalizeCraneFinding(record) {
     fixedBy: source.fixedBy || "",
     fixedNote: source.fixedNote || "",
     fixedServiceId: source.fixedServiceId || "",
+    // Quien lo atendio ("fmc" | "client") y por que se cerro ("fixed" el
+    // problema se resolvio, "na" el punto dejo de aplicar a este equipo).
+    fixedSource: source.fixedSource || "",
+    fixedReason: source.fixedReason || "",
+    discardedAt: source.discardedAt || "",
+    discardedBy: source.discardedBy || "",
+    discardedNote: source.discardedNote || "",
     createdAt: source.createdAt || new Date().toISOString(),
     updatedAt: source.updatedAt || new Date().toISOString(),
     deletedAt: source.deletedAt || ""
@@ -108,7 +130,7 @@ function getCraneFindingLog(client, craneId, options = {}) {
     if (entry.scope !== scope || entry.deletedAt) {
       return;
     }
-    if (options.onlyOpen && entry.status === "fixed") {
+    if (options.onlyOpen && isCraneFindingClosed(entry)) {
       return;
     }
     rows.push(entry);
@@ -141,6 +163,92 @@ function getCraneFindingSeverity(entry) {
   return "attention";
 }
 
+function buildCraneFindingSignature(incidence) {
+  return String(incidence || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function findOpenCraneFindingBySignature(client, craneId, signature) {
+  const scope = buildCraneFindingScope(client, craneId);
+  const buscado = String(signature || "");
+  if (!buscado) {
+    return null;
+  }
+  let encontrado = null;
+  findingLogCache.forEach((entry) => {
+    if (encontrado || entry.deletedAt) {
+      return;
+    }
+    if (entry.scope === scope && entry.signature === buscado && !isCraneFindingClosed(entry)) {
+      encontrado = entry;
+    }
+  });
+  return encontrado;
+}
+
+// Ancla a la grua todos los hallazgos de un equipo del reporte. Se puede
+// repetir sin miedo: lo que ya esta abierto no se duplica, solo se vuelve a
+// ver y sube su contador de servicios.
+async function syncEquipmentFindingsToLedger(client, craneId, findings, serviceId) {
+  if (!client || !craneId || !Array.isArray(findings)) {
+    return 0;
+  }
+  let anclados = 0;
+  for (const finding of findings) {
+    const numero = typeof getFindingChecklistNumber === "function"
+      ? getFindingChecklistNumber(finding)
+      : "";
+    const signature = numero ? "" : buildCraneFindingSignature(finding.incidence);
+    if (!numero && !signature) {
+      continue;
+    }
+    const existente = numero
+      ? findOpenCraneFindingByNumber(client, craneId, numero)
+      : findOpenCraneFindingBySignature(client, craneId, signature);
+
+    if (existente) {
+      await persistCraneFinding({
+        ...existente,
+        lastSeenAt: new Date().toISOString(),
+        lastSeenServiceId: serviceId || existente.lastSeenServiceId,
+        timesSeen: existente.timesSeen + (serviceId && serviceId !== existente.lastSeenServiceId ? 1 : 0),
+        note: finding.description || existente.note
+      });
+      anclados += 1;
+      continue;
+    }
+
+    if (numero) {
+      await openCraneFinding({
+        client, craneId, number: numero,
+        category: finding.category || "",
+        incidence: finding.incidence || "",
+        note: finding.description || "",
+        serviceId
+      });
+    } else {
+      const ahora = new Date().toISOString();
+      const nuevo = await persistCraneFinding({
+        client, craneId, number: "", signature,
+        category: finding.category || "Hallazgo",
+        incidence: finding.incidence || "",
+        note: finding.description || "",
+        status: "open",
+        openedAt: ahora,
+        openedBy: currentFindingLogUser(),
+        openedServiceId: serviceId || "",
+        lastSeenAt: ahora,
+        lastSeenServiceId: serviceId || "",
+        timesSeen: 1
+      });
+      registrarCambioDeHallazgo(nuevo, "created", "Hallazgo abierto desde el reporte");
+    }
+    anclados += 1;
+  }
+  return anclados;
+}
+
 function findOpenCraneFindingByNumber(client, craneId, number) {
   const scope = buildCraneFindingScope(client, craneId);
   const buscado = String(number || "");
@@ -149,7 +257,7 @@ function findOpenCraneFindingByNumber(client, craneId, number) {
     if (encontrado || entry.deletedAt) {
       return;
     }
-    if (entry.scope === scope && entry.number === buscado && entry.status !== "fixed") {
+    if (entry.scope === scope && entry.number === buscado && !isCraneFindingClosed(entry)) {
       encontrado = entry;
     }
   });
@@ -158,14 +266,14 @@ function findOpenCraneFindingByNumber(client, craneId, number) {
 
 function summarizeCompanyFindings(client) {
   const objetivo = normalizeClientName(client);
-  const resumen = { open: 0, claimed: 0, fixed: 0, total: 0, critical: 0 };
+  const resumen = { open: 0, claimed: 0, fixed: 0, discarded: 0, total: 0, critical: 0 };
   findingLogCache.forEach((entry) => {
     if (entry.deletedAt || entry.client !== objetivo) {
       return;
     }
     resumen[entry.status] += 1;
     resumen.total += 1;
-    if (entry.status !== "fixed" && getCraneFindingSeverity(entry) === "critical") {
+    if (!isCraneFindingClosed(entry) && getCraneFindingSeverity(entry) === "critical") {
       resumen.critical += 1;
     }
   });
@@ -231,7 +339,7 @@ async function openCraneFinding(datos = {}) {
 
 async function markCraneFindingWorsened(id) {
   const entry = findingLogCache.get(id);
-  if (!entry || entry.status === "fixed") {
+  if (!entry || isCraneFindingClosed(entry)) {
     return null;
   }
   const actualizado = await persistCraneFinding({
@@ -248,7 +356,7 @@ async function markCraneFindingWorsened(id) {
 // nunca dice "corregido" por algo que nadie de FMC vio.
 async function claimCraneFinding(id, opciones = {}) {
   const entry = findingLogCache.get(id);
-  if (!entry || entry.status === "fixed") {
+  if (!entry || isCraneFindingClosed(entry)) {
     return null;
   }
   const actualizado = await persistCraneFinding({
@@ -269,15 +377,39 @@ async function fixCraneFinding(id, opciones = {}) {
   if (!entry) {
     return null;
   }
+  const motivo = opciones.reason === "na" ? "na" : "fixed";
+  const quien = opciones.source === "client" ? "client" : "fmc";
   const actualizado = await persistCraneFinding({
     ...entry,
     status: "fixed",
     fixedAt: new Date().toISOString(),
     fixedBy: currentFindingLogUser(),
     fixedNote: opciones.note || "",
-    fixedServiceId: opciones.serviceId || ""
+    fixedServiceId: opciones.serviceId || "",
+    fixedSource: quien,
+    fixedReason: motivo
   });
-  registrarCambioDeHallazgo(actualizado, "updated", "Verificado como corregido");
+  registrarCambioDeHallazgo(actualizado, "updated", motivo === "na"
+    ? "Cerrado: el punto ya no aplica a este equipo"
+    : `Verificado como corregido (${quien === "client" ? "lo atendio el cliente" : "lo atendio FMC"})`);
+  return actualizado;
+}
+
+// Se marco por error. Es distinto de corregir: aqui el hallazgo nunca existio,
+// asi que no debe aparecer como trabajo atendido en ningun conteo ni reporte.
+async function discardCraneFinding(id, opciones = {}) {
+  const entry = findingLogCache.get(id);
+  if (!entry) {
+    return null;
+  }
+  const actualizado = await persistCraneFinding({
+    ...entry,
+    status: "discarded",
+    discardedAt: new Date().toISOString(),
+    discardedBy: currentFindingLogUser(),
+    discardedNote: opciones.note || ""
+  });
+  registrarCambioDeHallazgo(actualizado, "updated", "Descartado: se habia marcado por error");
   return actualizado;
 }
 
@@ -291,6 +423,8 @@ async function reopenCraneFinding(id, opciones = {}) {
     status: "open",
     claimedAt: "", claimedBy: "", claimedNote: "", claimedSource: "",
     fixedAt: "", fixedBy: "", fixedNote: "", fixedServiceId: "",
+    fixedSource: "", fixedReason: "",
+    discardedAt: "", discardedBy: "", discardedNote: "",
     lastSeenAt: new Date().toISOString(),
     lastSeenServiceId: opciones.serviceId || ""
   });

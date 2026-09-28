@@ -26,8 +26,19 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.4.5";
+const APP_VERSION = "1.5.0";
 const APP_RELEASE_NOTES = {
+  "1.5.0": {
+    title: "Actualizacion 1.5.0",
+    summary: [
+      "El checklist ahora es uno por servicio: al iniciar uno nuevo, el anterior pasa al historial.",
+      "El checklist nuevo llega precargado con los hallazgos que siguen abiertos, ya marcados en Mal. Solo tocas lo que cambio.",
+      "Marcar un punto en Mal abre el hallazgo en la bitacora de la grua; marcarlo Bien lo cierra preguntando quien lo atendio.",
+      "No se puede guardar un checklist con puntos pendientes de la visita anterior sin revisar.",
+      "El reporte jala los hallazgos de la bitacora, asi que tambien arrastra los escritos a mano.",
+      "Un hallazgo marcado por error se puede descartar sin que cuente como corregido."
+    ]
+  },
   "1.4.5": {
     title: "Actualizacion 1.4.5",
     summary: [

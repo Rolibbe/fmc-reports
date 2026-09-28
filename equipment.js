@@ -688,6 +688,17 @@ function saveEquipmentFromEditor() {
   });
   equipment.catalogCraneId = upsertCatalogCraneFromEquipment(equipment);
 
+  // Los hallazgos de este equipo se pegan a la grua, no se quedan dentro del
+  // reporte. Es lo que hace que sigan vivos en la visita siguiente.
+  if (typeof syncEquipmentFindingsToLedger === "function" && equipment.catalogCraneId) {
+    syncEquipmentFindingsToLedger(
+      normalizeClientName(elements.plantName.value),
+      equipment.catalogCraneId,
+      equipment.findings,
+      elements.inspectionId ? elements.inspectionId.value : ""
+    ).catch((error) => console.error("No se pudieron anclar los hallazgos a la grua", error));
+  }
+
   const existingIndex = currentEquipments.findIndex((item) => item.id === equipmentId);
   if (existingIndex >= 0) {
     currentEquipments[existingIndex] = equipment;
