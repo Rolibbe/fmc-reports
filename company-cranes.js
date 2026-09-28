@@ -173,6 +173,7 @@ async function openCompanyCraneRegistry() {
   elements.companyRegistrySearch.value = "";
 
   await seedCompanyRegistryFromReports(false);
+  await refreshCraneMaintenanceDatesFromReports();
   loadCompanyMaintenanceFrequency();
   await renderCompanyCraneRegistry();
   showView("companyCraneRegistry");
@@ -189,6 +190,9 @@ async function populateCompanyRegistryClientOptions() {
 
 async function renderCompanyCraneRegistry() {
   const client = normalizeClientName(elements.companyRegistryClient.value);
+  if (client) {
+    await refreshCraneMaintenanceDatesFromReports({ client });
+  }
   const registry = readCompanyCraneRegistry();
   const cranes = client ? registry[client] || [] : [];
   const maintenanceLookup = client ? await buildCompanyCraneMaintenanceLookup(client, cranes) : new Map();
@@ -499,7 +503,11 @@ async function buildCompanyCraneMaintenanceLookup(client, cranes, options = {}) 
 
         const nextMaintenance = equipment.nextInspection || addMonthsToDateInput(maintenanceDate, frequencyMonths);
         const current = lookup.get(matchedCrane.id);
-        if (current?.manual || (current && compareDateInput(current.maintenanceDate, maintenanceDate) >= 0)) {
+        // Gana la fecha mas reciente. Antes, "manual" vetaba cualquier
+        // reporte y la tarjeta se quedaba congelada en la fecha vieja.
+        // Con fechas iguales gana el reporte, para que la ficha diga de donde
+        // salio el dato y con que folio, en vez de etiquetarlo como manual.
+        if (current && compareDateInput(current.maintenanceDate, maintenanceDate) > 0) {
           return;
         }
 
@@ -515,6 +523,77 @@ async function buildCompanyCraneMaintenanceLookup(client, cranes, options = {}) 
     });
 
   return lookup;
+}
+
+// Recorre los servicios guardados y adelanta la fecha de mantenimiento de
+// cada grua. Devuelve cuantas gruas se movieron.
+//
+// No pide confirmacion ni boton: es informacion que ya esta en los reportes,
+// solo estaba sin copiar al catalogo.
+async function refreshCraneMaintenanceDatesFromReports(options = {}) {
+  const registry = readCompanyCraneRegistry();
+  const objetivo = options.client ? normalizeClientName(options.client) : "";
+  const records = Array.isArray(options.records)
+    ? options.records
+    : (await getAllInspections()).map(normalizeInspection);
+
+  const empresas = objetivo
+    ? [objetivo].filter((client) => Array.isArray(registry[client]))
+    : Object.keys(registry);
+
+  let cambios = 0;
+
+  empresas.forEach((client) => {
+    const cranes = Array.isArray(registry[client]) ? registry[client] : [];
+    if (!cranes.length) {
+      return;
+    }
+    const frequencyMonths = Number(getCompanyMaintenanceFrequency(client)) || getDefaultMaintenanceFrequencyMonths();
+
+    // Lo mas reciente que haya de cada grua en los servicios de esa empresa.
+    const masReciente = new Map();
+    records
+      .filter((record) => normalizeClientName(record.plantName) === client)
+      .forEach((record) => {
+        (record.equipments || []).forEach((equipment) => {
+          const crane = findMatchingCompanyCrane(cranes, equipment);
+          if (!crane) {
+            return;
+          }
+          const fecha = equipment.maintenanceDate || record.inspectionDate || "";
+          if (!fecha) {
+            return;
+          }
+          const actual = masReciente.get(crane.id);
+          if (actual && compareDateInput(actual.date, fecha) >= 0) {
+            return;
+          }
+          masReciente.set(crane.id, { date: fecha, next: equipment.nextInspection || "" });
+        });
+      });
+
+    cranes.forEach((crane) => {
+      const nuevo = masReciente.get(crane.id);
+      if (!nuevo) {
+        return;
+      }
+      // Solo adelanta. Una fecha guardada mas nueva que cualquier reporte se
+      // respeta: puede ser un servicio que todavia no se captura.
+      if (crane.lastMaintenanceDate && compareDateInput(crane.lastMaintenanceDate, nuevo.date) >= 0) {
+        return;
+      }
+      crane.lastMaintenanceDate = nuevo.date;
+      crane.nextMaintenanceDate = nuevo.next || addMonthsToDateInput(nuevo.date, frequencyMonths);
+      crane.updatedAt = new Date().toISOString();
+      cambios += 1;
+    });
+  });
+
+  if (cambios) {
+    writeCompanyCraneRegistry(registry);
+    queueDataSync("fechas de mantenimiento al dia");
+  }
+  return cambios;
 }
 
 async function buildCompanyCraneSeverityLookup(client, cranes) {
@@ -863,6 +942,9 @@ async function closeCompanyCraneFindingsModal() {
     await persistVisibleCompanyCraneChecklistDraft(client, craneId);
   }
   activeCompanyCraneMaster = { client: "", craneId: "", tab: "data" };
+  if (elements.companyCraneFindingsList) {
+    delete elements.companyCraneFindingsList.dataset.findingLogWired;
+  }
   elements.companyCraneFindingsPanel.classList.add("hidden");
 }
 
@@ -886,6 +968,7 @@ async function renderCompanyCraneMasterModal() {
     findings: () => renderCompanyCraneFindingsTab(client, crane),
     checklist: () => renderCompanyCraneChecklistTab(client, crane),
     history: () => renderCompanyCraneHistoryTab(client, crane),
+    log: () => renderCompanyCraneLogTab(client, crane),
     files: () => renderCompanyCraneFilesTab(client, crane)
   };
 
@@ -901,6 +984,9 @@ async function renderCompanyCraneMasterModal() {
   if (activeTab === "files") {
     wireCompanyCraneFilesTab(client, crane);
   }
+  if (activeTab === "log") {
+    wireCompanyCraneLogTab(client, crane);
+  }
 }
 
 function renderCompanyCraneMasterTabs(activeTab) {
@@ -910,6 +996,7 @@ function renderCompanyCraneMasterTabs(activeTab) {
     { key: "maintenance", label: "Mantenimiento" },
     { key: "findings", label: "Hallazgos" },
     { key: "checklist", label: "Checklist" },
+    { key: "log", label: "Bitacora" },
     { key: "history", label: "Historial de servicios" },
     { key: "files", label: "Fotos/documentos" }
   ];
@@ -1136,6 +1223,151 @@ async function renderCompanyCraneMaintenanceTab(client, crane) {
       </article>
     </div>
   `;
+}
+
+// --------------------------------------------------------------------------
+// Pestana "Bitacora": los hallazgos de esta grua a lo largo del tiempo.
+//
+// Es la vista que contesta la pregunta que antes obligaba a abrir reportes
+// viejos uno por uno: que quedo pendiente en esta grua.
+// --------------------------------------------------------------------------
+
+function renderCompanyCraneLogTab(client, crane) {
+  if (typeof getCraneFindingLog !== "function") {
+    return '<div class="inline-empty-state">La bitacora todavia no esta disponible.</div>';
+  }
+
+  const rows = getCraneFindingLog(client, crane.id);
+  const abiertos = rows.filter((entry) => entry.status === "open");
+  const reportados = rows.filter((entry) => entry.status === "claimed");
+  const corregidos = rows.filter((entry) => entry.status === "fixed");
+
+  return `
+    <div class="crane-master-mini-summary">
+      <article class="history-stat"><span>Abiertos</span><strong>${abiertos.length}</strong></article>
+      <article class="history-stat"><span>Por verificar</span><strong>${reportados.length}</strong></article>
+      <article class="history-stat"><span>Corregidos</span><strong>${corregidos.length}</strong></article>
+    </div>
+    ${rows.length
+      ? `<div class="finding-log-list">${rows.map(renderFindingLogCard).join("")}</div>`
+      : '<div class="inline-empty-state">Esta grua todavia no tiene hallazgos en la bitacora. Se van a ir abriendo solos conforme captures servicios.</div>'}
+  `;
+}
+
+function renderFindingLogCard(entry) {
+  const critico = getCraneFindingSeverity(entry) === "critical";
+  const titulo = removeFindingCatalogNumber(entry.incidence) || entry.category || "Hallazgo";
+  const acciones = entry.status === "fixed"
+    ? `<button class="ghost-button" type="button" data-finding-log-reopen="${escapeHtml(entry.id)}">Reabrir</button>`
+    : `
+      <button class="ghost-button" type="button" data-finding-log-worsened="${escapeHtml(entry.id)}">Empeoro</button>
+      ${entry.status === "open"
+        ? `<button class="ghost-button" type="button" data-finding-log-claim="${escapeHtml(entry.id)}">Reportar atendido</button>`
+        : ""}
+      <button class="primary-button" type="button" data-finding-log-fix="${escapeHtml(entry.id)}">Verificar corregido</button>
+    `;
+
+  return `
+    <article class="finding-log-card is-${escapeHtml(entry.status)}${critico ? " is-critical" : ""}">
+      <header>
+        <span class="finding-log-number">${escapeHtml(entry.number)}</span>
+        <div class="finding-log-title">
+          <strong>${escapeHtml(titulo)}</strong>
+          <small>${escapeHtml(entry.category || "")}</small>
+        </div>
+        <span class="finding-log-state is-${escapeHtml(entry.status)}">${escapeHtml(FINDING_LOG_STATUS_LABEL[entry.status])}</span>
+      </header>
+      <p class="finding-log-meta">
+        ${escapeHtml(describeFindingLogTimeline(entry))}
+      </p>
+      ${entry.claimedNote ? `<p class="finding-log-note">${escapeHtml(entry.claimedNote)}</p>` : ""}
+      ${entry.fixedNote ? `<p class="finding-log-note">${escapeHtml(entry.fixedNote)}</p>` : ""}
+      <div class="finding-log-actions">${acciones}</div>
+    </article>
+  `;
+}
+
+function describeFindingLogTimeline(entry) {
+  const partes = [];
+  if (entry.status === "fixed") {
+    partes.push(`Corregido el ${formatDate(entry.fixedAt) || "-"}`);
+    if (entry.fixedBy) {
+      partes.push(entry.fixedBy);
+    }
+  } else {
+    partes.push(`Abierto desde el ${formatDate(entry.openedAt) || "-"}`);
+    if (entry.timesSeen > 1) {
+      partes.push(`visto en ${entry.timesSeen} servicios`);
+    }
+    if (entry.worsenedCount > 0) {
+      partes.push(entry.worsenedCount === 1 ? "empeoro una vez" : `empeoro ${entry.worsenedCount} veces`);
+    }
+    if (entry.status === "claimed") {
+      const quien = entry.claimedSource === "client" ? "el cliente" : "FMC";
+      partes.push(`${quien} lo reporto atendido el ${formatDate(entry.claimedAt) || "-"}`);
+    }
+  }
+  return partes.join(" \u00b7 ");
+}
+
+function wireCompanyCraneLogTab(client, crane) {
+  const raiz = elements.companyCraneFindingsList;
+  if (!raiz || raiz.dataset.findingLogWired === "true") {
+    return;
+  }
+  raiz.dataset.findingLogWired = "true";
+
+  raiz.addEventListener("click", async (event) => {
+    const boton = event.target.closest("[data-finding-log-fix], [data-finding-log-claim], [data-finding-log-worsened], [data-finding-log-reopen]");
+    if (!boton) {
+      return;
+    }
+
+    const { findingLogFix, findingLogClaim, findingLogWorsened, findingLogReopen } = boton.dataset;
+
+    if (findingLogWorsened) {
+      await markCraneFindingWorsened(findingLogWorsened);
+    } else if (findingLogClaim) {
+      const nota = await showPromptModal({
+        eyebrow: "Hallazgo",
+        title: "Reportar como atendido",
+        message: "Queda pendiente de que FMC lo verifique en sitio. Sigue contando como abierto hasta entonces.",
+        placeholder: "Quien lo atendio y cuando (opcional)",
+        cancelLabel: "Cancelar",
+        saveLabel: "Reportar"
+      });
+      if (nota === null) {
+        return;
+      }
+      await claimCraneFinding(findingLogClaim, { note: nota, source: "fmc" });
+    } else if (findingLogFix) {
+      const nota = await showPromptModal({
+        eyebrow: "Hallazgo",
+        title: "Verificar como corregido",
+        message: "Con esto el hallazgo se cierra y deja de contar como pendiente.",
+        placeholder: "Que se hizo (opcional)",
+        cancelLabel: "Cancelar",
+        saveLabel: "Verificar"
+      });
+      if (nota === null) {
+        return;
+      }
+      await fixCraneFinding(findingLogFix, { note: nota });
+    } else if (findingLogReopen) {
+      const seguro = await showConfirmModal({
+        eyebrow: "Hallazgo",
+        title: "Reabrir hallazgo",
+        message: "Vuelve a contar como pendiente y se pierde la fecha de correccion.",
+        confirmLabel: "Reabrir"
+      });
+      if (!seguro) {
+        return;
+      }
+      await reopenCraneFinding(findingLogReopen);
+    }
+
+    await renderCompanyCraneMasterModal();
+  });
 }
 
 function renderCompanyCraneFindingsTab(client, crane) {
@@ -2545,7 +2777,11 @@ function openCompanyCraneForm(craneId) {
 
   const client = normalizeClientName(elements.companyRegistryClient.value);
   if (!client) {
-    window.alert("Selecciona una empresa antes de agregar un equipo.");
+    showAppNotice({
+      eyebrow: "Empresas",
+      title: "Primero elige la empresa",
+      message: "Selecciona una empresa en la lista antes de agregar un equipo."
+    });
     return;
   }
 
@@ -2651,7 +2887,11 @@ function saveCompanyCraneFromForm() {
 
   const client = normalizeClientName(elements.companyRegistryClient.value);
   if (!client) {
-    window.alert("Selecciona una empresa antes de guardar el equipo.");
+    showAppNotice({
+      eyebrow: "Empresas",
+      title: "Primero elige la empresa",
+      message: "Selecciona una empresa en la lista antes de guardar el equipo."
+    });
     return false;
   }
 
@@ -2763,7 +3003,11 @@ async function deleteCurrentCompanyRegistry() {
 
   const client = normalizeClientName(elements.companyRegistryClient.value);
   if (!client) {
-    window.alert("Selecciona una empresa antes de eliminarla.");
+    showAppNotice({
+      eyebrow: "Empresas",
+      title: "Primero elige la empresa",
+      message: "Selecciona una empresa en la lista antes de eliminarla."
+    });
     return;
   }
 
@@ -3033,7 +3277,13 @@ async function syncCompanyRegistryFromReports() {
   await populateCompanyRegistryClientOptions();
   renderCompanyCraneRegistry();
   queueDataSync("catalogo actualizado desde servicios");
-  window.alert(`Catalogo actualizado. Se agregaron ${added} equipo(s) nuevo(s) desde servicios guardados.`);
+  showAppNotice({
+    eyebrow: "Catalogo",
+    title: "Catalogo actualizado",
+    message: added === 1
+      ? "Se agrego 1 equipo nuevo tomado de los servicios guardados."
+      : `Se agregaron ${added} equipos nuevos tomados de los servicios guardados.`
+  });
 }
 
 async function seedCompanyRegistryFromReports(forceAlert) {
@@ -3135,7 +3385,11 @@ function saveCompanyMaintenanceFrequency() {
   const client = normalizeClientName(elements.companyRegistryClient.value);
   if (!client) {
     elements.companyMaintenanceFrequency.value = "";
-    window.alert("Selecciona una empresa antes de definir la frecuencia.");
+    showAppNotice({
+      eyebrow: "Empresas",
+      title: "Primero elige la empresa",
+      message: "Selecciona una empresa en la lista antes de definir su frecuencia de mantenimiento."
+    });
     return;
   }
 
@@ -3399,7 +3653,11 @@ function normalizeCompanyLocationMap(source = {}) {
 async function addCompanyContactForCurrentCompany() {
   const client = normalizeClientName(elements.companyRegistryClient.value || elements.companyRegistrySearch.value);
   if (!client) {
-    window.alert("Selecciona una empresa antes de agregar contactos.");
+    showAppNotice({
+      eyebrow: "Empresas",
+      title: "Primero elige la empresa",
+      message: "Selecciona una empresa en la lista antes de agregar contactos."
+    });
     return false;
   }
 
@@ -3407,7 +3665,11 @@ async function addCompanyContactForCurrentCompany() {
   const email = (elements.companyContactEmail.value || "").trim();
   const phone = (elements.companyContactPhone.value || "").trim();
   if (!name && !email && !phone) {
-    window.alert("Escribe al menos un dato del contacto.");
+    showAppNotice({
+      eyebrow: "Contactos",
+      title: "Falta el dato del contacto",
+      message: "Escribe al menos el nombre, el correo o el telefono."
+    });
     return false;
   }
 

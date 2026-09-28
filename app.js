@@ -1,8 +1,12 @@
 
 const DB_NAME = "crane-inspections-db";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = "inspections";
 const MASTER_DATA_STORE_NAME = "masterData";
+// Un registro por hallazgo. A proposito NO va dentro de masterData: ese
+// patron guarda todo en un solo bloque y obliga a reescribirlo entero en
+// cada cambio, que es justo el problema que arrastra el checklist.
+const CRANE_FINDINGS_STORE_NAME = "craneFindings";
 const CLIENT_PLANTS_FILE = "clientes-plantas.txt";
 const POLIPASTOS_FILE = "Polipastos/Lista Polipastos.txt";
 const CONSOLIDATED_EXPORT_TEMPLATE_FILE = "concentrado-general.csv";
@@ -22,8 +26,63 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.3.98";
+const APP_VERSION = "1.4.5";
 const APP_RELEASE_NOTES = {
+  "1.4.5": {
+    title: "Actualizacion 1.4.5",
+    summary: [
+      "Acero es ahora el unico tema de la app. Se quito el selector de temas de Ajustes.",
+      "Marcar un equipo como finalizado ya no se borra al volver a guardarlo: se queda hasta que tu lo quites."
+    ]
+  },
+  "1.4.4": {
+    title: "Actualizacion 1.4.4",
+    summary: [
+      "Entrar a Empresas y equipos es mucho mas rapido: los reportes se leian siete veces seguidas y ahora se leen una.",
+      "El tema que elegiste se aplica desde el primer instante; antes, con Acero, la pantalla parpadeaba al abrir.",
+      "La instalacion descarga la mitad de archivos: el modo sin conexion guardaba cada archivo dos veces."
+    ]
+  },
+  "1.4.3": {
+    title: "Actualizacion 1.4.3",
+    summary: [
+      "Las fechas de mantenimiento de cada grua se ponen al dia solas con el servicio mas reciente que tengas capturado.",
+      "Antes, una fecha puesta a mano bloqueaba para siempre las de los reportes y la tarjeta se quedaba congelada.",
+      "Los dias para el proximo mantenimiento y los avisos de vencido ahora reflejan el ultimo servicio real."
+    ]
+  },
+  "1.4.2": {
+    title: "Actualizacion 1.4.2",
+    summary: [
+      "Al capturar un servicio, la grua ahora te muestra los hallazgos que quedaron pendientes de la visita anterior.",
+      "Contestas Sigue igual, Empeoro o Corregido, y lo que siga igual se agrega solo al reporte de hoy.",
+      "El reporte incluye un bloque nuevo: que cambio desde la visita anterior."
+    ]
+  },
+  "1.4.1": {
+    title: "Actualizacion 1.4.1",
+    summary: [
+      "Nueva pestana Bitacora en la ficha de cada grua: los hallazgos ahora viven en la grua y no dentro de un reporte.",
+      "Un hallazgo queda abierto hasta que FMC lo verifica. Si el cliente avisa que ya lo atendio, queda pendiente de verificar.",
+      "Se puede marcar que un hallazgo empeoro, y se ve en cuantos servicios seguidos ha aparecido."
+    ]
+  },
+  "1.4.0": {
+    title: "Actualizacion 1.4.0",
+    summary: [
+      "Los avisos grises del navegador se cambiaron por los cuadros de la app, con su titulo y su explicacion.",
+      "Una cuenta de cliente ya no puede disparar la sincronizacion completa del catalogo.",
+      "Se corrigio el hueco vacio que aparecia arriba de cada seccion en telefono desde la version 1.3.97."
+    ]
+  },
+  "1.3.99": {
+    title: "Actualizacion 1.3.99",
+    summary: [
+      "Nueva busqueda global: encuentra una empresa, un equipo, un numero de serie o un folio sin recordar donde estaba.",
+      "Se abre con la lupa de la barra de arriba, con Buscar en el menu del telefono, o con Ctrl+K.",
+      "Las flechas mueven la seleccion y Enter abre el resultado."
+    ]
+  },
   "1.3.98": {
     title: "Actualizacion 1.3.98",
     summary: [
@@ -708,6 +767,7 @@ const elements = {
   refreshCompanyCraneRegistryButton: document.getElementById("refreshCompanyCraneRegistryButton"),
   exportCompanyCraneRegistryButton: document.getElementById("exportCompanyCraneRegistryButton"),
   syncCompanyRegistryButton: document.getElementById("syncCompanyRegistryButton"),
+  seedFindingLogButton: document.getElementById("seedFindingLogButton"),
   deleteCompanyRegistryButton: document.getElementById("deleteCompanyRegistryButton"),
   startCompanyServiceButton: document.getElementById("startCompanyServiceButton"),
   newCompanyCraneButton: document.getElementById("newCompanyCraneButton"),
@@ -783,6 +843,7 @@ const elements = {
   equipmentEditorForm: document.getElementById("equipmentEditorForm"),
   editingEquipmentId: document.getElementById("editingEquipmentId"),
   companyCraneSelector: document.getElementById("companyCraneSelector"),
+  openCraneFindingsPanel: document.getElementById("openCraneFindingsPanel"),
   companyCraneSelectorStatus: document.getElementById("companyCraneSelectorStatus"),
   craneId: document.getElementById("craneId"),
   equipmentName: document.getElementById("equipmentName"),
@@ -843,14 +904,14 @@ document.addEventListener("DOMContentLoaded", initializeApp);
 async function initializeApp() {
   updateConnectivityStatus();
   updateAppVersionBadge();
-  if (typeof initializeAppTheme === "function") {
-    initializeAppTheme();
-  }
   if (typeof initializeFeedback === "function") {
     initializeFeedback();
   }
   try {
     await initializeMasterDataStore();
+    if (typeof initializeFindingLog === "function") {
+      await initializeFindingLog();
+    }
     await initializeAppSettings();
     populateCategoryOptions();
     populateQuickFindingOptions();
@@ -868,6 +929,12 @@ async function initializeApp() {
       await initializePresence();
     }
     applyRoleRestrictions();
+    if (typeof initializeGlobalSearch === "function") {
+      initializeGlobalSearch();
+    }
+    if (typeof initializeOpenCraneFindingsPanel === "function") {
+      initializeOpenCraneFindingsPanel();
+    }
     await openAuthenticatedLanding();
     updateConnectivityStatus();
     registerServiceWorker();
@@ -972,7 +1039,12 @@ function setupAppActions() {
   elements.importInspectionInput.addEventListener("change", handleInspectionImport);
   elements.importFullBackupButton.addEventListener("click", () => elements.importFullBackupInput.click());
   elements.importFullBackupInput.addEventListener("change", handleFullBackupImport);
-  elements.companyCraneSelector.addEventListener("change", handleCompanyCraneSelection);
+  elements.companyCraneSelector.addEventListener("change", () => {
+    handleCompanyCraneSelection();
+    if (typeof renderOpenCraneFindingsPanel === "function") {
+      renderOpenCraneFindingsPanel();
+    }
+  });
   elements.serviceType.addEventListener("change", syncServiceModeFromServiceType);
   elements.plantName.addEventListener("change", applyCompanyLocationToServiceForm);
   elements.maintenanceDate.addEventListener("change", updateNextInspectionFromMaintenanceDate);
@@ -1102,6 +1174,7 @@ function setupAppActions() {
   onAction(elements.refreshCompanyCraneRegistryButton, renderCompanyCraneRegistry, { done: "Actualizado", working: "Actualizando..." });
   onAction(elements.exportCompanyCraneRegistryButton, exportCompanyCraneRegistryExcel, { done: "Descargado", working: "Armando...", tone: "success" });
   onAction(elements.syncCompanyRegistryButton, syncCompanyRegistryFromReports, { working: "Sincronizando...", done: "Sincronizado" });
+  onAction(elements.seedFindingLogButton, seedFindingLogFromReports, { working: "Revisando servicios...", done: "Listo" });
   elements.deleteCompanyRegistryButton.addEventListener("click", deleteCurrentCompanyRegistry);
   elements.startCompanyServiceButton.addEventListener("click", startServiceForSelectedCompany);
   elements.newCompanyCraneButton.addEventListener("click", () => openCompanyCraneForm());
@@ -2638,7 +2711,11 @@ function wireSavedReportActionButtons() {
 async function duplicateInspection(sourceInspectionId) {
   const source = await getInspection(sourceInspectionId);
   if (!source) {
-    window.alert("No se encontro el servicio para duplicar.");
+    showAppNotice({
+      eyebrow: "Servicios",
+      title: "No se encontro el servicio",
+      message: "El servicio que quieres duplicar ya no esta guardado en este dispositivo."
+    });
     return;
   }
 
@@ -3062,7 +3139,11 @@ async function exportConsolidatedHistoryExcel() {
   await persistVisibleConsolidatedComments();
   const rows = filterConsolidatedRowsByClient(await buildConsolidatedHistoryRows());
   if (!rows.length) {
-    window.alert("No hay datos guardados para exportar.");
+    showAppNotice({
+      eyebrow: "Concentrado",
+      title: "Nada que exportar",
+      message: "Todavia no hay servicios guardados que coincidan con el filtro actual."
+    });
     return;
   }
 
@@ -3437,7 +3518,11 @@ async function handleInspectionImport(event) {
     loadInspection(normalized);
     await renderSavedReports();
   } catch (error) {
-    window.alert("No se pudo importar el reporte. Verifica que sea un archivo JSON exportado desde la app.");
+    showAppNotice({
+      eyebrow: "Importar",
+      title: "No se pudo importar el reporte",
+      message: "Revisa que sea un archivo JSON exportado desde esta misma app."
+    });
   }
 }
 
@@ -3501,7 +3586,11 @@ function downloadTextFile(content, fileName, type) {
   try {
     downloadBlobParts([content], fileName, type);
   } catch (error) {
-    window.alert("No se pudo exportar el archivo. Revisa los permisos de descarga del navegador.");
+    showAppNotice({
+      eyebrow: "Descarga",
+      title: "No se pudo descargar el archivo",
+      message: "Revisa los permisos de descarga del navegador e intentalo de nuevo."
+    });
   }
 }
 

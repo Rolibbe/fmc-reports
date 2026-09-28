@@ -706,7 +706,11 @@ function saveWorkOrderFromForm() {
     updatedAt: now
   });
   if (!order.client) {
-    window.alert("Selecciona un cliente para guardar la orden.");
+    showAppNotice({
+      eyebrow: "Ordenes de servicio",
+      title: "Primero elige el cliente",
+      message: "Selecciona un cliente antes de guardar la orden."
+    });
     return false;
   }
   orders[order.id] = order;

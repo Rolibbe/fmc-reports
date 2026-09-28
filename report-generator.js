@@ -71,7 +71,11 @@ async function openReportPdfWindow(inspection, existingPopup) {
   const popup = existingPopup || window.open("", "_blank");
 
   if (!popup) {
-    window.alert("No se pudo abrir la vista del PDF. Revisa si el navegador bloqueo la ventana emergente.");
+    showAppNotice({
+      eyebrow: "PDF",
+      title: "El navegador bloqueo la ventana",
+      message: "Permite las ventanas emergentes para esta app y vuelve a generar el reporte."
+    });
     return false;
   }
 
@@ -122,7 +126,7 @@ function isCorrectiveServiceType(serviceType) {
 async function buildReportData(inspection) {
   const template = getTemplateConfig();
   const equipments = await Promise.all(
-    (Array.isArray(inspection.equipments) ? inspection.equipments : []).map((equipment) => buildEquipmentData(equipment))
+    (Array.isArray(inspection.equipments) ? inspection.equipments : []).map((equipment) => buildEquipmentData(equipment, inspection))
   );
   const totalFindings = equipments.reduce((sum, equipment) => sum + equipment.findings.length, 0);
   const totalServicePhotos = equipments.reduce((sum, equipment) => sum + equipment.servicePhotos.length, 0);
@@ -140,7 +144,7 @@ async function buildReportData(inspection) {
   };
 }
 
-async function buildEquipmentData(equipment) {
+async function buildEquipmentData(equipment, inspection) {
   const findings = Array.isArray(equipment.findings) ? equipment.findings : [];
   const servicePhotos = Array.isArray(equipment.servicePhotos) ? equipment.servicePhotos : [];
   const totalFindingPhotos = findings.reduce((sum, finding) => sum + ((finding.photos || []).length), 0);
@@ -159,9 +163,25 @@ async function buildEquipmentData(equipment) {
       ? equipment.serviceSummary.trim()
       : buildEquipmentSummary(equipment, findings, totalFindingPhotos, servicePhotos.length),
     conditionBasis: buildConditionReportSummary(findings, equipment.overallCondition),
+    ledgerChange: buildEquipmentLedgerChange(inspection, equipment),
     maintenanceDateLabel: formatDate(equipment.maintenanceDate),
     nextInspectionLabel: formatDate(equipment.nextInspection)
   };
+}
+
+// Que cambio en esta grua desde la visita anterior. Sale de la bitacora, que
+// es lo unico que sabe que hallazgos venian de antes: el reporte por si solo
+// es una foto de un dia.
+function buildEquipmentLedgerChange(inspection, equipment) {
+  if (typeof summarizeCraneFindingChange !== "function" || !equipment.catalogCraneId) {
+    return null;
+  }
+  const client = normalizeClientName(inspection.plantName || "");
+  if (!client) {
+    return null;
+  }
+  const cambio = summarizeCraneFindingChange(client, equipment.catalogCraneId, inspection.id);
+  return (cambio.fixed || cambio.stillOpen || cambio.opened) ? cambio : null;
 }
 
 function getTemplateConfig() {
@@ -282,6 +302,16 @@ function renderEquipmentPage(report, equipment, index) {
             <td colspan="4"></td>
           </tr>
         </table>
+
+        ${report.isCorrective || !equipment.ledgerChange ? "" : `
+        <div class="section-banner">Qué cambió desde la visita anterior</div>
+        <table class="summary-table">
+          <tr>
+            <td><div class="label">Corregidos en esta visita</div><div class="value">${equipment.ledgerChange.fixed}</div></td>
+            <td><div class="label">Siguen pendientes</div><div class="value">${equipment.ledgerChange.stillOpen}</div></td>
+            <td><div class="label">Detectados hoy</div><div class="value">${equipment.ledgerChange.opened}</div></td>
+          </tr>
+        </table>`}
 
         ${report.isCorrective ? "" : `
         <div class="section-banner">Resumen del equipo</div>

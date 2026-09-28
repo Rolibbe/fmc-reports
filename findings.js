@@ -58,7 +58,11 @@ function addQuickFindingsFromInput() {
   const rawValue = elements.quickFindingNumber.value.trim();
   const numbers = parseQuickFindingNumbers(rawValue);
   if (!numbers.length) {
-    window.alert("Escribe el numero del hallazgo que quieres agregar.");
+    showAppNotice({
+      eyebrow: "Hallazgos",
+      title: "Falta el numero",
+      message: "Escribe el numero del hallazgo que quieres agregar. Puedes poner varios separados por coma."
+    });
     return false;
   }
 
@@ -81,7 +85,12 @@ function addQuickFindingsFromInput() {
   }
 
   if (missingNumbers.length) {
-    window.alert(`No encontre hallazgos con numero: ${missingNumbers.join(", ")}.`);
+    showAppNotice({
+      eyebrow: "Hallazgos",
+      title: "Algunos numeros no existen",
+      message: "Estos numeros no estan en el catalogo de hallazgos:",
+      details: missingNumbers.join(", ")
+    });
   }
 
   // Solo se confirma si de verdad entro algun hallazgo.

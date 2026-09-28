@@ -107,6 +107,13 @@ function openDatabase() {
       if (!db.objectStoreNames.contains(MASTER_DATA_STORE_NAME)) {
         db.createObjectStore(MASTER_DATA_STORE_NAME, { keyPath: "key" });
       }
+      if (!db.objectStoreNames.contains(CRANE_FINDINGS_STORE_NAME)) {
+        const findingStore = db.createObjectStore(CRANE_FINDINGS_STORE_NAME, { keyPath: "id" });
+        // "scope" es empresa|grua: con el se saca la bitacora de una grua sin
+        // recorrer todos los hallazgos de todas las empresas.
+        findingStore.createIndex("scope", "scope", { unique: false });
+        findingStore.createIndex("client", "client", { unique: false });
+      }
     };
 
     request.onsuccess = () => {
@@ -165,7 +172,22 @@ async function withObjectStore(storeName, mode, callback) {
   }
 }
 
+// Los reportes traen las fotos dentro, asi que leerlos todos cuesta decenas
+// de MB. Entrar a Empresas encadena siete lecturas de la misma informacion
+// (directorio, fechas, severidad, resumen...) y cada una volvia a la base.
+//
+// Se guarda el resultado y se tira en cuanto algo escribe. Toda escritura pasa
+// por este archivo, asi que no hay forma de que quede una copia vieja.
+let inspectionsCache = null;
+let inspectionsInFlight = null;
+
+function invalidateInspectionsCache() {
+  inspectionsCache = null;
+  inspectionsInFlight = null;
+}
+
 async function putInspection(record) {
+  invalidateInspectionsCache();
   return withStore("readwrite", (store) => store.put(record));
 }
 
@@ -174,20 +196,56 @@ async function getInspection(id) {
 }
 
 async function getAllInspections() {
-  return withStore("readonly", (store) => store.getAll());
+  if (inspectionsCache) {
+    return inspectionsCache;
+  }
+  // Varias pantallas piden la lista a la vez al arrancar. Sin compartir la
+  // promesa se dispararian lecturas simultaneas de lo mismo.
+  if (!inspectionsInFlight) {
+    inspectionsInFlight = withStore("readonly", (store) => store.getAll())
+      .then((records) => {
+        inspectionsCache = Array.isArray(records) ? records : [];
+        inspectionsInFlight = null;
+        return inspectionsCache;
+      })
+      .catch((error) => {
+        inspectionsInFlight = null;
+        throw error;
+      });
+  }
+  return inspectionsInFlight;
 }
 
 async function deleteInspection(id) {
+  invalidateInspectionsCache();
   return withStore("readwrite", (store) => store.delete(id));
 }
 
 async function clearAllInspections() {
+  invalidateInspectionsCache();
   return withStore("readwrite", (store) => store.clear());
 }
 
 async function getMasterDataValue(key) {
   const record = await withObjectStore(MASTER_DATA_STORE_NAME, "readonly", (store) => store.get(key));
   return record ? record.value : undefined;
+}
+
+// --------------------------------------------------------------------------
+// Bitacora de hallazgos. Cada hallazgo se guarda y se actualiza solo,
+// sin tocar a los demas.
+// --------------------------------------------------------------------------
+
+async function getAllCraneFindings() {
+  return withObjectStore(CRANE_FINDINGS_STORE_NAME, "readonly", (store) => store.getAll());
+}
+
+async function putCraneFinding(record) {
+  return withObjectStore(CRANE_FINDINGS_STORE_NAME, "readwrite", (store) => store.put(record));
+}
+
+async function deleteCraneFindingRecord(id) {
+  return withObjectStore(CRANE_FINDINGS_STORE_NAME, "readwrite", (store) => store.delete(id));
 }
 
 async function putMasterDataValue(key, value) {

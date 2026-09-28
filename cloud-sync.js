@@ -318,6 +318,13 @@ function requestCloudDataSync(reason = "cambio local", options = {}) {
 }
 
 async function processPendingCloudSync(options = {}) {
+  if (isClientAccessMode()) {
+    // Una cuenta de cliente no sube nada: se limpia la marca para que no
+    // quede reintentando una subida que nunca le corresponde.
+    clearCloudPendingSync();
+    return;
+  }
+
   const pending = readCloudPendingSync();
   if (!pending.data || !hasCloudConnectionReady() || cloudAutoSyncRunning) {
     return;

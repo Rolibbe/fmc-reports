@@ -1,28 +1,15 @@
 <!DOCTYPE html>
-<html lang="es" data-theme="taller">
+<html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#1b2126">
+  <meta name="theme-color" content="#0b3a56">
   <title>Servicios FMC</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
   <link rel="icon" href="icon-512.png" type="image/png" sizes="512x512">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=192">
-  <script>
-    // Tema guardado en este dispositivo, aplicado antes del primer pintado.
-    (function () {
-      try {
-        var saved = localStorage.getItem("fmc-app-theme");
-        if (saved === "grafito" || saved === "arena") {
-          document.documentElement.setAttribute("data-theme", saved);
-        }
-      } catch (error) {
-        // Sin almacenamiento local se queda el tema por defecto.
-      }
-    })();
-  </script>
+  <link rel="stylesheet" href="styles.css?v=205">
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -79,7 +66,7 @@
     </div>
   </section>
 
-  <span id="appVersionBadge" class="app-version-badge">Version 1.3.98</span>
+  <span id="appVersionBadge" class="app-version-badge">Version 1.4.3</span>
 
   <div id="appShell" class="app-shell">
     <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
@@ -191,6 +178,7 @@
           <button id="mobileCloseMoreButton" class="ghost-button" type="button">Cerrar</button>
         </div>
         <div class="mobile-more-grid">
+          <button id="mobileGlobalSearchButton" type="button">Buscar</button>
           <button id="mobileHomeButton" type="button">Inicio</button>
           <button id="mobileWorkOrdersButton" type="button">Agenda</button>
           <button id="mobileClientsMapButton" type="button">Mapa clientes</button>
@@ -217,7 +205,10 @@
         <span id="navCloudStatus" class="nav-status nav-cloud-status">Nube sin sesion</span>
         <span id="connectionStatus" class="nav-status">Verificando conectividad...</span>
       </div>
-      <div class="top-icon-actions" aria-label="Notificaciones y perfil">
+      <div class="top-icon-actions" aria-label="Busqueda, notificaciones y perfil">
+        <button id="openGlobalSearchButton" class="top-icon-button" type="button" aria-label="Buscar empresa, equipo, serie o folio" title="Buscar (Ctrl+K)">
+          <span aria-hidden="true">&#128269;</span>
+        </button>
         <button id="usersButton" class="top-icon-button" type="button" aria-label="Ver usuarios conectados" aria-expanded="false" aria-controls="usersPanel">
           <span aria-hidden="true">&#128101;</span>
           <strong id="usersBadge" class="is-empty">0</strong>
@@ -692,6 +683,7 @@
               </label>
               <button id="addQuickFindingButton" class="secondary-button" type="button">Agregar por numero</button>
             </div>
+            <div id="openCraneFindingsPanel" class="open-findings-panel hidden"></div>
             <div id="findingsList" class="findings-list"></div>
           </section>
 
@@ -1129,10 +1121,6 @@
 
           <section class="subpanel" data-settings-section-panel="general">
             <p class="eyebrow">Apariencia</p>
-            <h3>Tema de color</h3>
-            <p class="field-hint">Se aplica al instante en todas las secciones y se guarda solo en este dispositivo.</p>
-            <div id="appThemePicker" class="theme-picker"></div>
-
             <h3>Avisos de la app</h3>
             <p class="field-hint">Confirmaciones para lo que no alcanzas a ver: evidencia guardada, hallazgo critico, sincronizacion y errores. Nunca suena en un boton comun.</p>
             <div id="feedbackControls" class="feedback-controls"></div>
@@ -1319,6 +1307,7 @@
                   </select>
                 </label>
                 <button id="syncCompanyRegistryButton" class="ghost-button" type="button">Tomar datos de servicios guardados</button>
+                <button id="seedFindingLogButton" class="ghost-button" type="button">Sembrar bitacora de hallazgos</button>
               </div>
               <div class="company-contacts-panel hidden" data-company-control-panel="contacts">
                 <div class="company-contacts-head">
@@ -1541,34 +1530,59 @@
     <button id="mobileMoreButton" type="button"><span>...</span>Mas</button>
   </nav>
 
-  <script src="theme-config.js?v=192"></script>
-  <script src="feedback.js?v=192"></script>
-  <script src="action-feedback.js?v=192"></script>
-  <script src="report-template-config.js?v=192"></script>
-  <script src="finding-catalog-config.js?v=192"></script>
-  <script src="condition-severity-config.js?v=192"></script>
-  <script src="checklist-config.js?v=192"></script>
-  <script src="findings.js?v=192"></script>
-  <script src="ui-modals.js?v=192"></script>
-  <script src="crane-checklist-ui.js?v=192"></script>
-  <script src="crane-checklist-pdf.js?v=192"></script>
-  <script src="company-cranes.js?v=192"></script>
-  <script src="equipment.js?v=192"></script>
-  <script src="pdf-actions.js?v=192"></script>
-  <script src="backup.js?v=192"></script>
-  <script src="storage.js?v=192"></script>
-  <script src="settings.js?v=192"></script>
-  <script src="operations.js?v=192"></script>
-  <script src="maintenance-panel.js?v=192"></script>
-  <script src="clients-map.js?v=192"></script>
-  <script src="dashboard.js?v=192"></script>
-  <script src="home-panel.js?v=192"></script>
-  <script src="report-generator.js?v=192"></script>
-  <script src="client-portal.js?v=192"></script>
-  <script src="supabase-config.js?v=192"></script>
-  <script src="cloud-sync.js?v=192"></script>
-  <script src="presence.js?v=192"></script>
-  <script src="app.js?v=192"></script>
+  <script src="feedback.js?v=205"></script>
+  <script src="action-feedback.js?v=205"></script>
+  <script src="report-template-config.js?v=205"></script>
+  <script src="finding-catalog-config.js?v=205"></script>
+  <script src="condition-severity-config.js?v=205"></script>
+  <section id="globalSearchPanel" class="modal-backdrop global-search-backdrop hidden" aria-label="Busqueda global">
+    <div class="subpanel modal-panel global-search-modal">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Buscar</p>
+          <h3>Empresa, equipo, serie o folio</h3>
+        </div>
+        <div class="toolbar">
+          <button id="closeGlobalSearchButton" class="ghost-button" type="button">Cerrar</button>
+        </div>
+      </div>
+      <input
+        id="globalSearchInput"
+        class="global-search-input"
+        type="search"
+        autocomplete="off"
+        placeholder="Ej. GP-014, 440, ACEROS, CHK-001"
+        aria-label="Texto a buscar"
+      >
+      <p id="globalSearchHint" class="global-search-hint"></p>
+      <div id="globalSearchResults" class="global-search-results"></div>
+    </div>
+  </section>
+
+  <script src="checklist-config.js?v=205"></script>
+  <script src="findings.js?v=205"></script>
+  <script src="ui-modals.js?v=205"></script>
+  <script src="crane-checklist-ui.js?v=205"></script>
+  <script src="crane-checklist-pdf.js?v=205"></script>
+  <script src="company-cranes.js?v=205"></script>
+  <script src="equipment.js?v=205"></script>
+  <script src="pdf-actions.js?v=205"></script>
+  <script src="backup.js?v=205"></script>
+  <script src="storage.js?v=205"></script>
+  <script src="settings.js?v=205"></script>
+  <script src="operations.js?v=205"></script>
+  <script src="maintenance-panel.js?v=205"></script>
+  <script src="clients-map.js?v=205"></script>
+  <script src="dashboard.js?v=205"></script>
+  <script src="home-panel.js?v=205"></script>
+  <script src="report-generator.js?v=205"></script>
+  <script src="client-portal.js?v=205"></script>
+  <script src="supabase-config.js?v=205"></script>
+  <script src="cloud-sync.js?v=205"></script>
+  <script src="presence.js?v=205"></script>
+  <script src="finding-log.js?v=205"></script>
+  <script src="global-search.js?v=205"></script>
+  <script src="app.js?v=205"></script>
 </body>
 </html>
 

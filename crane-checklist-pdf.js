@@ -124,7 +124,11 @@ function renderChecklistPdfMetadata({ client, contact, crane, serviceDate }) {
 function openCraneChecklistPdf(options = {}) {
   const popup = options.popup || window.open("", "_blank");
   if (!popup) {
-    window.alert("No se pudo abrir el PDF. Permite las ventanas emergentes para esta app.");
+    showAppNotice({
+      eyebrow: "PDF",
+      title: "El navegador bloqueo la ventana",
+      message: "Permite las ventanas emergentes para esta app y vuelve a generar el PDF."
+    });
     return false;
   }
 

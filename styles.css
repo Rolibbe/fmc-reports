@@ -2,88 +2,12 @@
   color-scheme: light;
 
   /* ---------------------------------------------------------------------
-     Tema activo: "taller" (predeterminado). Las otras variantes solo
-     redefinen estos mismos tokens mas abajo, por eso el cambio alcanza a
-     todas las secciones sin tocar una sola regla de estilo.
-     Los colores de estado (rojo de riesgo, verde de conformidad, ambar de
-     aviso) son iguales en todos los temas a proposito: significan lo mismo.
+     Tema unico: Acero, el azul industrial de la app.
+     Todo el color y la silueta viven en estos tokens, asi que cambiar la
+     apariencia de la app entera se hace aqui y en ningun otro lado.
   --------------------------------------------------------------------- */
 
-  /* Marca: el negro de las barras del sitio industrial */
-  --brand: #1b2126;
-  --brand-rgb: 27 33 38;
-  --brand-strong: #10161a;
-  --brand-strong-rgb: 16 22 26;
-  --brand-mid: #2e373f;
-  --brand-mid-rgb: 46 55 63;
-  --brand-soft: #dedbcd;
-
-  /* Naranja del logo */
-  --accent: #f5821f;
-  --accent-rgb: 245 130 31;
-  --accent-bright: #ff8b2d;
-  --accent-bright-rgb: 255 139 45;
-  --accent-strong: #b3560c;
-  --accent-deep: #8a4108;
-  --accent-ink: #2a1603;
-  --accent-pale: #ffc08a;
-  --accent-line: #d9b489;
-  --accent-soft: #f8eee2;
-
-  /* Texto */
-  --ink: #22262a;
-  --ink-soft: #3a4046;
-  --ink-deep: #12161a;
-  --ink-deep-rgb: 18 22 26;
-  --muted: #6b7078;
-  --muted-strong: #52575e;
-  --muted-soft: #8e9299;
-  --muted-soft-rgb: 142 146 153;
-
-  /* Superficies: el papel del kit retro */
-  --bg: #e8e6dc;
-  --panel: #f6f5ef;
-  --surface-1: #f1efe4;
-  --surface-1-rgb: 241 239 228;
-  --surface-2: #eceade;
-  --surface-3: #e5e3d6;
-  --surface-4: #dbd9ca;
-  --surface-4-rgb: 219 217 202;
-  --line: #bbb9ad;
-  --line-rgb: 187 185 173;
-  --line-strong: #9c9a8e;
-
-  /* Relieve duro, sin difuminado: el borde del kit retro */
-  --shadow: 3px 3px 0 rgb(var(--brand-rgb) / 0.10);
-
-  /* -------------------------------------------------------------------
-     Silueta. Antes eran cinco radios sueltos repetidos en 238 reglas;
-     ahora son cuatro tokens, asi que la forma viaja con el tema.
-  ------------------------------------------------------------------- */
-  --radius: 0px;
-  --radius-sm: 0px;
-  --radius-card: 0px;
-  --radius-pill: 3px;
-
-  /* Tipografia. Sin webfonts a proposito: la app trabaja sin senal y una
-     fuente que no baja deja la pantalla con otra cara justo en campo.
-     Las tres familias existen ya en Windows, Android y iOS. */
-  --font-sans: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  --font-display: "Bahnschrift", "Roboto Condensed", "Avenir Next Condensed", "Segoe UI Semibold", "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Consolas, monospace;
-
-  /* Espacio reservado bajo la barra de acciones. En telefono lo ocupa el menu
-     inferior; en tableta solo la muesca de la pantalla. */
-  --mobile-nav-clearance: env(safe-area-inset-bottom);
-  --thumb-bar-h: 70px;
-  --rail-width: 84px;
-}
-
-/* =====================================================================
-   Variante 2 - Acero
-   La linea azul que uso la app hasta la version 1.3.97, intacta.
-   ===================================================================== */
-:root[data-theme="acero"] {
+  /* Marca */
   --brand: #0b3a56;
   --brand-rgb: 11 58 86;
   --brand-strong: #06263a;
@@ -127,121 +51,30 @@
   --line-rgb: 216 224 231;
   --line-strong: #c1cdd8;
 
+  /* Relieve */
   --shadow: 0 18px 38px rgb(var(--brand-rgb) / 0.12);
 
+  /* Silueta. Cuatro tokens en lugar de los cinco radios sueltos que antes
+     estaban repetidos en 238 reglas. */
   --radius: 10px;
   --radius-sm: 5px;
   --radius-card: 14px;
   --radius-pill: 999px;
+
+  /* Tipografia. Sin webfonts a proposito: la app trabaja sin senal y una
+     fuente que no baja deja la pantalla con otra cara justo en campo.
+     Las tres familias existen ya en Windows, Android y iOS. */
+  --font-sans: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  --font-display: "Bahnschrift", "Roboto Condensed", "Avenir Next Condensed", "Segoe UI Semibold", "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Consolas, monospace;
+
+  /* Espacio reservado bajo la barra de acciones. En telefono lo ocupa el menu
+     inferior; en tableta solo la muesca de la pantalla. */
+  --mobile-nav-clearance: env(safe-area-inset-bottom);
+  --thumb-bar-h: 70px;
+  --rail-width: 84px;
 }
 
-/* =====================================================================
-   Variante 3 - Grafito
-   Neutro industrial: todo el gris es sin color y el unico tono vivo es
-   el naranja del logo, que asi resalta al maximo.
-   ===================================================================== */
-:root[data-theme="grafito"] {
-  --brand: #2c3237;
-  --brand-rgb: 44 50 55;
-  --brand-strong: #1b1f22;
-  --brand-strong-rgb: 27 31 34;
-  --brand-mid: #434a51;
-  --brand-mid-rgb: 67 74 81;
-  --brand-soft: #e3e6e9;
-
-  --accent: #f5821f;
-  --accent-rgb: 245 130 31;
-  --accent-bright: #ff8b2d;
-  --accent-bright-rgb: 255 139 45;
-  --accent-strong: #b8460c;
-  --accent-deep: #8f3608;
-  --accent-ink: #4f2f0b;
-  --accent-pale: #ffc294;
-  --accent-line: #f0c7a6;
-  --accent-soft: #fff3e8;
-
-  --ink: #1d2226;
-  --ink-soft: #333a40;
-  --ink-deep: #131719;
-  --ink-deep-rgb: 19 23 25;
-  --muted: #6b737a;
-  --muted-strong: #545c63;
-  --muted-soft: #9aa1a8;
-  --muted-soft-rgb: 154 161 168;
-
-  --bg: #f0f1f3;
-  --panel: #ffffff;
-  --surface-1: #fafafb;
-  --surface-1-rgb: 250 250 251;
-  --surface-2: #f5f6f7;
-  --surface-3: #eeeff1;
-  --surface-4: #e6e8ea;
-  --surface-4-rgb: 230 232 234;
-  --line: #dcdee1;
-  --line-rgb: 220 222 225;
-  --line-strong: #c4c7cb;
-
-  --shadow: 0 18px 38px rgb(var(--ink-deep-rgb) / 0.14);
-
-  --radius: 10px;
-  --radius-sm: 5px;
-  --radius-card: 14px;
-  --radius-pill: 999px;
-}
-
-/* =====================================================================
-   Variante 4 - Arena
-   Calida y de bajo contraste azul: fondo arena, tinta cafe oscuro y el
-   naranja del logo integrado en la misma familia de color.
-   ===================================================================== */
-:root[data-theme="arena"] {
-  --brand: #45301f;
-  --brand-rgb: 69 48 31;
-  --brand-strong: #2f2015;
-  --brand-strong-rgb: 47 32 21;
-  --brand-mid: #5e4229;
-  --brand-mid-rgb: 94 66 41;
-  --brand-soft: #f0e3d3;
-
-  --accent: #e2701a;
-  --accent-rgb: 226 112 26;
-  --accent-bright: #f5821f;
-  --accent-bright-rgb: 245 130 31;
-  --accent-strong: #a8410a;
-  --accent-deep: #7d3208;
-  --accent-ink: #4a2c0a;
-  --accent-pale: #f0b177;
-  --accent-line: #e6c19b;
-  --accent-soft: #fdf1e4;
-
-  --ink: #2b2118;
-  --ink-soft: #45362a;
-  --ink-deep: #1d160f;
-  --ink-deep-rgb: 29 22 15;
-  --muted: #77675a;
-  --muted-strong: #5d4e42;
-  --muted-soft: #a2948a;
-  --muted-soft-rgb: 162 148 138;
-
-  --bg: #f6f1e8;
-  --panel: #ffffff;
-  --surface-1: #fdfbf7;
-  --surface-1-rgb: 253 251 247;
-  --surface-2: #f9f5ee;
-  --surface-3: #f3ede3;
-  --surface-4: #ebe3d6;
-  --surface-4-rgb: 235 227 214;
-  --line: #e2d8c9;
-  --line-rgb: 226 216 201;
-  --line-strong: #cfc2ae;
-
-  --shadow: 0 18px 38px rgb(var(--brand-rgb) / 0.14);
-
-  --radius: 10px;
-  --radius-sm: 5px;
-  --radius-card: 14px;
-  --radius-pill: 999px;
-}
 
 * {
   box-sizing: border-box;
@@ -7239,6 +7072,14 @@ body[data-access-mode="client"] .main-content {
     gap: 12px;
   }
 
+  /* En columna, el "flex: 1 1 320px" del bloque del titulo deja de ser un
+     ancho minimo y pasa a ser una ALTURA de 320 px: cada encabezado abria un
+     hueco vacio del alto de media pantalla. Aqui se anula. */
+  .section-header > div:first-child {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
   .toolbar {
     width: 100%;
     justify-content: stretch;
@@ -7824,87 +7665,6 @@ body[data-access-mode="client"] .main-content {
   }
 }
 
-
-
-/* ---------------------------------------------------------------------
-   Selector de tema (Ajustes > General)
---------------------------------------------------------------------- */
-.theme-picker {
-  display: grid;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.theme-option {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: var(--panel);
-  color: var(--ink);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-}
-
-.theme-option:hover {
-  border-color: var(--accent);
-  background: var(--surface-1);
-}
-
-.theme-option.is-active {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  box-shadow: 0 0 0 1px var(--accent) inset;
-}
-
-.theme-option-swatches {
-  display: flex;
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-  border: 1px solid var(--line);
-}
-
-.theme-option-swatches span {
-  width: 18px;
-  height: 34px;
-}
-
-.theme-option-body {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.theme-option-body strong {
-  color: var(--brand);
-  font-size: 0.98rem;
-}
-
-.theme-option-body small {
-  color: var(--muted);
-  line-height: 1.4;
-}
-
-.theme-option-check {
-  padding: 5px 11px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-3);
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.theme-option.is-active .theme-option-check {
-  background: var(--accent);
-  color: #ffffff;
-}
 
 @media (max-width: 640px) {
   .theme-option {
@@ -9270,108 +9030,338 @@ button.is-failed::before {
 }
 
 
-/* =====================================================================
-   TEMA TALLER - capa de caracter
-   Color y silueta ya viajan en los tokens de arriba. Aqui va lo demas:
-   titulos condensados, rotulos monoespaciados, relieve duro y barras
-   negras con filo naranja. Todo colgado del tema para que Acero,
-   Grafito y Arena no se enteren.
-   ===================================================================== */
-
-:root[data-theme="taller"] h1,
-:root[data-theme="taller"] h2,
-:root[data-theme="taller"] h3 {
-  font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
 /* Los rotulos chicos van en monoespaciada: es lo que le da el aire de
    instrumento al kit retro. Los datos NO, que se leen peor en versalitas. */
-:root[data-theme="taller"] .eyebrow,
-:root[data-theme="taller"] .status-label,
-:root[data-theme="taller"] .field-label,
-:root[data-theme="taller"] .nav-label,
-:root[data-theme="taller"] .equipment-progress,
-:root[data-theme="taller"] .page-hero-badge span {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-:root[data-theme="taller"] .panel,
-:root[data-theme="taller"] .subpanel,
-:root[data-theme="taller"] .finding-list-card {
-  border-color: var(--line-strong);
-}
 
 /* La franja negra superior hace las veces de la barra de titulo del kit. */
-:root[data-theme="taller"] .panel {
-  border-top: 3px solid var(--brand);
-}
-
-:root[data-theme="taller"] .subpanel {
-  border-left: 3px solid var(--accent);
-  box-shadow: var(--shadow);
-}
 
 /* El degradado del encabezado se aplana y se le pone el filo naranja. */
-:root[data-theme="taller"] .page-hero {
-  background: var(--brand);
-  border-bottom: 3px solid var(--accent);
-}
-
-:root[data-theme="taller"] .primary-button,
-:root[data-theme="taller"] .secondary-button,
-:root[data-theme="taller"] .ghost-button {
-  font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  border-color: var(--line-strong);
-  box-shadow: 2px 2px 0 rgb(var(--brand-rgb) / 0.18);
-}
 
 /* El naranja del logo pasa a ser el color de la accion principal, como en
    la referencia. Sobre el va tinta cafe oscura, no blanca: el naranja es
    demasiado claro para texto blanco. */
-:root[data-theme="taller"] .primary-button {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-color: var(--accent-strong);
-  box-shadow: 2px 2px 0 var(--accent-strong);
-}
-
-:root[data-theme="taller"] .secondary-button {
-  background: var(--panel);
-  color: var(--brand);
-}
-
-:root[data-theme="taller"] .ghost-button {
-  background: var(--surface-1);
-}
 
 /* Al apretar, el boton se hunde sobre su propia sombra. */
-:root[data-theme="taller"] .primary-button:not(:disabled):active,
-:root[data-theme="taller"] .secondary-button:not(:disabled):active,
-:root[data-theme="taller"] .ghost-button:not(:disabled):active {
-  transform: translate(2px, 2px);
-  box-shadow: none;
+
+
+/* =====================================================================
+   BUSQUEDA GLOBAL
+   El panel se ancla arriba y no al centro: la lista crece hacia abajo y
+   asi el campo de texto no se mueve mientras se escribe.
+   ===================================================================== */
+
+.global-search-backdrop {
+  align-items: flex-start;
+  padding-top: 8vh;
 }
 
-:root[data-theme="taller"] input,
-:root[data-theme="taller"] select,
-:root[data-theme="taller"] textarea {
-  border-color: var(--line-strong);
+.global-search-modal {
+  width: min(640px, calc(100vw - 32px));
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-:root[data-theme="taller"] .app-nav,
-:root[data-theme="taller"] .sidebar {
-  border-right: 2px solid var(--accent);
+.global-search-input {
+  font-size: 1.05rem;
+  padding: 14px 16px;
 }
 
-:root[data-theme="taller"] .mobile-bottom-nav {
-  border-top: 2px solid var(--accent);
+.global-search-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.global-search-results {
+  display: grid;
+  gap: 6px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.global-search-result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.global-search-result:hover,
+.global-search-result.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.global-search-kind {
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--muted-strong);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.global-search-kind.is-equipo {
+  background: rgb(var(--accent-rgb) / 0.16);
+  color: var(--accent-strong);
+}
+
+.global-search-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.global-search-body strong {
+  font-size: 0.98rem;
+}
+
+.global-search-body small,
+.global-search-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.global-search-body strong,
+.global-search-body small,
+.global-search-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-search-meta {
+  white-space: nowrap;
+}
+
+.global-search-empty {
+  margin: 0;
+  padding: 18px 4px;
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .global-search-backdrop {
+    padding-top: 0;
+  }
+
+  .global-search-modal {
+    width: 100vw;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  /* En pantalla angosta la fecha se come el ancho del titulo. */
+  .global-search-meta {
+    display: none;
+  }
+}
+
+/* En Taller los rotulos de tipo van monoespaciados, como los demas. */
+
+
+/* =====================================================================
+   BITACORA DE HALLAZGOS POR GRUA
+   El color del filo izquierdo dice el estado de un vistazo: rojo sigue
+   abierto, ambar esta reportado pero sin verificar, verde cerrado.
+   ===================================================================== */
+
+.finding-log-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.finding-log-card {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--muted-soft);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.finding-log-card.is-open { border-left-color: #d64545; }
+.finding-log-card.is-claimed { border-left-color: #e6a23c; }
+.finding-log-card.is-fixed { border-left-color: #2f9e63; background: var(--surface-1); }
+
+.finding-log-card.is-critical.is-open {
+  background: rgb(214 69 69 / 0.05);
+}
+
+.finding-log-card > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.finding-log-number {
+  min-width: 34px;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.finding-log-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.finding-log-title strong {
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.finding-log-title small,
+.finding-log-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.finding-log-state {
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.finding-log-state.is-open { background: #fde4e4; color: #a11f1f; }
+.finding-log-state.is-claimed { background: #fdf0dc; color: #8a5a0b; }
+.finding-log-state.is-fixed { background: #e6f4eb; color: #2f7548; }
+
+.finding-log-meta {
+  margin: 8px 0 0;
+}
+
+.finding-log-note {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 0.82rem;
+}
+
+.finding-log-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.finding-log-actions button {
+  min-height: 40px;
+}
+
+@media (max-width: 720px) {
+  .finding-log-card > header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .finding-log-state {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .finding-log-actions button {
+    flex: 1 1 calc(50% - 4px);
+  }
+}
+
+
+/* =====================================================================
+   PENDIENTES DE LA VISITA ANTERIOR, MIENTRAS SE CAPTURA
+   Se pinta en ambar y no en rojo a proposito: no es una alarma, es una
+   pregunta. El rojo ya lo usa el hallazgo critico dentro de la bitacora.
+   ===================================================================== */
+
+.open-findings-panel {
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--accent-line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.open-findings-head h4 {
+  margin: 2px 0 4px;
+  font-size: 1rem;
+}
+
+.open-findings-head span {
+  display: block;
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+}
+
+.open-finding-row {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+
+.open-finding-row.is-critical {
+  border-left: 3px solid #d64545;
+}
+
+.open-finding-text strong {
+  display: block;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.open-finding-text small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.open-finding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.open-finding-actions button {
+  flex: 1 1 auto;
+  min-height: 44px;
+}
+
+@media (min-width: 721px) {
+  .open-finding-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .open-finding-actions button {
+    flex: 0 0 auto;
+  }
 }

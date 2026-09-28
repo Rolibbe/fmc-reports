@@ -55,7 +55,12 @@ async function exportFullBackup(options = {}) {
     const suffix = includePhotos ? "con-fotos" : "sin-fotos";
     downloadBlobParts(chunks, `respaldo-completo-${suffix}-${dateStamp}.json`, "application/json");
   } catch (error) {
-    window.alert(`No se pudo crear el respaldo completo. Detalle: ${error && error.message ? error.message : "error desconocido"}`);
+    showAppNotice({
+      eyebrow: "Respaldo",
+      title: "No se pudo crear el respaldo",
+      message: "El archivo no se genero. Si el respaldo incluye fotos, prueba primero con la version sin fotos.",
+      details: error && error.message ? error.message : "Error desconocido."
+    });
   }
 }
 
@@ -159,7 +164,12 @@ async function handleFullBackupImport(event) {
 
     openBackupPreview(validation);
   } catch (error) {
-    window.alert(`No se pudo importar el respaldo completo. Detalle: ${error && error.message ? error.message : "archivo invalido"}`);
+    showAppNotice({
+      eyebrow: "Respaldo",
+      title: "No se pudo importar el respaldo",
+      message: "El archivo no se pudo leer. Revisa que sea un respaldo completo generado por esta app.",
+      details: error && error.message ? error.message : "Archivo invalido."
+    });
   }
 }
 
@@ -496,7 +506,12 @@ async function confirmFullBackupImport() {
       actions: [{ id: "ok", label: "Aceptar", variant: "primary" }]
     });
   } catch (error) {
-    window.alert(`No se pudo importar el respaldo completo. Detalle: ${error && error.message ? error.message : "archivo invalido"}`);
+    showAppNotice({
+      eyebrow: "Respaldo",
+      title: "No se pudo importar el respaldo",
+      message: "El archivo no se pudo leer. Revisa que sea un respaldo completo generado por esta app.",
+      details: error && error.message ? error.message : "Archivo invalido."
+    });
   } finally {
     elements.confirmBackupImportButton.disabled = false;
   }

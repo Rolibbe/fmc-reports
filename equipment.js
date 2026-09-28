@@ -214,7 +214,11 @@ function resetEquipmentEditorState() {
 function openFindingEditor(findingId) {
   const categories = Object.keys(findingCatalog);
   if (!categories.length) {
-    window.alert("No hay categorias de hallazgo configuradas.");
+    showAppNotice({
+      eyebrow: "Hallazgos",
+      title: "No hay categorias configuradas",
+      message: "Agrega al menos una categoria de hallazgo en Configuracion > Catalogos."
+    });
     return;
   }
 
@@ -520,6 +524,9 @@ function renderFindingsList() {
   elements.findingsList.innerHTML = "";
   refreshOverallConditionFromFindings();
   updateEquipmentEditorTabBadges();
+  if (typeof renderOpenCraneFindingsPanel === "function") {
+    renderOpenCraneFindingsPanel();
+  }
 
   if (!currentEquipmentFindings.length) {
     elements.findingsList.innerHTML = '<div class="inline-empty-state">Todavia no hay hallazgos capturados para este equipo. Usa el boton de Anadir Hallazgo para registrar uno.</div>';
@@ -648,6 +655,10 @@ function saveEquipmentFromEditor() {
   const equipment = normalizeEquipment({
     id: equipmentId,
     includeInReport: previousEquipment ? normalizeEquipment(previousEquipment).includeInReport : true,
+    // Finalizado lo decide el usuario desde el menu de la tarjeta, no este
+    // formulario. Al no traerlo aqui, normalizeEquipment lo dejaba vacio y
+    // cada Guardar desmarcaba el equipo.
+    completedAt: previousEquipment ? normalizeEquipment(previousEquipment).completedAt : "",
     catalogCraneId: elements.companyCraneSelector.value === "__new__"
       ? ""
       : elements.companyCraneSelector.value || (previousEquipment ? normalizeEquipment(previousEquipment).catalogCraneId : ""),

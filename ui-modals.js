@@ -99,6 +99,26 @@ function showModal(options = {}) {
   });
 }
 
+// Aviso de una sola salida, el reemplazo de window.alert.
+//
+// No se espera la respuesta a proposito: en todos los lugares donde se usa,
+// la linea siguiente es un return. Asi no hubo que volver asincronas doce
+// funciones que no lo necesitaban.
+function showAppNotice(options = {}) {
+  const message = String(options.message || "");
+  if (typeof showModal !== "function") {
+    window.alert(message);
+    return;
+  }
+  showModal({
+    eyebrow: options.eyebrow || "Aviso",
+    title: options.title || "Aviso",
+    message,
+    details: options.details || "",
+    actions: [{ id: "ok", label: options.okLabel || "Entendido", variant: "primary" }]
+  });
+}
+
 async function showConfirmModal(options = {}) {
   const confirmId = options.confirmId || "confirm";
   const result = await showModal({

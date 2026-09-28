@@ -4,7 +4,11 @@
 async function generatePdfReport() {
   const popup = window.open("", "_blank");
   if (!popup) {
-    window.alert("No se pudo abrir la vista PDF. Revisa si el navegador bloqueo la ventana emergente.");
+    showAppNotice({
+      eyebrow: "PDF",
+      title: "El navegador bloqueo la ventana",
+      message: "Permite las ventanas emergentes para esta app y vuelve a generar el PDF."
+    });
     return;
   }
 
@@ -20,7 +24,11 @@ async function generatePdfReport() {
   const selectedInspection = await buildPdfInspectionData(inspection);
   if (!selectedInspection.equipments.length) {
     popup.close();
-    window.alert("Selecciona al menos un equipo para incluirlo en el PDF.");
+    showAppNotice({
+      eyebrow: "PDF",
+      title: "Falta elegir el equipo",
+      message: "Marca al menos un equipo para incluirlo en el reporte."
+    });
     return;
   }
 
