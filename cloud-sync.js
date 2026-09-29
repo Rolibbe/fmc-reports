@@ -360,14 +360,16 @@ async function pullCloudSharedData(motivo = "refresco") {
   }
   cloudPullRunning = true;
   try {
-    const [companies, cranes, findings] = await Promise.all([
+    const [companies, cranes, findings, craneFindings] = await Promise.all([
       fetchCloudRows("companies", { includeDeleted: true }),
       fetchCloudRows("cranes", { includeDeleted: true }),
-      fetchCloudRows("active_crane_findings", { includeDeleted: true })
+      fetchCloudRows("active_crane_findings", { includeDeleted: true }),
+      fetchCloudCraneFindingRows()
     ]);
     await mergeCloudCompanyCraneRows(companies, cranes);
     await mergeCloudCompaniesIntoSettings(companies);
     await mergeCloudActiveFindingRows(findings);
+    await mergeCloudCraneFindingTableRows(craneFindings);
     lastCloudPullAt = Date.now();
 
     // Se repinta solo lo que este a la vista, para no robarle el foco a nadie.
@@ -748,9 +750,11 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
     const initialCloudFindings = await fetchCloudRows("active_crane_findings", { includeDeleted: true });
     const initialCloudReports = await fetchCloudRows("reports", { includeDeleted: true });
     const initialCloudSettings = await fetchCloudRows("app_settings", { includeDeleted: true });
+    const initialCloudCraneFindings = await fetchCloudCraneFindingRows();
     await mergeCloudCompanyCraneRows(initialCloudCompanies, initialCloudCranes);
     await mergeCloudCompaniesIntoSettings(initialCloudCompanies);
     await mergeCloudActiveFindingRows(initialCloudFindings);
+    await mergeCloudCraneFindingTableRows(initialCloudCraneFindings);
     await mergeCloudReportRows(initialCloudReports, { conflicts });
     await mergeCloudSettingsRows(initialCloudSettings);
 
@@ -767,6 +771,9 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
     await upsertCloudRows("cranes", localRows.cranes);
     await upsertCloudRows("cranes", localRows.deletedCranes);
     await upsertCloudRows("active_crane_findings", localFindingRows);
+    if (initialCloudCraneFindings) {
+      await upsertCloudRows("crane_findings", buildLocalCraneFindingTableRows(initialCloudCraneFindings));
+    }
     await upsertCloudRows("reports", localReportRows.reports);
     await upsertCloudRows("reports", localReportRows.deletedReports);
     await upsertCloudRows("app_settings", localSettingsRows);
@@ -778,9 +785,11 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
     const cloudFindings = await fetchCloudRows("active_crane_findings", { includeDeleted: true });
     const cloudReports = await fetchCloudRows("reports", { includeDeleted: true });
     const cloudSettings = await fetchCloudRows("app_settings", { includeDeleted: true });
+    const cloudCraneFindings = await fetchCloudCraneFindingRows();
     await mergeCloudCompanyCraneRows(cloudCompanies, cloudCranes);
     await mergeCloudCompaniesIntoSettings(cloudCompanies);
     await mergeCloudActiveFindingRows(cloudFindings);
+    await mergeCloudCraneFindingTableRows(cloudCraneFindings);
     await mergeCloudReportRows(cloudReports, { conflicts });
     await mergeCloudSettingsRows(cloudSettings);
 
@@ -858,6 +867,7 @@ async function syncClientPortalData(options = {}) {
     ]);
     await mergeCloudCompanyCraneRows(companies || [], cranes || []);
     await mergeCloudActiveFindingRows(findings || []);
+    await mergeCloudCraneFindingTableRows(await fetchCloudCraneFindingRows({ companyId }));
     await mergeCloudReportRows(reports || []);
     writeCloudSyncMeta({ success: true });
     renderCloudStatus(`Portal actualizado: ${cranes?.length || 0} equipo(s) y ${reports?.length || 0} reporte(s).`);
@@ -1552,9 +1562,10 @@ async function buildLocalActiveFindingRows() {
   return filas.concat(buildLocalFindingLogRows());
 }
 
-// La bitacora de hallazgos viaja por la misma tabla, con su propio prefijo.
+// Respaldo: mientras no exista la tabla crane_findings, la bitacora sigue
+// viajando por esta tabla, un bloque por grua con su propio prefijo.
 function buildLocalFindingLogRows() {
-  if (typeof exportCraneFindingGroupsForCloud !== "function") {
+  if (craneFindingsTableState === "ready" || typeof exportCraneFindingGroupsForCloud !== "function") {
     return [];
   }
   return exportCraneFindingGroupsForCloud()
@@ -1573,6 +1584,64 @@ function buildLocalFindingLogRows() {
       updated_at: grupo.updatedAt || new Date().toISOString(),
       deleted_at: null
     }));
+}
+
+// --------------------------------------------------------------------------
+// Bitacora de hallazgos: tabla crane_findings, un renglon por hallazgo
+//
+// Cada hallazgo se sube y se mezcla por separado, asi dos personas pueden
+// cerrar hallazgos distintos de la misma grua sin pisarse. Si la tabla aun no
+// se crea en Supabase, todo sigue por el bloque de active_crane_findings.
+// --------------------------------------------------------------------------
+
+let craneFindingsTableState = "unknown";
+
+function isMissingCloudTableError(error) {
+  return /PGRST205|42P01|Could not find the table|does not exist/i.test(String(error?.message || error || ""));
+}
+
+// Devuelve null si la tabla no existe, para que quien llama use el respaldo.
+async function fetchCloudCraneFindingRows(options = {}) {
+  if (craneFindingsTableState === "missing") {
+    return null;
+  }
+  try {
+    const filtro = options.companyId
+      ? `&company_id=eq.${encodeURIComponent(options.companyId)}`
+      : "";
+    const rows = await cloudFetch(`/rest/v1/crane_findings?select=*${filtro}`);
+    craneFindingsTableState = "ready";
+    return Array.isArray(rows) ? rows : [];
+  } catch (error) {
+    if (isMissingCloudTableError(error)) {
+      if (craneFindingsTableState !== "missing") {
+        console.info("La tabla crane_findings no existe todavia; la bitacora usa el respaldo.");
+      }
+      craneFindingsTableState = "missing";
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function mergeCloudCraneFindingTableRows(rows) {
+  if (!Array.isArray(rows) || !rows.length || typeof mergeCloudCraneFindingRows !== "function") {
+    return 0;
+  }
+  const cambios = await mergeCloudCraneFindingRows(rows);
+  if (cambios && typeof renderOpenCraneFindingsPanel === "function") {
+    renderOpenCraneFindingsPanel();
+  }
+  return cambios;
+}
+
+function buildLocalCraneFindingTableRows(cloudRows) {
+  if (typeof listLocalCraneFindingsNewerThanCloud !== "function") {
+    return [];
+  }
+  return listLocalCraneFindingsNewerThanCloud(cloudRows)
+    .filter((entry) => !isDeletedCompanyName(entry.client) && !isDeletedCompanyCraneId(entry.craneId))
+    .map((entry) => buildCraneFindingCloudRow(entry, createCloudCompanyId(entry.client)));
 }
 
 function mergeCompanyContactLists(localContacts, cloudContacts, cloudUpdatedAt = "") {

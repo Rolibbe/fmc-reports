@@ -26,8 +26,16 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.5.1";
+const APP_VERSION = "1.5.2";
 const APP_RELEASE_NOTES = {
+  "1.5.2": {
+    title: "Actualizacion 1.5.2",
+    summary: [
+      "El checklist ya no cierra hallazgos. Marcar Bien o N/A deja el hallazgo como Por verificar, en su propio color, y solo una persona lo cierra desde la bitacora de la grua.",
+      "Al llenar el checklist ya no se pregunta quien atendio cada punto: eso se responde al cerrarlo.",
+      "El folio del checklist ahora es unico en toda la app, no solo dentro de la misma empresa."
+    ]
+  },
   "1.5.1": {
     title: "Actualizacion 1.5.1",
     summary: [

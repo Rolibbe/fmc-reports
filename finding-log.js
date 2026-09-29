@@ -85,6 +85,11 @@ function normalizeCraneFinding(record) {
     discardedAt: source.discardedAt || "",
     discardedBy: source.discardedBy || "",
     discardedNote: source.discardedNote || "",
+    // El checklist que lo detecto y los que lo volvieron a ver. Solo sirven
+    // de referencia: el hallazgo vive en la grua aunque el checklist se borre.
+    openedChecklistId: source.openedChecklistId || "",
+    openedChecklistFolio: source.openedChecklistFolio || "",
+    seenInChecklistIds: Array.isArray(source.seenInChecklistIds) ? source.seenInChecklistIds.filter(Boolean) : [],
     createdAt: source.createdAt || new Date().toISOString(),
     updatedAt: source.updatedAt || new Date().toISOString(),
     deletedAt: source.deletedAt || ""
@@ -389,11 +394,172 @@ async function openCraneFinding(datos = {}) {
     openedServiceId: datos.serviceId || "",
     lastSeenAt: datos.openedAt || ahora,
     lastSeenServiceId: datos.serviceId || "",
-    timesSeen: 1
+    timesSeen: 1,
+    openedChecklistId: datos.checklistId || "",
+    openedChecklistFolio: datos.checklistFolio || "",
+    seenInChecklistIds: datos.checklistId ? [datos.checklistId] : []
   });
 
-  registrarCambioDeHallazgo(nuevo, "created", "Hallazgo abierto");
+  registrarCambioDeHallazgo(nuevo, "created", datos.checklistFolio
+    ? `Hallazgo abierto desde el checklist ${datos.checklistFolio}`
+    : "Hallazgo abierto");
   return nuevo;
+}
+
+// --------------------------------------------------------------------------
+// El checklist como detector
+//
+// El checklist ya no es donde vive el hallazgo: solo lo detecta. Al guardar
+// (o al corregir uno guardado) cada punto en Mal se pasa a la bitacora de la
+// grua. Antes eso solo pasaba al tocar el boton Mal, asi que un checklist
+// cargado del historial, precargado o capturado en otro equipo nunca llegaba.
+// --------------------------------------------------------------------------
+
+// Si ese punto se cerro DESPUES de la fecha del checklist, el checklist es mas
+// viejo que el cierre y no tiene por que reabrirlo.
+function wasCraneFindingClosedAfter(client, craneId, number, fecha) {
+  const scope = buildCraneFindingScope(client, craneId);
+  const buscado = String(number || "");
+  const limite = String(fecha || "");
+  let cerradoDespues = false;
+  findingLogCache.forEach((entry) => {
+    if (cerradoDespues || entry.deletedAt || entry.scope !== scope || entry.number !== buscado) {
+      return;
+    }
+    const cerradoEn = entry.status === "discarded" ? entry.discardedAt : entry.fixedAt;
+    if (isCraneFindingClosed(entry) && String(cerradoEn || "") > limite) {
+      cerradoDespues = true;
+    }
+  });
+  return cerradoDespues;
+}
+
+// checklist: { id, folio, savedAt, serviceId, items: [{ number, title,
+// category, status, description }] }. Se puede repetir: no duplica.
+async function reconcileChecklistWithFindingLog(client, craneId, checklist, buildData) {
+  const resultado = { abiertos: 0, actualizados: 0 };
+  if (!client || !craneId || !checklist) {
+    return resultado;
+  }
+  const fecha = checklist.savedAt || new Date().toISOString();
+
+  for (const item of checklist.items || []) {
+    const number = String(item?.number || "");
+    if (item?.status !== "bad" || !number) {
+      continue;
+    }
+
+    const existente = findOpenCraneFindingByNumber(client, craneId, number);
+    if (existente) {
+      const vistos = new Set(existente.seenInChecklistIds || []);
+      const notaNueva = item.description && item.description !== existente.note;
+      if (vistos.has(checklist.id) && !notaNueva) {
+        continue;
+      }
+      if (checklist.id) {
+        vistos.add(checklist.id);
+      }
+      await persistCraneFinding({
+        ...existente,
+        note: item.description || existente.note,
+        seenInChecklistIds: Array.from(vistos),
+        lastSeenAt: String(fecha) > String(existente.lastSeenAt || "") ? fecha : existente.lastSeenAt
+      });
+      resultado.actualizados += 1;
+      continue;
+    }
+
+    if (wasCraneFindingClosedAfter(client, craneId, number, fecha)) {
+      continue;
+    }
+
+    const datos = typeof buildData === "function" ? buildData(item) : {};
+    await openCraneFinding({
+      number,
+      category: item.category || "Checklist",
+      incidence: `${number}. ${item.title || ""}`.trim(),
+      ...datos,
+      note: item.description || "",
+      client,
+      craneId,
+      serviceId: checklist.serviceId || "",
+      openedAt: fecha,
+      checklistId: checklist.id || "",
+      checklistFolio: checklist.folio || ""
+    });
+    resultado.abiertos += 1;
+  }
+  return resultado;
+}
+
+// Hallazgos que siguen abiertos y que nacieron de ese checklist. Los registros
+// anteriores a este cambio no guardan el checklist que los abrio: se reconocen
+// por numero, porque se abrieron el mismo dia y nadie los ha vuelto a ver.
+function getCraneFindingsOpenedByChecklist(client, craneId, checklist) {
+  if (!checklist) {
+    return [];
+  }
+  const numerosEnMal = new Set((checklist.items || [])
+    .filter((item) => item?.status === "bad")
+    .map((item) => String(item.number || "")));
+  const dia = String(checklist.savedAt || "").slice(0, 10);
+  return getCraneFindingLog(client, craneId, { onlyOpen: true }).filter((entry) => {
+    if (entry.openedChecklistId) {
+      return entry.openedChecklistId === checklist.id;
+    }
+    return numerosEnMal.has(entry.number)
+      && entry.timesSeen <= 1
+      && Boolean(dia)
+      && String(entry.openedAt || "").slice(0, 10) === dia;
+  });
+}
+
+// --------------------------------------------------------------------------
+// Tabla crane_findings de Supabase: un renglon por hallazgo
+// --------------------------------------------------------------------------
+
+function buildCraneFindingCloudRow(entry, companyId) {
+  return {
+    id: entry.id,
+    company_id: companyId || null,
+    crane_id: entry.craneId,
+    number: entry.number || "",
+    status: entry.status,
+    payload: entry,
+    updated_at: entry.updatedAt || new Date().toISOString(),
+    deleted_at: entry.deletedAt || null
+  };
+}
+
+async function mergeCloudCraneFindingRows(rows) {
+  const entradas = (rows || [])
+    .filter((row) => row && row.payload)
+    .map((row) => ({
+      ...row.payload,
+      id: row.payload.id || row.id,
+      deletedAt: row.payload.deletedAt || row.deleted_at || ""
+    }));
+  return mergeCloudCraneFindingEntries(entradas);
+}
+
+// Lo local que la nube no tiene o tiene mas viejo. La primera vez sube toda la
+// bitacora: esa es la migracion desde el bloque por grua.
+function listLocalCraneFindingsNewerThanCloud(cloudRows) {
+  const enNube = new Map((cloudRows || []).map((row) => [
+    row.id,
+    String(row.payload?.updatedAt || row.updated_at || "")
+  ]));
+  const pendientes = [];
+  findingLogCache.forEach((entry) => {
+    if (!entry.client || !entry.craneId) {
+      return;
+    }
+    const nube = enNube.get(entry.id);
+    if (nube === undefined || String(entry.updatedAt || "") > nube) {
+      pendientes.push(entry);
+    }
+  });
+  return pendientes;
 }
 
 async function markCraneFindingWorsened(id) {
@@ -424,7 +590,9 @@ async function claimCraneFinding(id, opciones = {}) {
     claimedAt: new Date().toISOString(),
     claimedBy: opciones.by || currentFindingLogUser(),
     claimedNote: opciones.note || "",
-    claimedSource: opciones.source === "client" ? "client" : "fmc"
+    // "checklist" es un tercer origen: no lo reporto una persona, lo dedujo
+    // el formulario. Se distingue para que la bitacora pueda decirlo tal cual.
+    claimedSource: ["client", "checklist"].includes(opciones.source) ? opciones.source : "fmc"
   });
   registrarCambioDeHallazgo(actualizado, "updated", "Reportado como atendido, pendiente de verificar");
   return actualizado;

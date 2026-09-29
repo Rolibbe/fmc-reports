@@ -167,7 +167,7 @@ function buildChecklistSearchEntries(registry) {
     const etiquetaGrua = crane ? (crane.craneId || crane.type || craneId) : craneId;
 
     (Array.isArray(datos[key]) ? datos[key] : []).forEach((entry) => {
-      if (!entry || !entry.folio) {
+      if (!entry || !entry.folio || entry.deletedAt) {
         return;
       }
       entries.push({
