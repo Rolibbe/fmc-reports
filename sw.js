@@ -1,4 +1,4 @@
-const CACHE_NAME = "crane-inspection-cache-v206";
+const CACHE_NAME = "crane-inspection-cache-v207";
 // Solo lo que la pagina pide SIN ?v=. Los .js y el .css se guardan con su
 // numero de version desde collectVersionedAssets(); listarlos aqui otra vez
 // sin version descargaba cada archivo dos veces y nunca servia para nada.

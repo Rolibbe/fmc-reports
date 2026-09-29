@@ -120,6 +120,65 @@ async function persistCraneFinding(entry) {
 }
 
 // --------------------------------------------------------------------------
+// Ida y vuelta con la nube
+//
+// Un hallazgo es un registro propio con su updatedAt, asi que se puede mezclar
+// uno por uno. Es lo que permite que dos tecnicos trabajen la misma grua en
+// dispositivos distintos sin pisarse.
+// --------------------------------------------------------------------------
+
+const CLOUD_FINDING_LOG_PREFIX = "findingLog";
+
+function buildCloudFindingLogKey(client, craneId) {
+  return `${CLOUD_FINDING_LOG_PREFIX}|${normalizeClientName(client)}|${String(craneId || "")}`;
+}
+
+// Agrupa la bitacora por grua. Cada grupo es una fila de la nube.
+function exportCraneFindingGroupsForCloud() {
+  const grupos = new Map();
+  findingLogCache.forEach((entry) => {
+    if (!entry.client || !entry.craneId) {
+      return;
+    }
+    const clave = buildCloudFindingLogKey(entry.client, entry.craneId);
+    if (!grupos.has(clave)) {
+      grupos.set(clave, { key: clave, client: entry.client, craneId: entry.craneId, entries: [], updatedAt: "" });
+    }
+    const grupo = grupos.get(clave);
+    grupo.entries.push(entry);
+    if (String(entry.updatedAt || "") > grupo.updatedAt) {
+      grupo.updatedAt = entry.updatedAt;
+    }
+  });
+  return Array.from(grupos.values());
+}
+
+// Mezcla lo que viene de la nube contra lo local, hallazgo por hallazgo.
+// Devuelve cuantos cambiaron, para no repintar de balde.
+async function mergeCloudCraneFindingEntries(entries) {
+  if (!Array.isArray(entries) || !entries.length) {
+    return 0;
+  }
+  let cambios = 0;
+  for (const bruto of entries) {
+    const remoto = normalizeCraneFinding(bruto);
+    if (!remoto.id) {
+      continue;
+    }
+    const local = findingLogCache.get(remoto.id);
+    // Empate: se queda lo local. Solo gana lo remoto si es estrictamente mas
+    // nuevo, para no rebotar el mismo registro entre dispositivos.
+    if (local && String(local.updatedAt || "") >= String(remoto.updatedAt || "")) {
+      continue;
+    }
+    findingLogCache.set(remoto.id, remoto);
+    await putCraneFinding(remoto);
+    cambios += 1;
+  }
+  return cambios;
+}
+
+// --------------------------------------------------------------------------
 // Lectura
 // --------------------------------------------------------------------------
 

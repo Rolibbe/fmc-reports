@@ -341,6 +341,92 @@ async function processPendingCloudSync(options = {}) {
   }
 }
 
+// --------------------------------------------------------------------------
+// Lo que hacen los demas, sin tener que recargar
+// --------------------------------------------------------------------------
+
+const CLOUD_PULL_INTERVAL_MS = 180000;   // 3 minutos
+const CLOUD_PULL_MIN_GAP_MS = 45000;     // al volver a la app, no mas de una
+                                         // consulta cada 45 s
+let cloudPullTimer = null;
+let cloudPullRunning = false;
+let lastCloudPullAt = 0;
+
+// Solo baja. No sube nada, no toca reportes y no interrumpe lo que estes
+// haciendo: si falla, se intenta en la siguiente vuelta y ya.
+async function pullCloudSharedData(motivo = "refresco") {
+  if (cloudPullRunning || isClientAccessMode() || !hasCloudConnectionReady() || !navigator.onLine) {
+    return false;
+  }
+  cloudPullRunning = true;
+  try {
+    const [companies, cranes, findings] = await Promise.all([
+      fetchCloudRows("companies", { includeDeleted: true }),
+      fetchCloudRows("cranes", { includeDeleted: true }),
+      fetchCloudRows("active_crane_findings", { includeDeleted: true })
+    ]);
+    await mergeCloudCompanyCraneRows(companies, cranes);
+    await mergeCloudCompaniesIntoSettings(companies);
+    await mergeCloudActiveFindingRows(findings);
+    lastCloudPullAt = Date.now();
+
+    // Se repinta solo lo que este a la vista, para no robarle el foco a nadie.
+    if (elements.companyCraneRegistryView && !elements.companyCraneRegistryView.classList.contains("hidden")) {
+      await renderCompanyCraneRegistry();
+    }
+    if (activeCompanyCraneMaster && activeCompanyCraneMaster.craneId
+      && elements.companyCraneFindingsPanel && !elements.companyCraneFindingsPanel.classList.contains("hidden")) {
+      // La ficha de la grua abierta: si alguien acaba de guardar su checklist,
+      // conviene que se vea aqui sin tener que cerrarla y abrirla.
+      await renderCompanyCraneMasterModal();
+    }
+    return true;
+  } catch (error) {
+    console.warn("No se pudo refrescar desde la nube", error);
+    return false;
+  } finally {
+    cloudPullRunning = false;
+  }
+}
+
+function startCloudPullLoop() {
+  stopCloudPullLoop();
+  if (isClientAccessMode() || !hasCloudConnectionReady()) {
+    return;
+  }
+  cloudPullTimer = setInterval(() => {
+    if (document.visibilityState === "visible") {
+      pullCloudSharedData("refresco automatico");
+    }
+  }, CLOUD_PULL_INTERVAL_MS);
+}
+
+function stopCloudPullLoop() {
+  if (cloudPullTimer) {
+    clearInterval(cloudPullTimer);
+    cloudPullTimer = null;
+  }
+}
+
+// Volver a la app es el momento en que mas se agradece estar al dia.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") {
+    return;
+  }
+  if (Date.now() - lastCloudPullAt < CLOUD_PULL_MIN_GAP_MS) {
+    return;
+  }
+  pullCloudSharedData("regreso a la app");
+});
+
+window.addEventListener("online", () => {
+  pullCloudSharedData("volvio la senal");
+});
+
+window.pullCloudSharedData = pullCloudSharedData;
+window.startCloudPullLoop = startCloudPullLoop;
+window.stopCloudPullLoop = stopCloudPullLoop;
+
 function scheduleStartupCloudDownload() {
   if (!hasCloudConnectionReady()) {
     return;
@@ -354,6 +440,7 @@ function scheduleStartupCloudDownload() {
         markCloudDataPending("sincronizacion de arranque pendiente");
       }
     });
+    startCloudPullLoop();
   }, 900);
 }
 
@@ -385,6 +472,7 @@ async function cloudSignInFromForm() {
     if (typeof initializePresence === "function") {
       await initializePresence();
     }
+    startCloudPullLoop();
     requestCloudDataSync("inicio de sesion", { immediate: true, silent: true });
     await showAppDialog({
       title: "Nube conectada",
@@ -502,6 +590,7 @@ async function resolveCurrentCloudAccessProfile(options = {}) {
 }
 
 async function cloudSignOutFromForm() {
+  stopCloudPullLoop();
   if (typeof disconnectPresence === "function") {
     await disconnectPresence();
   }
@@ -674,6 +763,7 @@ async function syncCompaniesAndCranesToCloud(options = {}) {
     renderCloudStatus(`Subiendo ${localRows.companies.length} empresa(s), ${localRows.cranes.length} grua(s), ${localRows.deletedCranes.length + localRows.deletedCompanies.length} baja(s) y ${localReportRows.reports.length} reporte(s) optimizado(s)...`);
     await upsertCloudRows("companies", localRows.companies);
     await upsertCloudRows("companies", localRows.deletedCompanies);
+    await upsertCloudRows("companies", purgePhantomCompanies());
     await upsertCloudRows("cranes", localRows.cranes);
     await upsertCloudRows("cranes", localRows.deletedCranes);
     await upsertCloudRows("active_crane_findings", localFindingRows);
@@ -1288,7 +1378,7 @@ async function buildLocalCompanyCraneRows() {
     ...deletedCraneClients,
     ...activeFindingClients,
     ...reportClients
-  ]).filter((client) => !isDeletedCompanyName(client));
+  ]).filter((client) => !isDeletedCompanyName(client) && !isPhantomCompanyName(client));
   const now = new Date().toISOString();
   const companies = companyNames.map((client) => ({
     id: createCloudCompanyId(client),
@@ -1435,7 +1525,7 @@ function prepareInspectionForCloud(inspection) {
 
 async function buildLocalActiveFindingRows() {
   const findings = readActiveCraneFindings();
-  return Object.entries(findings || {}).filter(([key]) => {
+  const filas = Object.entries(findings || {}).filter(([key]) => {
     const [client, craneId] = splitActiveFindingKey(key);
     return !isDeletedCompanyName(client) && !isDeletedCompanyCraneId(craneId);
   }).map(([key, payload]) => {
@@ -1458,6 +1548,31 @@ async function buildLocalActiveFindingRows() {
       deleted_at: null
     };
   });
+
+  return filas.concat(buildLocalFindingLogRows());
+}
+
+// La bitacora de hallazgos viaja por la misma tabla, con su propio prefijo.
+function buildLocalFindingLogRows() {
+  if (typeof exportCraneFindingGroupsForCloud !== "function") {
+    return [];
+  }
+  return exportCraneFindingGroupsForCloud()
+    .filter((grupo) => !isDeletedCompanyName(grupo.client) && !isDeletedCompanyCraneId(grupo.craneId))
+    .map((grupo) => ({
+      id: createCloudActiveFindingId(grupo.key),
+      company_id: grupo.client ? createCloudCompanyId(grupo.client) : null,
+      crane_id: grupo.craneId || "",
+      payload: {
+        key: grupo.key,
+        client: grupo.client,
+        craneId: grupo.craneId,
+        findings: { entries: grupo.entries, updatedAt: grupo.updatedAt },
+        updatedAt: grupo.updatedAt || new Date().toISOString()
+      },
+      updated_at: grupo.updatedAt || new Date().toISOString(),
+      deleted_at: null
+    }));
 }
 
 function mergeCompanyContactLists(localContacts, cloudContacts, cloudUpdatedAt = "") {
@@ -1901,10 +2016,20 @@ function pickNewerCraneTypeList(localSettings, cloudPayload) {
 
 async function mergeCloudActiveFindingRows(rows) {
   const findings = { ...readActiveCraneFindings() };
+  const filasDeBitacora = [];
+
   (rows || []).forEach((row) => {
     const payload = row.payload || {};
     const key = payload.key || buildCloudActiveFindingKey(payload.client, payload.craneId || row.crane_id);
     if (!key) {
+      return;
+    }
+    // La bitacora no vive en este almacen: se mezcla aparte, hallazgo por
+    // hallazgo, y no debe ensuciar el bloque de checklists.
+    if (String(key).startsWith("findingLog|")) {
+      if (!row.deleted_at) {
+        filasDeBitacora.push(payload);
+      }
       return;
     }
     const [client, craneId] = splitActiveFindingKey(key);
@@ -1928,6 +2053,18 @@ async function mergeCloudActiveFindingRows(rows) {
     }
   });
   await writeActiveCraneFindings(findings);
+
+  if (filasDeBitacora.length && typeof mergeCloudCraneFindingEntries === "function") {
+    let cambios = 0;
+    for (const payload of filasDeBitacora) {
+      const contenido = payload.findings || {};
+      const entradas = Array.isArray(contenido) ? contenido : contenido.entries;
+      cambios += await mergeCloudCraneFindingEntries(entradas || []);
+    }
+    if (cambios && typeof renderOpenCraneFindingsPanel === "function") {
+      renderOpenCraneFindingsPanel();
+    }
+  }
 }
 
 function stripHeavyInspectionPhotos(inspection) {
@@ -2286,9 +2423,68 @@ function createCloudActiveFindingId(key) {
   return `active-${createCloudSlug(key)}`;
 }
 
+// Prefijos que llevan las claves del almacen de hallazgos activos. Todo lo que
+// empiece con uno de estos trae la empresa en la SEGUNDA posicion.
+// Nombres que nunca fueron empresas de verdad: son los prefijos de las claves
+// del almacen, que un error dejo pasar como si lo fueran.
+const PHANTOM_COMPANY_NAMES = ["CHECKLIST", "CHECKLISTMETA", "CHECKLISTHISTORY", "FINDINGLOG"];
+
+function isPhantomCompanyName(client) {
+  return PHANTOM_COMPANY_NAMES.includes(normalizeClientName(client));
+}
+
+// Las saca del dispositivo y devuelve las filas que hay que dar de baja en la
+// nube, para que no vuelvan a bajar en la siguiente sincronizacion.
+function purgePhantomCompanies() {
+  const registry = readCompanyCraneRegistry();
+  const frequencies = readCompanyMaintenanceFrequencies();
+  const contacts = readCompanyContacts();
+  const encontradas = [];
+
+  PHANTOM_COMPANY_NAMES.forEach((nombre) => {
+    let estaba = false;
+    [registry, frequencies, contacts].forEach((mapa) => {
+      Object.keys(mapa || {}).forEach((clave) => {
+        if (normalizeClientName(clave) === nombre) {
+          delete mapa[clave];
+          estaba = true;
+        }
+      });
+    });
+    if (estaba) {
+      encontradas.push(nombre);
+    }
+  });
+
+  if (encontradas.length) {
+    writeCompanyCraneRegistry(registry);
+    if (typeof writeCompanyMaintenanceFrequencies === "function") {
+      writeCompanyMaintenanceFrequencies(frequencies);
+    }
+    if (typeof writeCompanyContacts === "function") {
+      writeCompanyContacts(contacts);
+    }
+    console.warn("Se quitaron empresas fantasma creadas por un error viejo:", encontradas.join(", "));
+  }
+
+  const ahora = new Date().toISOString();
+  return PHANTOM_COMPANY_NAMES.map((nombre) => ({
+    id: createCloudCompanyId(nombre),
+    name: nombre,
+    payload: { name: nombre },
+    updated_at: ahora,
+    deleted_at: ahora
+  }));
+}
+
+const ACTIVE_FINDING_KEY_PREFIXES = ["checklist", "checklistMeta", "checklistHistory", "findingLog"];
+
 function splitActiveFindingKey(key) {
-  const [client, craneId] = String(key || "").split("|");
-  return [normalizeClientName(client), craneId || ""];
+  const partes = String(key || "").split("|");
+  if (ACTIVE_FINDING_KEY_PREFIXES.includes(partes[0])) {
+    return [normalizeClientName(partes[1]), partes[2] || ""];
+  }
+  return [normalizeClientName(partes[0]), partes[1] || ""];
 }
 
 function buildCloudActiveFindingKey(client, craneId) {

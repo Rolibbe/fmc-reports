@@ -26,8 +26,17 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.5.0";
+const APP_VERSION = "1.5.1";
 const APP_RELEASE_NOTES = {
+  "1.5.1": {
+    title: "Actualizacion 1.5.1",
+    summary: [
+      "Los checklists que llena otra persona ahora si llegan a tu dispositivo: se guardaban en la nube con la empresa equivocada.",
+      "La bitacora de hallazgos tambien se sincroniza, y se mezcla hallazgo por hallazgo para que dos personas puedan trabajar la misma grua sin pisarse.",
+      "La app revisa cambios de otros dispositivos cada 3 minutos y al volver a ella, en vez de solo al abrirla.",
+      "Se quitan las empresas fantasma CHECKLIST y CHECKLISTHISTORY que creaba el error anterior."
+    ]
+  },
   "1.5.0": {
     title: "Actualizacion 1.5.0",
     summary: [
