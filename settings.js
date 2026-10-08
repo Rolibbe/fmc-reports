@@ -433,6 +433,82 @@ async function openSettingsPanel(sectionId = activeSettingsSection || "general")
   await populateSettingsForm();
   setSettingsSection(activeSettingsSection || "general");
   showView("settings");
+  // Sin await: la medicion del disco puede tardar y no debe frenar la pantalla.
+  renderStorageUsagePanel();
+}
+
+// --------------------------------------------------------------------------
+// Cuanto espacio usa la app y si sus datos estan protegidos
+// --------------------------------------------------------------------------
+
+async function renderStorageUsagePanel() {
+  const panel = elements.storageUsagePanel;
+  if (!panel || typeof getStorageUsage !== "function") {
+    return;
+  }
+
+  const info = await getStorageUsage();
+
+  // El navegador no sabe de esto (Safari viejo, navegadores raros). Se dice
+  // tal cual en vez de inventar un numero.
+  if (!info.soportado) {
+    panel.innerHTML = `
+      <div class="storage-usage-note">
+        Este navegador no informa cuanto espacio usa la app.
+        ${info.persistido === true
+          ? "Lo que si sabemos es que sus datos estan protegidos contra el borrado automatico."
+          : "Sincroniza seguido para no depender solo de este dispositivo."}
+      </div>`;
+    return;
+  }
+
+  const critico = info.porcentaje >= 90;
+  const apretado = info.porcentaje >= 75;
+  const estado = info.persistido === true
+    ? { clase: "is-safe", titulo: "Protegido", texto: "El navegador no puede borrar estos datos por falta de espacio. Solo se van si alguien desinstala la app o limpia los datos del sitio a proposito." }
+    : info.persistido === false
+      ? { clase: "is-risk", titulo: "Sin proteccion", texto: "El navegador podria borrar estos datos si al dispositivo le falta espacio, y lo hace sin avisar. Instala la app desde el boton Instalar para que se conceda la proteccion." }
+      : { clase: "", titulo: "Sin confirmar", texto: "No se pudo saber si los datos estan protegidos en este navegador." };
+
+  panel.innerHTML = `
+    <div class="storage-usage-bar ${critico ? "is-critical" : apretado ? "is-tight" : ""}">
+      <span style="width:${Math.max(2, info.porcentaje)}%"></span>
+    </div>
+    <div class="storage-usage-figures">
+      <article><span>Usado por la app</span><strong>${escapeHtml(formatStorageBytes(info.usado))}</strong></article>
+      <article><span>Disponible</span><strong>${escapeHtml(formatStorageBytes(info.disponible))}</strong></article>
+      <article><span>Del total</span><strong>${info.porcentaje}%</strong></article>
+    </div>
+    ${apretado ? `
+      <div class="storage-usage-note is-risk">
+        ${critico ? "Queda muy poco espacio." : "El espacio empieza a escasear."}
+        Sincroniza los reportes pendientes y libera espacio en el dispositivo antes de capturar mas evidencia.
+      </div>` : ""}
+    <div class="storage-usage-state ${estado.clase}">
+      <strong>${escapeHtml(estado.titulo)}</strong>
+      <span>${escapeHtml(estado.texto)}</span>
+    </div>
+    ${info.persistido === false ? `
+      <button class="secondary-button" type="button" data-request-persistent-storage>Intentar proteger ahora</button>` : ""}
+  `;
+
+  const boton = panel.querySelector("[data-request-persistent-storage]");
+  if (boton) {
+    boton.addEventListener("click", async () => {
+      boton.disabled = true;
+      const concedido = await requestPersistentStorage();
+      await renderStorageUsagePanel();
+      if (typeof showToast === "function") {
+        showToast({
+          title: concedido ? "Datos protegidos" : "El navegador no lo concedio",
+          message: concedido
+            ? "El navegador ya no va a borrar los datos de la app por falta de espacio."
+            : "Suele concederse al instalar la app desde el boton Instalar, o despues de usarla varios dias en este dispositivo.",
+          tone: concedido ? "success" : "warning"
+        });
+      }
+    });
+  }
 }
 
 async function populateSettingsForm() {

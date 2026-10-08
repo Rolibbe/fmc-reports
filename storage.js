@@ -236,6 +236,101 @@ async function getMasterDataValue(key) {
 // sin tocar a los demas.
 // --------------------------------------------------------------------------
 
+// --------------------------------------------------------------------------
+// Almacenamiento permanente
+//
+// Sin esto, los datos viven en la categoria "borrable si falta espacio". Con
+// esto, solo los puede borrar una persona a proposito: desinstalando la app o
+// limpiando los datos del sitio desde los ajustes del telefono.
+//
+// En Android/Chrome se concede sin preguntarle nada al usuario cuando la app
+// esta instalada o se usa seguido. Firefox muestra un aviso una vez. Si el
+// navegador no lo soporta, la app sigue funcionando igual: solo queda sin la
+// proteccion extra.
+// --------------------------------------------------------------------------
+
+const PERSISTENT_STORAGE_ASKED_KEY = "fmc-persistent-storage-asked";
+
+async function isStoragePersisted() {
+  if (!navigator.storage?.persisted) {
+    return null;
+  }
+  try {
+    return await navigator.storage.persisted();
+  } catch (error) {
+    return null;
+  }
+}
+
+// Devuelve true/false segun quede concedido, o null si el navegador no sabe
+// de esto. No lanza nunca: es una mejora, no un requisito para arrancar.
+async function requestPersistentStorage() {
+  if (!navigator.storage?.persist) {
+    return null;
+  }
+  try {
+    if (await navigator.storage.persisted()) {
+      return true;
+    }
+    const concedido = await navigator.storage.persist();
+    try {
+      localStorage.setItem(PERSISTENT_STORAGE_ASKED_KEY, new Date().toISOString());
+    } catch (error) {
+      // Sin localStorage se volvera a pedir en el siguiente arranque, que no
+      // hace daño: si ya estaba concedido, se sale arriba sin preguntar.
+    }
+    return concedido;
+  } catch (error) {
+    return null;
+  }
+}
+
+// Se pide una sola vez por dispositivo, y en segundo plano: el arranque no
+// espera por esto.
+function ensurePersistentStorage() {
+  let yaSePidio = "";
+  try {
+    yaSePidio = localStorage.getItem(PERSISTENT_STORAGE_ASKED_KEY) || "";
+  } catch (error) {
+    yaSePidio = "";
+  }
+  if (yaSePidio) {
+    return;
+  }
+  requestPersistentStorage().catch(() => {});
+}
+
+async function getStorageUsage() {
+  const persistido = await isStoragePersisted();
+  if (!navigator.storage?.estimate) {
+    return { soportado: false, persistido };
+  }
+  try {
+    const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+    return {
+      soportado: true,
+      persistido,
+      usado: usage,
+      disponible: Math.max(0, quota - usage),
+      total: quota,
+      porcentaje: quota ? Math.min(100, Math.round((usage / quota) * 100)) : 0
+    };
+  } catch (error) {
+    return { soportado: false, persistido };
+  }
+}
+
+function formatStorageBytes(bytes) {
+  const n = Number(bytes) || 0;
+  if (n >= 1073741824) {
+    return `${(n / 1073741824).toFixed(1)} GB`;
+  }
+  if (n >= 1048576) {
+    return `${Math.round(n / 1048576)} MB`;
+  }
+  return `${Math.max(1, Math.round(n / 1024))} KB`;
+}
+
 async function getAllCraneFindings() {
   return withObjectStore(CRANE_FINDINGS_STORE_NAME, "readonly", (store) => store.getAll());
 }

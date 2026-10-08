@@ -211,6 +211,37 @@ function resetEquipmentEditorState() {
   renderChecklistImageStatus();
 }
 
+// Cambia entre elegir del catalogo y escribirlo a mano.
+//
+// Los <select> del catalogo son required. Si se quedan required mientras estan
+// ocultos, el formulario no deja guardar nunca y sin mensaje visible, porque
+// el navegador no puede enfocar un campo escondido para reclamar.
+function setFindingCustomMode(activo) {
+  elements.findingCatalogFields.classList.toggle("hidden", activo);
+  elements.findingCustomFields.classList.toggle("hidden", !activo);
+  elements.findingCategory.required = !activo;
+  elements.findingIncidence.required = !activo;
+  elements.findingCustomCategory.required = activo;
+  elements.findingCustomIncidence.required = activo;
+  if (activo) {
+    elements.findingCustomIncidence.focus();
+  }
+}
+
+// Un hallazgo libre se reconoce por su marca. Los capturados antes de que
+// existiera el modo libre no la traen, asi que tambien cuenta no encontrar su
+// incidencia en el catalogo.
+function isCustomFinding(finding) {
+  if (!finding) {
+    return false;
+  }
+  if (finding.isCustom) {
+    return true;
+  }
+  const incidencia = String(finding.incidence || "");
+  return Boolean(incidencia) && !findingCatalogIndex.some((item) => item.incidence === incidencia);
+}
+
 function openFindingEditor(findingId) {
   const categories = Object.keys(findingCatalog);
   if (!categories.length) {
@@ -223,8 +254,22 @@ function openFindingEditor(findingId) {
   }
 
   const finding = currentEquipmentFindings.find((item) => item.id === findingId);
-  elements.findingEditorTitle.textContent = finding ? "Editar hallazgo" : "Nuevo hallazgo";
+  const libre = isCustomFinding(finding);
+  elements.findingEditorTitle.textContent = finding
+    ? (libre ? "Editar hallazgo libre" : "Editar hallazgo")
+    : "Nuevo hallazgo";
   elements.editingFindingId.value = finding ? finding.id : "";
+
+  // Las categorias que ya existen se ofrecen como sugerencia, para no acabar
+  // con cinco formas distintas de escribir la misma.
+  elements.findingCategoryOptions.innerHTML = categories
+    .map((item) => `<option value="${escapeHtml(item)}"></option>`)
+    .join("");
+  elements.findingCustomToggle.checked = libre;
+  elements.findingCustomCategory.value = libre ? (finding.category || "") : "";
+  elements.findingCustomIncidence.value = libre ? (finding.incidence || "") : "";
+  elements.findingCustomSeverity.value = libre && finding.severity === "critico" ? "critico" : "atencion";
+  setFindingCustomMode(libre);
   // La categoria guardada puede venir escrita distinto (mayusculas, punto final)
   // que la del catalogo; sin resolverla el select quedaba vacio y la incidencia
   // se caia al primer punto de la primera categoria.
@@ -244,6 +289,8 @@ function openFindingEditor(findingId) {
 function closeFindingEditor() {
   elements.findingEditorForm.reset();
   elements.editingFindingId.value = "";
+  elements.findingCustomToggle.checked = false;
+  setFindingCustomMode(false);
   editingPhotos = [];
   populateCategoryOptions();
   renderEditingPhotos();
@@ -421,18 +468,31 @@ function saveFindingFromEditor() {
   }
 
   const findingId = elements.editingFindingId.value || createId();
-  const fallbackDescription = buildGenericFindingDescription(
-    elements.findingCategory.value,
-    elements.findingIncidence.value
-  );
+  const libre = elements.findingCustomToggle.checked;
+  const category = libre
+    ? elements.findingCustomCategory.value.trim() || "Otros"
+    : elements.findingCategory.value;
+  const incidence = libre
+    ? elements.findingCustomIncidence.value.trim()
+    : elements.findingIncidence.value;
+
+  if (libre && !incidence) {
+    elements.findingCustomIncidence.focus();
+    return false;
+  }
+
+  const fallbackDescription = buildGenericFindingDescription(category, incidence);
   const finding = {
     id: findingId,
-    category: elements.findingCategory.value,
-    incidence: elements.findingIncidence.value,
+    category,
+    incidence,
     description: elements.findingDescription.value.trim() || fallbackDescription,
     recommendation: elements.findingRecommendation.value.trim(),
     photos: editingPhotos.map(normalizePhotoEntry),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    // Sin numero de catalogo no hay de donde deducir la gravedad, por eso el
+    // modo libre la pregunta y la guarda aqui: getFindingSeverity ya la lee.
+    ...(libre ? { isCustom: true, severity: elements.findingCustomSeverity.value } : {})
   };
 
   const existingIndex = currentEquipmentFindings.findIndex((item) => item.id === findingId);

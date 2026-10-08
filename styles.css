@@ -9446,3 +9446,160 @@ button.is-failed::before {
 .history-stat.is-pending-check span {
   color: var(--accent-ink);
 }
+
+
+/* =====================================================================
+   ALMACENAMIENTO DEL DISPOSITIVO
+   La barra pasa de neutra a ambar y a roja conforme se llena: el
+   tecnico tiene que verlo sin leer numeros.
+   ===================================================================== */
+
+.storage-usage {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.storage-usage-bar {
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-4);
+  overflow: hidden;
+}
+
+.storage-usage-bar span {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--brand-mid);
+}
+
+.storage-usage-bar.is-tight span {
+  background: #b7791f;
+}
+
+.storage-usage-bar.is-critical span {
+  background: #a11f1f;
+}
+
+.storage-usage-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.storage-usage-figures article {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-1);
+}
+
+.storage-usage-figures span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.storage-usage-figures strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: 1.02rem;
+}
+
+.storage-usage-state {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+}
+
+.storage-usage-state.is-safe {
+  border-color: #9ec49e;
+  background: #f1f8f1;
+}
+
+.storage-usage-state.is-risk {
+  border-color: #d89a9a;
+  background: #fff1f1;
+}
+
+.storage-usage-state strong {
+  display: block;
+  font-size: 0.88rem;
+}
+
+.storage-usage-state span {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.storage-usage-note {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.storage-usage-note.is-risk {
+  border: 1px solid #d89a9a;
+  background: #fff1f1;
+  color: #8a1f1f;
+}
+
+
+/* =====================================================================
+   HALLAZGO LIBRE
+   El interruptor tiene que verse como una decision, no como una casilla
+   mas del formulario: cambia lo que el tecnico va a capturar.
+   ===================================================================== */
+
+.finding-custom-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  cursor: pointer;
+}
+
+.finding-custom-toggle input {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  flex: 0 0 auto;
+}
+
+.finding-custom-toggle span {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.finding-custom-toggle strong {
+  display: block;
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
+.finding-custom-toggle:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.finding-custom-toggle:has(input:checked) strong {
+  color: var(--accent-ink);
+}
+
+#findingCustomFields .field-hint {
+  margin-top: 4px;
+}

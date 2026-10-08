@@ -26,8 +26,24 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.5.2";
+const APP_VERSION = "1.5.4";
 const APP_RELEASE_NOTES = {
+  "1.5.4": {
+    title: "Actualizacion 1.5.4",
+    summary: [
+      "Al capturar un hallazgo ya puedes escribirlo tu: activa Hallazgo libre y pones la categoria y el texto que quieras.",
+      "Como un hallazgo libre no tiene numero de catalogo, la app te pregunta si es critico o si solo requiere atencion.",
+      "Los hallazgos libres se anclan a la grua igual que los del catalogo y se arrastran a la siguiente visita."
+    ]
+  },
+  "1.5.3": {
+    title: "Actualizacion 1.5.3",
+    summary: [
+      "La app pide al navegador que no borre sus datos por falta de espacio. Antes, un reporte sin sincronizar se podia perder en silencio si el telefono se llenaba.",
+      "Ajustes muestra cuanto espacio usa la app, cuanto queda libre y si los datos estan protegidos.",
+      "Si el espacio baja del 25 por ciento libre, avisa para que sincronices antes de seguir capturando evidencia."
+    ]
+  },
   "1.5.2": {
     title: "Actualizacion 1.5.2",
     summary: [
@@ -744,6 +760,7 @@ const elements = {
   resetSettingsButton: document.getElementById("resetSettingsButton"),
   settingsClientPlants: document.getElementById("settingsClientPlants"),
   settingsDefaultFrequency: document.getElementById("settingsDefaultFrequency"),
+  storageUsagePanel: document.getElementById("storageUsagePanel"),
   settingsRecommendationText: document.getElementById("settingsRecommendationText"),
   settingsNewPolipasto: document.getElementById("settingsNewPolipasto"),
   addSettingsPolipastoButton: document.getElementById("addSettingsPolipastoButton"),
@@ -889,6 +906,13 @@ const elements = {
   hoistVoltage: document.getElementById("hoistVoltage"),
   findingsList: document.getElementById("findingsList"),
   addFindingButton: document.getElementById("addFindingButton"),
+  findingCustomToggle: document.getElementById("findingCustomToggle"),
+  findingCatalogFields: document.getElementById("findingCatalogFields"),
+  findingCustomFields: document.getElementById("findingCustomFields"),
+  findingCustomCategory: document.getElementById("findingCustomCategory"),
+  findingCustomIncidence: document.getElementById("findingCustomIncidence"),
+  findingCustomSeverity: document.getElementById("findingCustomSeverity"),
+  findingCategoryOptions: document.getElementById("findingCategoryOptions"),
   quickFindingNumber: document.getElementById("quickFindingNumber"),
   quickFindingOptions: document.getElementById("quickFindingOptions"),
   addQuickFindingButton: document.getElementById("addQuickFindingButton"),
@@ -936,6 +960,10 @@ async function initializeApp() {
     initializeFeedback();
   }
   try {
+    // Antes que nada: que el navegador no pueda borrar lo que se capture hoy.
+    if (typeof ensurePersistentStorage === "function") {
+      ensurePersistentStorage();
+    }
     await initializeMasterDataStore();
     if (typeof initializeFindingLog === "function") {
       await initializeFindingLog();
@@ -1087,6 +1115,9 @@ function setupAppActions() {
   elements.cancelEquipmentButton.addEventListener("click", closeEquipmentEditor);
   onAction(elements.saveEquipmentButton, saveEquipmentFromEditor, { done: "Guardado" });
   elements.addFindingButton.addEventListener("click", () => openFindingEditor());
+  elements.findingCustomToggle.addEventListener("change", () => {
+    setFindingCustomMode(elements.findingCustomToggle.checked);
+  });
   onAction(elements.addQuickFindingButton, addQuickFindingsFromInput, { done: "Agregado" });
   elements.quickFindingNumber.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {

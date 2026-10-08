@@ -58,6 +58,9 @@ function normalizeCraneFinding(record) {
     // identifican por su texto normalizado, para no duplicarlos visita tras
     // visita cuando se redacta casi igual.
     signature: source.signature || "",
+    // Gravedad declarada a mano. Solo la traen los hallazgos libres: los del
+    // catalogo la sacan de su numero y no deben poder sobrescribirla.
+    severity: source.severity || "",
     category: source.category || "",
     incidence: source.incidence || "",
     note: source.note || "",
@@ -222,7 +225,11 @@ function compareCraneFindings(first, second) {
 
 function getCraneFindingSeverity(entry) {
   if (typeof getFindingSeverity === "function") {
-    return getFindingSeverity({ incidence: entry.incidence, description: entry.note });
+    return getFindingSeverity({
+      incidence: entry.incidence,
+      description: entry.note,
+      severity: entry.severity
+    });
   }
   return "attention";
 }
@@ -277,7 +284,8 @@ async function syncEquipmentFindingsToLedger(client, craneId, findings, serviceI
         lastSeenAt: new Date().toISOString(),
         lastSeenServiceId: serviceId || existente.lastSeenServiceId,
         timesSeen: existente.timesSeen + (serviceId && serviceId !== existente.lastSeenServiceId ? 1 : 0),
-        note: finding.description || existente.note
+        note: finding.description || existente.note,
+        severity: finding.severity || existente.severity
       });
       anclados += 1;
       continue;
@@ -298,6 +306,7 @@ async function syncEquipmentFindingsToLedger(client, craneId, findings, serviceI
         category: finding.category || "Hallazgo",
         incidence: finding.incidence || "",
         note: finding.description || "",
+        severity: finding.severity || "",
         status: "open",
         openedAt: ahora,
         openedBy: currentFindingLogUser(),
