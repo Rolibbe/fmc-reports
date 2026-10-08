@@ -580,10 +580,25 @@ function reorderFinding(sourceFindingId, targetFindingId, position) {
   renderFindingsList();
 }
 
+// El aviso solo aparece en correctivo, y solo mientras no haya hallazgos: una
+// vez que el tecnico captura uno, ya entendio que puede capturarlos.
+function updateCorrectiveFindingsHint() {
+  if (!elements.correctiveFindingsHint) {
+    return;
+  }
+  const correctivo = typeof inferServiceMode === "function"
+    && inferServiceMode({ serviceType: elements.serviceType ? elements.serviceType.value : "" }) === "corrective";
+  elements.correctiveFindingsHint.classList.toggle(
+    "hidden",
+    !(correctivo && !currentEquipmentFindings.length)
+  );
+}
+
 function renderFindingsList() {
   elements.findingsList.innerHTML = "";
   refreshOverallConditionFromFindings();
   updateEquipmentEditorTabBadges();
+  updateCorrectiveFindingsHint();
   if (typeof renderOpenCraneFindingsPanel === "function") {
     renderOpenCraneFindingsPanel();
   }

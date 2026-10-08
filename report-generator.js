@@ -313,6 +313,22 @@ function renderEquipmentPage(report, equipment, index) {
           </tr>
         </table>`}
 
+        ${!report.isCorrective ? "" : `
+        <div class="section-banner">Trabajos realizados</div>
+        <table class="summary-table">
+          <tr>
+            <td><div class="label">Correcciones registradas</div><div class="value">${equipment.findings.length}</div></td>
+            <td><div class="label">Fotos del trabajo</div><div class="value">${equipment.servicePhotos.length + equipment.totalFindingPhotos}</div></td>
+            <td><div class="label">Fecha del servicio</div><div class="value">${escapeHtml(equipment.maintenanceDateLabel || "No especificado")}</div></td>
+          </tr>
+          <tr>
+            <td colspan="3" class="notes-box"><div class="label">Descripcion del trabajo</div><div class="value">${escapeHtml(equipment.summaryText)}</div></td>
+          </tr>
+          <tr>
+            <td colspan="3" class="notes-box"><div class="label">Observaciones</div><div class="value">${escapeHtml(equipment.recommendationText)}</div></td>
+          </tr>
+        </table>`}
+
         ${report.isCorrective ? "" : `
         <div class="section-banner">Resumen del equipo</div>
         <table class="summary-table">
@@ -352,8 +368,11 @@ function renderEquipmentSection(report, equipment, index) {
     "finding"
   )).join("");
 
-  // En correctivo el reporte se queda con la evidencia de cada correccion.
-  const serviceEvidencePage = report.isCorrective
+  // En correctivo no siempre se trabaja sobre un hallazgo: a veces es un
+  // trabajo general. Antes esas fotos se descartaban y el cliente recibia un
+  // reporte sin una sola imagen del trabajo. Ahora solo se omite la pagina
+  // cuando de verdad no hay nada que ensenar.
+  const serviceEvidencePage = report.isCorrective && !equipment.servicePhotos.length
     ? ""
     : renderServiceEvidencePages(report, equipment, index, equipment.servicePhotos);
 
@@ -435,7 +454,7 @@ function renderServiceEvidencePages(report, equipment, equipmentIndex, photos) {
       report,
       equipment,
       equipmentIndex,
-      "Evidencia del servicio",
+      report.isCorrective ? "Evidencia del trabajo realizado" : "Evidencia del servicio",
       [],
       `${equipment.equipmentName || `Equipo ${equipmentIndex + 1}`} | Servicio`,
       null,
@@ -450,7 +469,7 @@ function renderServiceEvidencePages(report, equipment, equipmentIndex, photos) {
       report,
       equipment,
       equipmentIndex,
-      "Evidencia del servicio",
+      report.isCorrective ? "Evidencia del trabajo realizado" : "Evidencia del servicio",
       chunk,
       `${equipment.equipmentName || `Equipo ${equipmentIndex + 1}`} | Servicio`,
       null,

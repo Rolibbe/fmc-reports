@@ -9603,3 +9603,37 @@ button.is-failed::before {
 #findingCustomFields .field-hint {
   margin-top: 4px;
 }
+
+
+/* =====================================================================
+   AVISO DE CORRECTIVO
+   Le dice al tecnico que puede dejar los hallazgos vacios, para que no
+   invente uno con tal de que el reporte no salga mudo.
+   ===================================================================== */
+
+.corrective-hint {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--brand-mid);
+  border-radius: 0;
+  background: var(--surface-1);
+}
+
+.corrective-hint strong {
+  display: block;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.corrective-hint span {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.corrective-hint b {
+  color: var(--ink);
+}

@@ -26,8 +26,16 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.5.4";
+const APP_VERSION = "1.5.5";
 const APP_RELEASE_NOTES = {
+  "1.5.5": {
+    title: "Actualizacion 1.5.5",
+    summary: [
+      "En Mantenimiento Correctivo los hallazgos ya son opcionales de verdad: si el trabajo fue general, lo describes en el resumen y sale en el reporte.",
+      "Antes, un correctivo sin hallazgos generaba un PDF sin evidencias y sin el texto del trabajo realizado: todo eso se descartaba.",
+      "Las fotos del servicio ya no se tiran en correctivo; salen como Evidencia del trabajo realizado."
+    ]
+  },
   "1.5.4": {
     title: "Actualizacion 1.5.4",
     summary: [
@@ -923,6 +931,7 @@ const elements = {
   serviceTaskCleaning: document.getElementById("serviceTaskCleaning"),
   serviceTaskLubrication: document.getElementById("serviceTaskLubrication"),
   serviceSummary: document.getElementById("serviceSummary"),
+  correctiveFindingsHint: document.getElementById("correctiveFindingsHint"),
   recommendations: document.getElementById("recommendations"),
   servicePhotoGalleryButton: document.getElementById("servicePhotoGalleryButton"),
   servicePhotoCameraButton: document.getElementById("servicePhotoCameraButton"),
@@ -3546,6 +3555,11 @@ function applyCompanyLocationToServiceForm() {
 }
 
 function syncServiceModeFromServiceType() {
+  // Cambiar de preventivo a correctivo con el editor abierto tiene que mover
+  // el aviso de hallazgos opcionales en el momento.
+  if (typeof updateCorrectiveFindingsHint === "function") {
+    updateCorrectiveFindingsHint();
+  }
   const inferredMode = inferServiceMode({ serviceType: elements.serviceType.value });
   if (elements.serviceMode && inferredMode) {
     elements.serviceMode.value = inferredMode;
