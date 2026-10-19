@@ -17,6 +17,7 @@ const DEFAULT_APP_SETTINGS = {
   photoQuality: 0.62,
   userRoles: {},
   clientAccess: {},
+  findingTexts: {},
   updatedAt: "",
   pdfTemplate: {
     companyName: "",
@@ -114,6 +115,7 @@ function normalizeAppSettings(settings) {
     photoQuality: clampNumber(source.photoQuality, 0.35, 0.9, DEFAULT_APP_SETTINGS.photoQuality),
     userRoles: normalizeUserRoles(source.userRoles),
     clientAccess: normalizeClientAccess(source.clientAccess),
+    findingTexts: normalizeFindingTexts(source.findingTexts),
     updatedAt: source.updatedAt || "",
     pdfTemplate: {
       companyName: source.pdfTemplate?.companyName || defaultTemplate.companyName || "",
@@ -149,6 +151,62 @@ function getConfiguredCraneTypes() {
 
 function getDefaultMaintenanceFrequencyMonths() {
   return Number(getAppSettings().defaultMaintenanceFrequency) || DEFAULT_APP_SETTINGS.defaultMaintenanceFrequency;
+}
+
+// --------------------------------------------------------------------------
+// Textos por defecto de los hallazgos
+// --------------------------------------------------------------------------
+
+function normalizeFindingTexts(value) {
+  const origen = value && typeof value === "object" ? value : {};
+  const limpio = {};
+  Object.entries(origen).forEach(([numero, textos]) => {
+    const clave = String(numero || "").trim();
+    if (!clave || !textos || typeof textos !== "object") {
+      return;
+    }
+    const description = String(textos.description || "").trim();
+    const recommendation = String(textos.recommendation || "").trim();
+    // Un hallazgo sin ninguno de los dos textos no se guarda: seria un
+    // renglon vacio que solo ensucia la lista y el respaldo.
+    if (!description && !recommendation) {
+      return;
+    }
+    limpio[clave] = { description, recommendation, updatedAt: textos.updatedAt || "" };
+  });
+  return limpio;
+}
+
+function getFindingTexts() {
+  return getAppSettings().findingTexts || {};
+}
+
+// Los textos de un hallazgo, por su numero de catalogo.
+function getFindingDefaultTexts(number) {
+  const clave = String(number || "").trim();
+  return clave ? getFindingTexts()[clave] || null : null;
+}
+
+async function saveFindingDefaultTexts(number, description, recommendation) {
+  const clave = String(number || "").trim();
+  if (!clave) {
+    return false;
+  }
+  const settings = { ...getAppSettings() };
+  const textos = { ...(settings.findingTexts || {}) };
+  const desc = String(description || "").trim();
+  const reco = String(recommendation || "").trim();
+
+  if (!desc && !reco) {
+    delete textos[clave];
+  } else {
+    textos[clave] = { description: desc, recommendation: reco, updatedAt: new Date().toISOString() };
+  }
+
+  settings.findingTexts = textos;
+  await writeAppSettings(settings);
+  queueDataSync("textos de hallazgos");
+  return true;
 }
 
 function getFixedRecommendationText() {
@@ -428,11 +486,157 @@ function setSettingsSection(sectionId = "general") {
   });
 }
 
+// --------------------------------------------------------------------------
+// Pantalla de textos por defecto
+// --------------------------------------------------------------------------
+
+function renderFindingTextsSelector() {
+  const select = elements.findingTextsSelector;
+  if (!select) {
+    return;
+  }
+  const textos = getFindingTexts();
+  const seleccionado = select.value;
+
+  // Agrupados por categoria y con una palomita en los que ya tienen texto,
+  // para no tener que abrirlos uno por uno para saber cuales faltan.
+  const porCategoria = {};
+  findingCatalogIndex.forEach((item) => {
+    (porCategoria[item.category] = porCategoria[item.category] || []).push(item);
+  });
+
+  select.innerHTML = Object.entries(porCategoria).map(([categoria, items]) => `
+    <optgroup label="${escapeHtml(categoria)}">
+      ${items.map((item) => `
+        <option value="${escapeHtml(item.number)}">${textos[item.number] ? "\u2713 " : ""}${escapeHtml(removeFindingCatalogNumber(item.incidence) || item.incidence)}</option>
+      `).join("")}
+    </optgroup>
+  `).join("");
+
+  if (seleccionado) {
+    select.value = seleccionado;
+  }
+}
+
+function loadFindingTextsForSelection() {
+  const numero = elements.findingTextsSelector?.value;
+  const textos = getFindingDefaultTexts(numero);
+  elements.findingTextsDescription.value = textos?.description || "";
+  elements.findingTextsRecommendation.value = textos?.recommendation || "";
+}
+
+function renderFindingTextsSummary() {
+  const textos = getFindingTexts();
+  const configurados = Object.keys(textos).length;
+  const total = findingCatalogIndex.length;
+  elements.findingTextsSummary.innerHTML = `
+    <article><span>Con texto propio</span><strong>${configurados}</strong></article>
+    <article><span>Con frase generica</span><strong>${total - configurados}</strong></article>
+    <article><span>Total del catalogo</span><strong>${total}</strong></article>
+  `;
+}
+
+function renderFindingTextsList() {
+  const textos = getFindingTexts();
+  const lista = elements.findingTextsList;
+  if (!lista) {
+    return;
+  }
+  const numeros = Object.keys(textos).sort((a, b) => Number(a) - Number(b));
+  if (!numeros.length) {
+    lista.innerHTML = '<div class="inline-empty-state">Todavia no hay hallazgos con texto propio. Elige uno arriba y escribe el suyo.</div>';
+    return;
+  }
+
+  lista.innerHTML = `
+    <p class="eyebrow">Ya configurados</p>
+    ${numeros.map((numero) => {
+      const item = findingCatalogIndex.find((entry) => entry.number === numero);
+      const titulo = item ? removeFindingCatalogNumber(item.incidence) || item.incidence : "Hallazgo fuera del catalogo";
+      return `
+        <article class="finding-texts-item" data-finding-text-open="${escapeHtml(numero)}">
+          <header>
+            <strong>${escapeHtml(numero)}. ${escapeHtml(titulo)}</strong>
+            <span>${escapeHtml(item ? item.category : "")}</span>
+          </header>
+          ${textos[numero].description ? `<p>${escapeHtml(textos[numero].description)}</p>` : ""}
+          ${textos[numero].recommendation ? `<p class="finding-texts-reco">${escapeHtml(textos[numero].recommendation)}</p>` : ""}
+        </article>`;
+    }).join("")}
+  `;
+}
+
+function renderFindingTextsPanel() {
+  if (!elements.findingTextsSelector) {
+    return;
+  }
+  renderFindingTextsSelector();
+  loadFindingTextsForSelection();
+  renderFindingTextsSummary();
+  renderFindingTextsList();
+}
+
+function initializeFindingTextsPanel() {
+  const select = elements.findingTextsSelector;
+  if (!select || select.dataset.wired === "true") {
+    return;
+  }
+  select.dataset.wired = "true";
+
+  select.addEventListener("change", loadFindingTextsForSelection);
+
+  onAction(elements.findingTextsSaveButton, async () => {
+    const numero = select.value;
+    if (!numero) {
+      return false;
+    }
+    await saveFindingDefaultTexts(
+      numero,
+      elements.findingTextsDescription.value,
+      elements.findingTextsRecommendation.value
+    );
+    renderFindingTextsPanel();
+    select.value = numero;
+    loadFindingTextsForSelection();
+    return true;
+  }, { done: "Guardado" });
+
+  elements.findingTextsClearButton.addEventListener("click", async () => {
+    const numero = select.value;
+    const seguro = await showConfirmModal({
+      eyebrow: "Hallazgos",
+      title: "Quitar el texto por defecto",
+      message: "Este hallazgo va a volver a la frase generica. Los reportes ya capturados no cambian.",
+      confirmLabel: "Quitar",
+      confirmVariant: "danger"
+    });
+    if (!seguro) {
+      return;
+    }
+    await saveFindingDefaultTexts(numero, "", "");
+    renderFindingTextsPanel();
+    select.value = numero;
+    loadFindingTextsForSelection();
+  });
+
+  elements.findingTextsList.addEventListener("click", (event) => {
+    const tarjeta = event.target.closest("[data-finding-text-open]");
+    if (!tarjeta) {
+      return;
+    }
+    select.value = tarjeta.dataset.findingTextOpen;
+    loadFindingTextsForSelection();
+    select.scrollIntoView({ block: "center" });
+  });
+}
+
 async function openSettingsPanel(sectionId = activeSettingsSection || "general") {
   activeSettingsSection = sectionId || "general";
   await populateSettingsForm();
   setSettingsSection(activeSettingsSection || "general");
   showView("settings");
+  initializeFindingTextsPanel();
+  renderFindingTextsPanel();
   // Sin await: la medicion del disco puede tardar y no debe frenar la pantalla.
   renderStorageUsagePanel();
 }

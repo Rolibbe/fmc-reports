@@ -106,13 +106,20 @@ function parseQuickFindingNumbers(value) {
     .filter(Boolean)));
 }
 
+// Unico punto donde nace un hallazgo tomado del catalogo: por numero, desde
+// el checklist o desde la bitacora. Aplicando aqui los textos por defecto,
+// los tres caminos quedan cubiertos.
 function createFindingFromCatalogItem(catalogItem) {
+  const porDefecto = typeof getFindingDefaultTexts === "function"
+    ? getFindingDefaultTexts(catalogItem.number)
+    : null;
   return {
     id: createId(),
     category: catalogItem.category,
     incidence: catalogItem.incidence,
-    description: buildGenericFindingDescription(catalogItem.category, catalogItem.incidence),
-    recommendation: "",
+    description: porDefecto?.description
+      || buildGenericFindingDescription(catalogItem.category, catalogItem.incidence),
+    recommendation: porDefecto?.recommendation || "",
     photos: [],
     updatedAt: new Date().toISOString()
   };

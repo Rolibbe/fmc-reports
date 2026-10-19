@@ -26,8 +26,16 @@ const SERVICE_CLEANING_TEXT = "Se realizo limpieza general del equipo.";
 const SERVICE_LUBRICATION_TEXT = "Se lubrico cadena/cable de carga";
 const FIXED_RECOMMENDATION_TEXT = "Se recomienda atender de forma prioritaria las condiciones detectadas, implementando las acciones correctivas correspondientes para garantizar la operacion segura del equipo, prevenir riesgos al personal y asegurar el cumplimiento de la normativa aplicable.";
 const DEFAULT_MAINTENANCE_FREQUENCY_MONTHS = 6;
-const APP_VERSION = "1.5.5";
+const APP_VERSION = "1.5.6";
 const APP_RELEASE_NOTES = {
+  "1.5.6": {
+    title: "Actualizacion 1.5.6",
+    summary: [
+      "Nueva seccion en Configuracion: Textos de hallazgos. Ahi le escribes a cada hallazgo su descripcion y recomendacion por defecto.",
+      "Al capturar ese hallazgo, los campos llegan ya llenos con tu texto y el tecnico solo ajusta el detalle del equipo.",
+      "Los textos se sincronizan solos a todos los dispositivos, como el resto de la configuracion."
+    ]
+  },
   "1.5.5": {
     title: "Actualizacion 1.5.5",
     summary: [
@@ -768,6 +776,13 @@ const elements = {
   resetSettingsButton: document.getElementById("resetSettingsButton"),
   settingsClientPlants: document.getElementById("settingsClientPlants"),
   settingsDefaultFrequency: document.getElementById("settingsDefaultFrequency"),
+  findingTextsSelector: document.getElementById("findingTextsSelector"),
+  findingTextsDescription: document.getElementById("findingTextsDescription"),
+  findingTextsRecommendation: document.getElementById("findingTextsRecommendation"),
+  findingTextsSaveButton: document.getElementById("findingTextsSaveButton"),
+  findingTextsClearButton: document.getElementById("findingTextsClearButton"),
+  findingTextsSummary: document.getElementById("findingTextsSummary"),
+  findingTextsList: document.getElementById("findingTextsList"),
   storageUsagePanel: document.getElementById("storageUsagePanel"),
   settingsRecommendationText: document.getElementById("settingsRecommendationText"),
   settingsNewPolipasto: document.getElementById("settingsNewPolipasto"),

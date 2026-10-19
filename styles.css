@@ -9637,3 +9637,84 @@ button.is-failed::before {
 .corrective-hint b {
   color: var(--ink);
 }
+
+
+/* =====================================================================
+   TEXTOS POR DEFECTO DE HALLAZGOS
+   ===================================================================== */
+
+.finding-texts-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.finding-texts-summary article {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-1);
+}
+
+.finding-texts-summary span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.finding-texts-summary strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: 1.18rem;
+}
+
+.finding-texts-list {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.finding-texts-item {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 0;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.finding-texts-item:hover {
+  background: var(--surface-1);
+}
+
+.finding-texts-item header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.finding-texts-item strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.finding-texts-item header span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.finding-texts-item p {
+  margin: 0 0 4px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.finding-texts-item .finding-texts-reco {
+  color: var(--muted-strong);
+  font-style: italic;
+}

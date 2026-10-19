@@ -9,7 +9,7 @@
   <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
   <link rel="icon" href="icon-512.png" type="image/png" sizes="512x512">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=214">
+  <link rel="stylesheet" href="styles.css?v=215">
 </head>
 <body class="auth-locked">
   <section id="loginGate" class="login-gate" aria-label="Inicio de sesion">
@@ -1105,9 +1105,40 @@
           <button class="settings-section-tab" type="button" data-settings-section-tab="backup">Respaldos</button>
           <button class="settings-section-tab" type="button" data-settings-section-tab="audit">Bitacora</button>
           <button class="settings-section-tab" type="button" data-settings-section-tab="catalogs">Catalogos</button>
+          <button class="settings-section-tab" type="button" data-settings-section-tab="findingTexts">Textos de hallazgos</button>
         </div>
 
         <div class="settings-grid">
+          <section class="subpanel" data-settings-section-panel="findingTexts">
+            <p class="eyebrow">Hallazgos</p>
+            <h3>Descripcion y recomendacion por defecto</h3>
+            <p class="field-hint">Elige un hallazgo del catalogo y escribe lo que quieres que aparezca cuando se capture. El tecnico lo vera ya lleno y podra ajustarlo al equipo. Lo que no tenga texto propio sigue saliendo con la frase generica de siempre.</p>
+
+            <div id="findingTextsSummary" class="finding-texts-summary"></div>
+
+            <label>
+              Hallazgo del catalogo
+              <select id="findingTextsSelector"></select>
+            </label>
+
+            <label>
+              Descripcion por defecto
+              <textarea id="findingTextsDescription" rows="4" placeholder="Que se observo y por que importa. Es lo que va a leer el cliente."></textarea>
+            </label>
+
+            <label>
+              Recomendacion por defecto
+              <textarea id="findingTextsRecommendation" rows="3" placeholder="Accion correctiva sugerida para este hallazgo."></textarea>
+            </label>
+
+            <div class="toolbar">
+              <button id="findingTextsSaveButton" class="primary-button" type="button">Guardar texto</button>
+              <button id="findingTextsClearButton" class="ghost-button" type="button">Quitar texto</button>
+            </div>
+
+            <div id="findingTextsList" class="finding-texts-list"></div>
+          </section>
+
           <section class="subpanel" data-settings-section-panel="catalogs">
             <p class="eyebrow">Clientes</p>
             <label>
@@ -1571,11 +1602,11 @@
     <button id="mobileMoreButton" type="button"><span>...</span>Mas</button>
   </nav>
 
-  <script src="feedback.js?v=214"></script>
-  <script src="action-feedback.js?v=214"></script>
-  <script src="report-template-config.js?v=214"></script>
-  <script src="finding-catalog-config.js?v=214"></script>
-  <script src="condition-severity-config.js?v=214"></script>
+  <script src="feedback.js?v=215"></script>
+  <script src="action-feedback.js?v=215"></script>
+  <script src="report-template-config.js?v=215"></script>
+  <script src="finding-catalog-config.js?v=215"></script>
+  <script src="condition-severity-config.js?v=215"></script>
   <section id="globalSearchPanel" class="modal-backdrop global-search-backdrop hidden" aria-label="Busqueda global">
     <div class="subpanel modal-panel global-search-modal">
       <div class="section-header">
@@ -1600,30 +1631,30 @@
     </div>
   </section>
 
-  <script src="checklist-config.js?v=214"></script>
-  <script src="findings.js?v=214"></script>
-  <script src="ui-modals.js?v=214"></script>
-  <script src="crane-checklist-ui.js?v=214"></script>
-  <script src="crane-checklist-pdf.js?v=214"></script>
-  <script src="company-cranes.js?v=214"></script>
-  <script src="equipment.js?v=214"></script>
-  <script src="pdf-actions.js?v=214"></script>
-  <script src="backup.js?v=214"></script>
-  <script src="storage.js?v=214"></script>
-  <script src="settings.js?v=214"></script>
-  <script src="operations.js?v=214"></script>
-  <script src="maintenance-panel.js?v=214"></script>
-  <script src="clients-map.js?v=214"></script>
-  <script src="dashboard.js?v=214"></script>
-  <script src="home-panel.js?v=214"></script>
-  <script src="report-generator.js?v=214"></script>
-  <script src="client-portal.js?v=214"></script>
-  <script src="supabase-config.js?v=214"></script>
-  <script src="cloud-sync.js?v=214"></script>
-  <script src="presence.js?v=214"></script>
-  <script src="finding-log.js?v=214"></script>
-  <script src="global-search.js?v=214"></script>
-  <script src="app.js?v=214"></script>
+  <script src="checklist-config.js?v=215"></script>
+  <script src="findings.js?v=215"></script>
+  <script src="ui-modals.js?v=215"></script>
+  <script src="crane-checklist-ui.js?v=215"></script>
+  <script src="crane-checklist-pdf.js?v=215"></script>
+  <script src="company-cranes.js?v=215"></script>
+  <script src="equipment.js?v=215"></script>
+  <script src="pdf-actions.js?v=215"></script>
+  <script src="backup.js?v=215"></script>
+  <script src="storage.js?v=215"></script>
+  <script src="settings.js?v=215"></script>
+  <script src="operations.js?v=215"></script>
+  <script src="maintenance-panel.js?v=215"></script>
+  <script src="clients-map.js?v=215"></script>
+  <script src="dashboard.js?v=215"></script>
+  <script src="home-panel.js?v=215"></script>
+  <script src="report-generator.js?v=215"></script>
+  <script src="client-portal.js?v=215"></script>
+  <script src="supabase-config.js?v=215"></script>
+  <script src="cloud-sync.js?v=215"></script>
+  <script src="presence.js?v=215"></script>
+  <script src="finding-log.js?v=215"></script>
+  <script src="global-search.js?v=215"></script>
+  <script src="app.js?v=215"></script>
 </body>
 </html>
 
